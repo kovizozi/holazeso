@@ -90,6 +90,11 @@ body {
   margin: 1rem 0 0;
 }
 
+.direction-arrow {
+  display: inline-block;
+  margin-left: 0.35em;
+}
+
 .place-line {
   font-size: clamp(32px, 9vw, 44px);
   font-weight: 600;

@@ -32,6 +32,13 @@ function destinationPoint(lat, lon, bearingDeg, distKm) {
   return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
 }
 
+const COMPASS_POINTS = ["É", "ÉK", "K", "DK", "D", "DNy", "Ny", "ÉNy"];
+
+function compassLabel(bearingDeg) {
+  const idx = Math.round(bearingDeg / 45) % 8;
+  return COMPASS_POINTS[idx];
+}
+
 // A felhasználó koordinátája köré generált keresési pontok, gyűrűnként
 // növekvő távolsággal, hogy a legközelebbi találat mindig elöl legyen.
 function generateSearchGrid(userLoc) {
@@ -39,7 +46,7 @@ function generateSearchGrid(userLoc) {
   for (const distance of SEARCH_RINGS_KM) {
     for (const bearing of SEARCH_BEARINGS_DEG) {
       const p = destinationPoint(userLoc.lat, userLoc.lon, bearing, distance);
-      points.push({ lat: p.lat, lon: p.lon, distance });
+      points.push({ lat: p.lat, lon: p.lon, distance, bearing });
     }
   }
   return points;
@@ -190,10 +197,12 @@ async function render(userLoc, userForecast, gridPoints, gridForecasts) {
       console.error(err);
     }
 
+    const direction = compassLabel(nearest.bearing);
     setQ2(
       "de hol esik pontosan?",
       `<p class="place-line">${placeName || "egy közeli térségben"}</p>
-       <p class="context">kb. ${Math.round(nearest.distance)} km innen</p>`
+       <p class="context">kb. ${Math.round(nearest.distance)} km innen
+       <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>`
     );
     return;
   }
