@@ -1,5 +1,7 @@
 // ---- Referenciatelepülések ----
-// Ezek alapján döntjük el, esik-e valahol az országban, és milyen messze.
+// Ezek alapján döntjük el, esik-e valahol a közeledben, és milyen messze.
+// A magyar városok sűrűbb mintát adnak itthonra, a világvárosok pedig azt
+// biztosítják, hogy külföldről is legyen mihez hasonlítani.
 const HU_TOWNS = [
   { name: "Budapest", lat: 47.4979, lon: 19.0402 },
   { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
@@ -21,9 +23,7 @@ const HU_TOWNS = [
   { name: "Szekszárd", lat: 46.3474, lon: 18.7062 },
 ];
 
-// "Sehol" állapothoz: előbb európai nagyvárosokat nézünk, csak ha ott sem esik
-// sehol, akkor váltunk a távolabbi városokra.
-const EUROPEAN_CITIES = [
+const WORLD_CITIES = [
   { name: "London", lat: 51.5074, lon: -0.1278 },
   { name: "Párizs", lat: 48.8566, lon: 2.3522 },
   { name: "Berlin", lat: 52.5200, lon: 13.4050 },
@@ -32,9 +32,6 @@ const EUROPEAN_CITIES = [
   { name: "Bergen", lat: 60.3913, lon: 5.3221 },
   { name: "Zürich", lat: 47.3769, lon: 8.5417 },
   { name: "Reykjavík", lat: 64.1466, lon: -21.9426 },
-];
-
-const OTHER_CITIES = [
   { name: "Tokió", lat: 35.6762, lon: 139.6503 },
   { name: "Lagos", lat: 6.5244, lon: 3.3792 },
   { name: "Szingapúr", lat: 1.3521, lon: 103.8198 },
@@ -42,6 +39,8 @@ const OTHER_CITIES = [
   { name: "Mumbai", lat: 19.0760, lon: 72.8777 },
   { name: "Rio de Janeiro", lat: -22.9068, lon: -43.1729 },
 ];
+
+const REFERENCE_CITIES = [...HU_TOWNS, ...WORLD_CITIES];
 
 const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős település
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
@@ -79,26 +78,24 @@ function loadSavedLocation() {
 }
 
 // Település keresése az Open-Meteo Geocoding API-val (kézi keresés fallbackhez).
-// A "Közelben/Távolban" logika csak magyar referenciatelepülésekkel dolgozik,
-// ezért az országkódot is visszaadjuk, hogy külföldi találatot ki tudjunk szűrni.
+// Bármely ország találata elfogadott, nincs országra szűrés.
 async function geocode(name) {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=hu&format=json`;
   const res = await fetch(url);
   const data = await res.json();
   if (!data.results || data.results.length === 0) return null;
   const r = data.results[0];
-  return { name: r.name, lat: r.latitude, lon: r.longitude, countryCode: r.country_code };
+  return { name: r.name, lat: r.latitude, lon: r.longitude };
 }
 
 // Koordinátából településnév az OpenStreetMap-alapú, kulcs nélküli BigDataCloud
-// reverse geocoding API-val. Ha nem sikerül, null nevet és országkódot adunk
-// vissza, és általános szöveggel folytatjuk. A koordináta enélkül is elég a
-// válaszhoz, csak az országellenőrzés marad el ilyenkor.
+// reverse geocoding API-val. Ha nem sikerül, null-t adunk vissza, és általános
+// szöveggel folytatjuk. A koordináta enélkül is elég a válaszhoz.
 async function reverseGeocode(lat, lon) {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=hu`;
   const res = await fetch(url);
   const data = await res.json();
-  return { name: data.city || data.locality || null, countryCode: data.countryCode || null };
+  return data.city || data.locality || null;
 }
 
 // A böngésző helymeghatározását Promise-ba csomagolja.
@@ -118,7 +115,7 @@ function detectLocation() {
 
 // Egyetlen hívásban lekérjük a felhasználó helyét ÉS az összes referenciatelepülést
 async function fetchAllPrecipitation(userLoc) {
-  const allPoints = [userLoc, ...HU_TOWNS, ...EUROPEAN_CITIES, ...OTHER_CITIES];
+  const allPoints = [userLoc, ...REFERENCE_CITIES];
   const lats = allPoints.map(p => p.lat).join(",");
   const lons = allPoints.map(p => p.lon).join(",");
   // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
@@ -128,13 +125,9 @@ async function fetchAllPrecipitation(userLoc) {
   const data = await res.json();
 
   // A válasz ugyanabban a sorrendben jön vissza, ahogy küldtük a koordinátákat
-  const huEnd = 1 + HU_TOWNS.length;
-  const euEnd = huEnd + EUROPEAN_CITIES.length;
   return {
     user: data[0],
-    huTowns: data.slice(1, huEnd),
-    europeanCities: data.slice(huEnd, euEnd),
-    otherCities: data.slice(euEnd),
+    reference: data.slice(1),
   };
 }
 
@@ -158,8 +151,8 @@ function isRainingSoon(forecast) {
 async function run(userLoc) {
   showLoading(true);
   try {
-    const { user, huTowns, europeanCities, otherCities } = await fetchAllPrecipitation(userLoc);
-    render(userLoc, user, huTowns, europeanCities, otherCities);
+    const { user, reference } = await fetchAllPrecipitation(userLoc);
+    render(userLoc, user, reference);
   } catch (err) {
     console.error(err);
     setHero("Hiba", "");
@@ -171,7 +164,7 @@ async function run(userLoc) {
   }
 }
 
-function render(userLoc, userForecast, huForecasts, europeanForecasts, otherForecasts) {
+function render(userLoc, userForecast, referenceForecasts) {
   document.getElementById("q1-question").textContent =
     `hol az eső ${userLoc.name} környékén?`;
 
@@ -187,22 +180,22 @@ function render(userLoc, userForecast, huForecasts, europeanForecasts, otherFore
     return;
   }
 
-  // --- Keressünk esőt a hazai referenciatelepüléseken ---
-  const rainingHu = HU_TOWNS
-    .map((town, i) => ({ town, forecast: huForecasts[i] }))
+  // --- Keressük meg a hozzád legközelebbi esős referenciahelyet ---
+  const raining = REFERENCE_CITIES
+    .map((city, i) => ({ city, forecast: referenceForecasts[i] }))
     .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ town }) => ({
-      ...town,
-      distance: distanceKm(userLoc.lat, userLoc.lon, town.lat, town.lon),
+    .map(({ city }) => ({
+      ...city,
+      distance: distanceKm(userLoc.lat, userLoc.lon, city.lat, city.lon),
     }))
     .sort((a, b) => a.distance - b.distance);
 
-  if (rainingHu.length > 0) {
-    const nearest = rainingHu[0];
+  if (raining.length > 0) {
+    const nearest = raining[0];
     const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
     setHero(
       isNearby ? "Közelben" : "Távolban",
-      isNearby ? "a közeli térségben esik" : "az ország egy másik pontján esik"
+      isNearby ? "a közeli térségben esik" : "egy távolabbi városban esik"
     );
     setQ2(
       "de hol esik pontosan?",
@@ -212,30 +205,9 @@ function render(userLoc, userForecast, huForecasts, europeanForecasts, otherFore
     return;
   }
 
-  // --- Sehol az országban nem esik: nézzünk körbe a világban, előbb Európában ---
-  setHero("Sehol", "ma száraz idő van egész Magyarországon");
-
-  const rainingEuropean = EUROPEAN_CITIES
-    .map((city, i) => ({ city, forecast: europeanForecasts[i] }))
-    .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ city }) => city.name);
-
-  const rainingOther = OTHER_CITIES
-    .map((city, i) => ({ city, forecast: otherForecasts[i] }))
-    .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ city }) => city.name);
-
-  const rainingSomewhere = rainingEuropean.length > 0 ? rainingEuropean : rainingOther;
-
-  if (rainingSomewhere.length > 0) {
-    const shown = rainingSomewhere.slice(0, 3);
-    setQ2(
-      "de hol esik éppen a Földön?",
-      shown.map(name => `<p class="place-line">${name}</p>`).join("")
-    );
-  } else {
-    setQ2(null);
-  }
+  // --- A teljes figyelt hálózatban sehol nem esik ---
+  setHero("Sehol", "a közeledben most száraz idő van");
+  setQ2(null);
 }
 
 function setHero(answer, context) {
@@ -284,19 +256,13 @@ async function tryAutoLocate() {
   showLoading(true, "helymeghatározás…");
   try {
     const coords = await detectLocation();
-    let place = { name: null, countryCode: null };
+    let name = null;
     try {
-      place = await reverseGeocode(coords.lat, coords.lon);
+      name = await reverseGeocode(coords.lat, coords.lon);
     } catch (err) {
       console.error(err);
     }
-    if (place.countryCode && place.countryCode !== "HU") {
-      showLoading(false);
-      showPicker();
-      showError("Úgy tűnik, nem Magyarországon vagy. Egyelőre csak magyarországi településekhez működik az oldal, add meg kézzel:");
-      return;
-    }
-    const loc = { name: place.name || "a jelenlegi helyzeted", lat: coords.lat, lon: coords.lon };
+    const loc = { name: name || "a jelenlegi helyzeted", lat: coords.lat, lon: coords.lon };
     saveLocation(loc);
     showLoading(false);
     showResult();
@@ -325,10 +291,6 @@ document.getElementById("location-form").addEventListener("submit", async (e) =>
   }
   if (!loc) {
     showError("Nem találtunk ilyen települést, próbáld pontosabban.");
-    return;
-  }
-  if (loc.countryCode !== "HU") {
-    showError("Egyelőre csak magyarországi településekhez működik az oldal.");
     return;
   }
   saveLocation(loc);
