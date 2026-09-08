@@ -1,0 +1,171 @@
+:root {
+  --bg: #ffffff;
+  --fg: #111111;
+  --muted: #6b6b6b;
+  --border: #dddddd;
+  --error: #b3261e;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111111;
+    --fg: #f2f2f2;
+    --muted: #9a9a9a;
+    --border: #333333;
+    --error: #ff6b60;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#app {
+  flex: 1;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 2.5rem 1.25rem;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+}
+
+.domain {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.block {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.detail-block {
+  border-top: 1px solid var(--border);
+}
+
+.question {
+  font-size: 16px;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+.answer {
+  font-size: clamp(56px, 16vw, 140px);
+  font-weight: 700;
+  line-height: 1;
+  margin: 0;
+}
+
+.context {
+  font-size: 18px;
+  color: var(--muted);
+  margin: 1rem 0 0;
+}
+
+.place-line {
+  font-size: clamp(32px, 9vw, 44px);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0.35rem 0;
+}
+
+#location-picker {
+  text-align: center;
+  padding-top: 4rem;
+}
+
+.label {
+  display: block;
+  font-size: 18px;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+#location-form {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+input[type="text"] {
+  font-family: inherit;
+  font-size: 18px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 4px;
+  width: 220px;
+}
+
+button[type="submit"] {
+  font-family: inherit;
+  font-size: 16px;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.error {
+  color: var(--error);
+  font-size: 14px;
+  margin-top: 1rem;
+}
+
+.loading {
+  text-align: center;
+  color: var(--muted);
+  padding-top: 4rem;
+}
+
+footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 1.5rem;
+}
+
+footer a {
+  color: var(--muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
