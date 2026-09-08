@@ -1,62 +1,48 @@
-// ---- Referenciatelepülések ----
-// Ezek alapján döntjük el, esik-e valahol a közeledben, és milyen messze.
-// A magyar városok sűrűbb mintát adnak itthonra, a világvárosok pedig azt
-// biztosítják, hogy külföldről is legyen mihez hasonlítani.
-const HU_TOWNS = [
-  { name: "Budapest", lat: 47.4979, lon: 19.0402 },
-  { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
-  { name: "Szeged", lat: 46.2530, lon: 20.1414 },
-  { name: "Miskolc", lat: 48.1035, lon: 20.7784 },
-  { name: "Pécs", lat: 46.0727, lon: 18.2330 },
-  { name: "Győr", lat: 47.6875, lon: 17.6504 },
-  { name: "Nyíregyháza", lat: 47.9495, lon: 21.7244 },
-  { name: "Kecskemét", lat: 46.9062, lon: 19.6913 },
-  { name: "Székesfehérvár", lat: 47.1860, lon: 18.4221 },
-  { name: "Szombathely", lat: 47.2307, lon: 16.6218 },
-  { name: "Szolnok", lat: 47.1747, lon: 20.1830 },
-  { name: "Kaposvár", lat: 46.3593, lon: 17.7967 },
-  { name: "Békéscsaba", lat: 46.6736, lon: 21.0877 },
-  { name: "Eger", lat: 47.9025, lon: 20.3772 },
-  { name: "Veszprém", lat: 47.0932, lon: 17.9115 },
-  { name: "Zalaegerszeg", lat: 46.8417, lon: 16.8416 },
-  { name: "Vác", lat: 47.7757, lon: 19.1343 },
-  { name: "Szekszárd", lat: 46.3474, lon: 18.7062 },
-];
+// ---- Keresési rács ----
+// Nincs fix településlista: a felhasználó koordinátája köré generálunk egy
+// gyűrűkből álló ponthálót, és abban keressük a legközelebbi esőt. Ez minden
+// országban egyformán pontos, nem csak Magyarországon vagy egy előre
+// kiválasztott városlistán.
+const SEARCH_RINGS_KM = [30, 70, 150, 300, 600];
+const SEARCH_BEARINGS_DEG = [0, 45, 90, 135, 180, 225, 270, 315];
 
-const WORLD_CITIES = [
-  { name: "London", lat: 51.5074, lon: -0.1278 },
-  { name: "Párizs", lat: 48.8566, lon: 2.3522 },
-  { name: "Berlin", lat: 52.5200, lon: 13.4050 },
-  { name: "Amszterdam", lat: 52.3676, lon: 4.9041 },
-  { name: "Dublin", lat: 53.3498, lon: -6.2603 },
-  { name: "Bergen", lat: 60.3913, lon: 5.3221 },
-  { name: "Zürich", lat: 47.3769, lon: 8.5417 },
-  { name: "Reykjavík", lat: 64.1466, lon: -21.9426 },
-  { name: "Tokió", lat: 35.6762, lon: 139.6503 },
-  { name: "Lagos", lat: 6.5244, lon: 3.3792 },
-  { name: "Szingapúr", lat: 1.3521, lon: 103.8198 },
-  { name: "Vancouver", lat: 49.2827, lon: -123.1207 },
-  { name: "Mumbai", lat: 19.0760, lon: 72.8777 },
-  { name: "Rio de Janeiro", lat: -22.9068, lon: -43.1729 },
-];
-
-const REFERENCE_CITIES = [...HU_TOWNS, ...WORLD_CITIES];
-
-const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős település
+const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős hely
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
 
 // ---- Segédfüggvények ----
 
-// Két koordináta közti távolság kilométerben (haversine-képlet)
-function distanceKm(lat1, lon1, lat2, lon2) {
+// Adott koordinátától egy irányszög (fok) és távolság (km) alapján kiszámolja
+// a célpont koordinátáit (gömbi navigációs képlet).
+function destinationPoint(lat, lon, bearingDeg, distKm) {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const bearing = bearingDeg * Math.PI / 180;
+  const lat1 = lat * Math.PI / 180;
+  const lon1 = lon * Math.PI / 180;
+  const dOverR = distKm / R;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(dOverR) +
+    Math.cos(lat1) * Math.sin(dOverR) * Math.cos(bearing)
+  );
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(bearing) * Math.sin(dOverR) * Math.cos(lat1),
+    Math.cos(dOverR) - Math.sin(lat1) * Math.sin(lat2)
+  );
+
+  return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
+}
+
+// A felhasználó koordinátája köré generált keresési pontok, gyűrűnként
+// növekvő távolsággal, hogy a legközelebbi találat mindig elöl legyen.
+function generateSearchGrid(userLoc) {
+  const points = [];
+  for (const distance of SEARCH_RINGS_KM) {
+    for (const bearing of SEARCH_BEARINGS_DEG) {
+      const p = destinationPoint(userLoc.lat, userLoc.lon, bearing, distance);
+      points.push({ lat: p.lat, lon: p.lon, distance });
+    }
+  }
+  return points;
 }
 
 function saveLocation(loc) {
@@ -113,9 +99,11 @@ function detectLocation() {
   });
 }
 
-// Egyetlen hívásban lekérjük a felhasználó helyét ÉS az összes referenciatelepülést
+// Egyetlen hívásban lekérjük a felhasználó helyét ÉS a köré generált rács
+// összes pontját.
 async function fetchAllPrecipitation(userLoc) {
-  const allPoints = [userLoc, ...REFERENCE_CITIES];
+  const grid = generateSearchGrid(userLoc);
+  const allPoints = [userLoc, ...grid];
   const lats = allPoints.map(p => p.lat).join(",");
   const lons = allPoints.map(p => p.lon).join(",");
   // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
@@ -127,7 +115,8 @@ async function fetchAllPrecipitation(userLoc) {
   // A válasz ugyanabban a sorrendben jön vissza, ahogy küldtük a koordinátákat
   return {
     user: data[0],
-    reference: data.slice(1),
+    grid,
+    gridForecasts: data.slice(1),
   };
 }
 
@@ -151,8 +140,8 @@ function isRainingSoon(forecast) {
 async function run(userLoc) {
   showLoading(true);
   try {
-    const { user, reference } = await fetchAllPrecipitation(userLoc);
-    render(userLoc, user, reference);
+    const { user, grid, gridForecasts } = await fetchAllPrecipitation(userLoc);
+    await render(userLoc, user, grid, gridForecasts);
   } catch (err) {
     console.error(err);
     setHero("Hiba", "");
@@ -164,7 +153,7 @@ async function run(userLoc) {
   }
 }
 
-function render(userLoc, userForecast, referenceForecasts) {
+async function render(userLoc, userForecast, gridPoints, gridForecasts) {
   document.getElementById("q1-question").textContent =
     `hol az eső ${userLoc.name} környékén?`;
 
@@ -180,32 +169,36 @@ function render(userLoc, userForecast, referenceForecasts) {
     return;
   }
 
-  // --- Keressük meg a hozzád legközelebbi esős referenciahelyet ---
-  const raining = REFERENCE_CITIES
-    .map((city, i) => ({ city, forecast: referenceForecasts[i] }))
+  // --- Keressük meg a hozzád legközelebbi esős rácspontot ---
+  const raining = gridPoints
+    .map((point, i) => ({ point, forecast: gridForecasts[i] }))
     .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ city }) => ({
-      ...city,
-      distance: distanceKm(userLoc.lat, userLoc.lon, city.lat, city.lon),
-    }))
-    .sort((a, b) => a.distance - b.distance);
+    .sort((a, b) => a.point.distance - b.point.distance);
 
   if (raining.length > 0) {
-    const nearest = raining[0];
+    const nearest = raining[0].point;
     const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
     setHero(
       isNearby ? "Közelben" : "Távolban",
-      isNearby ? "a közeli térségben esik" : "egy távolabbi városban esik"
+      isNearby ? "a közeli térségben esik" : "egy távolabbi térségben esik"
     );
+
+    let placeName = null;
+    try {
+      placeName = await reverseGeocode(nearest.lat, nearest.lon);
+    } catch (err) {
+      console.error(err);
+    }
+
     setQ2(
       "de hol esik pontosan?",
-      `<p class="place-line">${nearest.name}</p>
+      `<p class="place-line">${placeName || "egy közeli térségben"}</p>
        <p class="context">kb. ${Math.round(nearest.distance)} km innen</p>`
     );
     return;
   }
 
-  // --- A teljes figyelt hálózatban sehol nem esik ---
+  // --- A teljes átvizsgált körzetben sehol nem esik ---
   setHero("Sehol", "a közeledben most száraz idő van");
   setQ2(null);
 }
