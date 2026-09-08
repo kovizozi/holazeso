@@ -3,20 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>holazeso.hu — hol az eső?</title>
+<title>holazeso.hu: hol az eső?</title>
+<meta name="description" content="Esik nálad? Egyetlen kérdés, egyetlen válasz: Nálad, Közelben, Távolban vagy Sehol. Automatikus helymeghatározással, valós időjárási adatokkal.">
+<link rel="canonical" href="https://holazeso.hu/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="holazeso.hu: hol az eső?">
+<meta property="og:description" content="Esik nálad? Egyetlen kérdés, egyetlen válasz.">
+<meta property="og:url" content="https://holazeso.hu/">
+<meta property="og:locale" content="hu_HU">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <main id="app">
 
-    <!-- Helyszín-kereső: csak akkor látszik, ha még nincs elmentett település -->
+    <!-- Helyszín-kereső: csak akkor látszik, ha az automatikus helymeghatározás nem sikerült -->
     <section id="location-picker" hidden>
       <label for="location-input" class="label">Melyik településről van szó?</label>
       <form id="location-form">
         <input type="text" id="location-input" placeholder="pl. Kecskemét" autocomplete="off" required>
         <button type="submit">Mehet</button>
       </form>
+      <button id="retry-geo" class="link-btn" type="button">inkább a jelenlegi helyzetem használata</button>
       <p id="location-error" class="error" hidden></p>
     </section>
 
@@ -29,7 +37,7 @@
       </div>
 
       <div class="block hero-block">
-        <p class="question" id="q1-question">hol az eső …?</p>
+        <p class="question" id="q1-question">hol az eső…?</p>
         <p class="answer" id="q1-answer">…</p>
         <p class="context" id="q1-context"></p>
       </div>
@@ -50,6 +58,8 @@
   </footer>
 
   <script src="script.js"></script>
+  <script data-goatcounter="https://holazeso.goatcounter.com/count"
+          async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
 </body>
 </html>

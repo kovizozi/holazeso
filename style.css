@@ -116,6 +116,11 @@ body {
   flex-wrap: wrap;
 }
 
+#retry-geo {
+  display: block;
+  margin: 1rem auto 0;
+}
+
 input[type="text"] {
   font-family: inherit;
   font-size: 18px;
