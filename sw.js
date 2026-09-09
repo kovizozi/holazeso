@@ -4,9 +4,26 @@
 // szabad élő időjárási adatot gyorsítótárazni.
 const CACHE_NAME = "holazeso-cache-v1";
 
+// Azonnal vegye át az irányítást minden frissítésnél, ne várjon arra, hogy
+// az app összes megnyitott példánya bezáródjon (telepített appnál ez sokáig
+// vagy sosem történne meg, és addig a régi service worker maradna aktív).
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== location.origin) return;
+
+  // A navigációs kéréseket (magát a lapot) sose cache-eljük: az index.html
+  // hordozza a script.js/style.css ?v=N cache-busting hivatkozásait, ezért
+  // mindig a legfrissebbnek kell lennie, különben egy telepített (standalone)
+  // appban örökre megragadhatna egy régi verziónál.
+  if (event.request.mode === "navigate") return;
 
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
