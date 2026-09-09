@@ -301,6 +301,33 @@ function setQ2(question, html) {
 
 // ---- UI-vezérlés ----
 
+// Telepített (standalone) módban nincs böngésző-frissítés gomb, ezért amíg az
+// app látható és van kiválasztott helyszín, percenként újra lekérdezzük az
+// időjárást. Háttérben (nem látható lapon) nem, hogy ne fogyjon feleslegesen
+// az akkumulátor/API-hívás.
+let currentLoc = null;
+
+function runAndTrack(loc) {
+  currentLoc = loc;
+  run(loc);
+}
+
+function shouldAutoRefresh() {
+  return (
+    currentLoc &&
+    document.visibilityState === "visible" &&
+    !document.getElementById("result").hidden
+  );
+}
+
+setInterval(() => {
+  if (shouldAutoRefresh()) run(currentLoc);
+}, 60 * 1000);
+
+document.addEventListener("visibilitychange", () => {
+  if (shouldAutoRefresh()) run(currentLoc);
+});
+
 function showLoading(on, text = "töltés…") {
   const el = document.getElementById("loading");
   el.textContent = text;
@@ -344,7 +371,7 @@ async function tryAutoLocate() {
     saveLocation(loc);
     showLoading(false);
     showResult();
-    run(loc);
+    runAndTrack(loc);
   } catch (err) {
     console.error(err);
     showLoading(false);
@@ -373,7 +400,7 @@ document.getElementById("location-form").addEventListener("submit", async (e) =>
   }
   saveLocation(loc);
   showResult();
-  run(loc);
+  runAndTrack(loc);
 });
 
 // ---- Push-értesítés ----
@@ -477,7 +504,7 @@ updateNotifyButton();
 const saved = loadSavedLocation();
 if (saved) {
   showResult();
-  run(saved);
+  runAndTrack(saved);
 } else {
   tryAutoLocate();
 }
