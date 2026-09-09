@@ -144,28 +144,40 @@ function sortRaining(points, forecasts) {
     .sort((a, b) => a.distance - b.distance);
 }
 
-// Hány legközelebbi esős pontot próbálunk megnevezni, mielőtt feladjuk.
-// Néhány pont (pl. tenger felett) névtelen marad a reverse geocodingban,
-// ilyenkor a következő legközelebbivel próbálkozunk.
-const MAX_NAMING_ATTEMPTS = 5;
+// Ha egy pontnak (pl. mert tenger felett van) nincs neve, ezekben az egyre
+// táguló sugarakban keresünk a közvetlen közelében megnevezhető helyet.
+// Nem kell, hogy a talált hely maga is esős legyen - csak arra kell, hogy
+// tudjuk emberi néven megjeleníteni, hol esik a ponthoz közel.
+const LOCAL_NAME_RINGS_KM = [20, 60, 150];
 
-// Sorban kipróbálja a legközelebbi esős pontokat, amíg talál egyet, aminek
-// van neve. Ha egyik sem nevesíthető, a legközelebbi pontot adja vissza
-// üres névvel (a hívó fél az általános "egy közeli térségben" szöveget
-// mutatja majd helyette).
-async function findNamedRainPoint(candidates) {
-  for (const point of candidates.slice(0, MAX_NAMING_ATTEMPTS)) {
-    let place = { name: null, countryCode: null, countryName: null };
-    try {
-      place = await reverseGeocode(point.lat, point.lon);
-    } catch (err) {
-      console.error(err);
-    }
-    if (place.name) {
-      return { point, place };
-    }
+// Megkeresi egy pont legközelebbi megnevezhető helyét. Előbb magát a pontot
+// próbálja, majd ha nincs neve, körülötte egyre táguló, párhuzamosan
+// lekérdezett gyűrűkben keres. Ha semmit nem talál, üres nevű objektumot ad
+// vissza, amit a hívó fél az általános "egy közeli térségben" szöveggel
+// helyettesít.
+async function findNearbyName(point) {
+  try {
+    const place = await reverseGeocode(point.lat, point.lon);
+    if (place.name) return place;
+  } catch (err) {
+    console.error(err);
   }
-  return { point: candidates[0], place: { name: null, countryCode: null, countryName: null } };
+
+  for (const radius of LOCAL_NAME_RINGS_KM) {
+    const offsets = SEARCH_BEARINGS_DEG.map(bearing => destinationPoint(point.lat, point.lon, bearing, radius));
+    const results = await Promise.all(
+      offsets.map(p =>
+        reverseGeocode(p.lat, p.lon).catch(err => {
+          console.error(err);
+          return { name: null, countryCode: null, countryName: null };
+        })
+      )
+    );
+    const named = results.find(r => r.name);
+    if (named) return named;
+  }
+
+  return { name: null, countryCode: null, countryName: null };
 }
 
 function isRainingNow(forecast) {
@@ -230,7 +242,7 @@ async function run(userLoc) {
     }
 
     if (raining.length > 0) {
-      await showNearestRain(raining, userLoc);
+      await showNearestRain(raining[0], userLoc);
     } else {
       setHero("Sehol", "a közeledben most száraz idő van");
       setQ2(null);
@@ -246,8 +258,8 @@ async function run(userLoc) {
   }
 }
 
-async function showNearestRain(candidates, userLoc) {
-  const { point: nearest, place } = await findNamedRainPoint(candidates);
+async function showNearestRain(nearest, userLoc) {
+  const place = await findNearbyName(nearest);
 
   const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
   setHero(
