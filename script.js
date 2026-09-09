@@ -387,6 +387,10 @@ document.getElementById("retry-geo").addEventListener("click", () => {
 
 // ---- Indítás ----
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(err => console.error(err));
+}
+
 const saved = loadSavedLocation();
 if (saved) {
   showResult();
