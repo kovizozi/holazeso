@@ -3,8 +3,15 @@
 // gyűrűkből álló ponthálót, és abban keressük a legközelebbi esőt. Ez minden
 // országban egyformán pontos, nem csak Magyarországon vagy egy előre
 // kiválasztott városlistán.
-const SEARCH_RINGS_KM = [30, 70, 150, 300, 600];
-const SEARCH_BEARINGS_DEG = [0, 45, 90, 135, 180, 225, 270, 315];
+//
+// Ha az első körben (600 km-ig) nem találunk esőt, egyre távolabbi köröket
+// próbálunk, amíg nem találunk, vagy amíg el nem fogynak a körök.
+const SEARCH_BATCHES_KM = [
+  [30, 70, 150, 300, 600],
+  [1000, 1500, 2200, 3000],
+  [4000, 5500, 7000, 9000],
+];
+const SEARCH_BEARINGS_DEG = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 
 const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős hely
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
@@ -39,11 +46,11 @@ function compassLabel(bearingDeg) {
   return COMPASS_POINTS[idx];
 }
 
-// A felhasználó koordinátája köré generált keresési pontok, gyűrűnként
-// növekvő távolsággal, hogy a legközelebbi találat mindig elöl legyen.
-function generateSearchGrid(userLoc) {
+// A felhasználó koordinátája köré generált keresési pontok egy adott
+// gyűrűlistára, gyűrűnként növekvő távolsággal.
+function generateSearchGrid(userLoc, rings) {
   const points = [];
-  for (const distance of SEARCH_RINGS_KM) {
+  for (const distance of rings) {
     for (const bearing of SEARCH_BEARINGS_DEG) {
       const p = destinationPoint(userLoc.lat, userLoc.lon, bearing, distance);
       points.push({ lat: p.lat, lon: p.lon, distance, bearing });
@@ -106,25 +113,26 @@ function detectLocation() {
   });
 }
 
-// Egyetlen hívásban lekérjük a felhasználó helyét ÉS a köré generált rács
-// összes pontját.
-async function fetchAllPrecipitation(userLoc) {
-  const grid = generateSearchGrid(userLoc);
-  const allPoints = [userLoc, ...grid];
-  const lats = allPoints.map(p => p.lat).join(",");
-  const lons = allPoints.map(p => p.lon).join(",");
+// Lekéri a csapadék-előrejelzést tetszőleges pontlistára, egyetlen hívásban.
+// A válasz ugyanabban a sorrendben jön vissza, ahogy küldtük a koordinátákat.
+async function fetchPrecipitation(points) {
+  const lats = points.map(p => p.lat).join(",");
+  const lons = points.map(p => p.lon).join(",");
   // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
   // átnyúlhasson a következő napra, ne csak az aktuális nap 23:00-jánál vágja le.
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=precipitation&hourly=precipitation&forecast_days=2&timezone=auto`;
   const res = await fetch(url);
-  const data = await res.json();
+  return res.json();
+}
 
-  // A válasz ugyanabban a sorrendben jön vissza, ahogy küldtük a koordinátákat
-  return {
-    user: data[0],
-    grid,
-    gridForecasts: data.slice(1),
-  };
+// A legközelebbi esős pontot adja vissza egy pont- és előrejelzés-listából,
+// vagy null-t, ha egyikben sem esik.
+function findNearestRaining(points, forecasts) {
+  const raining = points
+    .map((point, i) => ({ point, forecast: forecasts[i] }))
+    .filter(({ forecast }) => isRainingNow(forecast))
+    .sort((a, b) => a.point.distance - b.point.distance);
+  return raining.length > 0 ? raining[0].point : null;
 }
 
 function isRainingNow(forecast) {
@@ -147,8 +155,40 @@ function isRainingSoon(forecast) {
 async function run(userLoc) {
   showLoading(true);
   try {
-    const { user, grid, gridForecasts } = await fetchAllPrecipitation(userLoc);
-    await render(userLoc, user, grid, gridForecasts);
+    document.getElementById("q1-question").textContent =
+      `hol az eső ${userLoc.name} környékén?`;
+
+    // Első kör: saját hely + legközelebbi gyűrűk egyetlen hívásban
+    const firstGrid = generateSearchGrid(userLoc, SEARCH_BATCHES_KM[0]);
+    const firstForecasts = await fetchPrecipitation([userLoc, ...firstGrid]);
+    const userForecast = firstForecasts[0];
+
+    // --- Nálad esik, vagy hamarosan fog ---
+    if (isRainingNow(userForecast)) {
+      setHero("Nálad", "most esik");
+      setQ2(null);
+      return;
+    }
+    if (isRainingSoon(userForecast)) {
+      setHero("Nálad", "hamarosan elkezdődik");
+      setQ2(null);
+      return;
+    }
+
+    // --- Keressük meg a legközelebbi esős pontot, egyre táguló körökben ---
+    let nearest = findNearestRaining(firstGrid, firstForecasts.slice(1));
+    for (let i = 1; i < SEARCH_BATCHES_KM.length && !nearest; i++) {
+      const grid = generateSearchGrid(userLoc, SEARCH_BATCHES_KM[i]);
+      const forecasts = await fetchPrecipitation(grid);
+      nearest = findNearestRaining(grid, forecasts);
+    }
+
+    if (nearest) {
+      await showNearestRain(nearest);
+    } else {
+      setHero("Sehol", "a közeledben most száraz idő van");
+      setQ2(null);
+    }
   } catch (err) {
     console.error(err);
     setHero("Hiba", "");
@@ -160,56 +200,27 @@ async function run(userLoc) {
   }
 }
 
-async function render(userLoc, userForecast, gridPoints, gridForecasts) {
-  document.getElementById("q1-question").textContent =
-    `hol az eső ${userLoc.name} környékén?`;
+async function showNearestRain(nearest) {
+  const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
+  setHero(
+    isNearby ? "Közelben" : "Távolban",
+    isNearby ? "a közeli térségben esik" : "egy távolabbi térségben esik"
+  );
 
-  // --- Nálad esik, vagy hamarosan fog ---
-  if (isRainingNow(userForecast)) {
-    setHero("Nálad", "most esik");
-    setQ2(null);
-    return;
-  }
-  if (isRainingSoon(userForecast)) {
-    setHero("Nálad", "hamarosan elkezdődik");
-    setQ2(null);
-    return;
+  let placeName = null;
+  try {
+    placeName = await reverseGeocode(nearest.lat, nearest.lon);
+  } catch (err) {
+    console.error(err);
   }
 
-  // --- Keressük meg a hozzád legközelebbi esős rácspontot ---
-  const raining = gridPoints
-    .map((point, i) => ({ point, forecast: gridForecasts[i] }))
-    .filter(({ forecast }) => isRainingNow(forecast))
-    .sort((a, b) => a.point.distance - b.point.distance);
-
-  if (raining.length > 0) {
-    const nearest = raining[0].point;
-    const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
-    setHero(
-      isNearby ? "Közelben" : "Távolban",
-      isNearby ? "a közeli térségben esik" : "egy távolabbi térségben esik"
-    );
-
-    let placeName = null;
-    try {
-      placeName = await reverseGeocode(nearest.lat, nearest.lon);
-    } catch (err) {
-      console.error(err);
-    }
-
-    const direction = compassLabel(nearest.bearing);
-    setQ2(
-      "de hol esik pontosan?",
-      `<p class="place-line">${placeName || "egy közeli térségben"}</p>
-       <p class="context">kb. ${Math.round(nearest.distance)} km innen
-       <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>`
-    );
-    return;
-  }
-
-  // --- A teljes átvizsgált körzetben sehol nem esik ---
-  setHero("Sehol", "a közeledben most száraz idő van");
-  setQ2(null);
+  const direction = compassLabel(nearest.bearing);
+  setQ2(
+    "de hol esik pontosan?",
+    `<p class="place-line">${placeName || "egy közeli térségben"}</p>
+     <p class="context">kb. ${Math.round(nearest.distance)} km innen
+     <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>`
+  );
 }
 
 function setHero(answer, context) {
