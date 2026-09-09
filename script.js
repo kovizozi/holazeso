@@ -376,6 +376,87 @@ document.getElementById("location-form").addEventListener("submit", async (e) =>
   run(loc);
 });
 
+// ---- Push-értesítés ----
+
+const VAPID_PUBLIC_KEY = "BFDUfuycSz_U5WPPqthX4BsMFh_knI7mkH8DDz9R3BAhMtESzx-SxD_H_kmMST46v388RUMSGQjgc80vbgJ4Ryc";
+const PUSH_WORKER_URL = "https://holazeso-push-worker.kovizozi.workers.dev";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+function updateNotifyButton() {
+  const btn = document.getElementById("notify-toggle");
+  const enabled = localStorage.getItem("holazeso_notify_enabled") === "1";
+  btn.textContent = enabled ? "értesítés kikapcsolása" : "értesíts, ha esni kezd";
+}
+
+async function enableNotifications(userLoc) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    alert("A böngésződ nem támogatja az értesítéseket.");
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+
+    await fetch(PUSH_WORKER_URL + "/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subscription: subscription.toJSON(),
+        lat: userLoc.lat,
+        lon: userLoc.lon,
+        name: userLoc.name,
+      }),
+    });
+
+    localStorage.setItem("holazeso_notify_enabled", "1");
+  } catch (err) {
+    console.error(err);
+    alert("Nem sikerült bekapcsolni az értesítéseket. Próbáld újra.");
+  }
+  updateNotifyButton();
+}
+
+async function disableNotifications() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await fetch(PUSH_WORKER_URL + "/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      });
+      await subscription.unsubscribe();
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  localStorage.removeItem("holazeso_notify_enabled");
+  updateNotifyButton();
+}
+
+document.getElementById("notify-toggle").addEventListener("click", async () => {
+  const enabled = localStorage.getItem("holazeso_notify_enabled") === "1";
+  if (enabled) {
+    await disableNotifications();
+    return;
+  }
+  const loc = loadSavedLocation();
+  if (loc) await enableNotifications(loc);
+});
+
 document.getElementById("change-location").addEventListener("click", () => {
   showPicker();
 });
@@ -390,6 +471,8 @@ document.getElementById("retry-geo").addEventListener("click", () => {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(err => console.error(err));
 }
+
+updateNotifyButton();
 
 const saved = loadSavedLocation();
 if (saved) {
