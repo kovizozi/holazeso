@@ -160,6 +160,19 @@ function isRainingSoon(forecast) {
 async function run(userLoc) {
   showLoading(true);
   try {
+    // Régebbi mentett helyzeteknél még hiányozhat az országkód (korábbi
+    // verzióban nem tároltuk) - pótoljuk, hogy a külföldi találatoknál
+    // helyesen tudjuk megjeleníteni az országot.
+    if (!userLoc.countryCode) {
+      try {
+        const here = await reverseGeocode(userLoc.lat, userLoc.lon);
+        userLoc.countryCode = here.countryCode;
+        saveLocation(userLoc);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
     document.getElementById("q1-question").textContent =
       `hol az eső ${userLoc.name} környékén?`;
 
