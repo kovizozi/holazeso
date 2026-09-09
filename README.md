@@ -17,6 +17,23 @@ ha ez nem sikerül vagy nincs engedélyezve, kézi településkereső jön elő 
 - Adatforrás: [Open-Meteo](https://open-meteo.com/) (ingyenes, API-kulcs nélkül, CC BY 4.0).
 - Fordított geokódolás (koordinátából településnév): [BigDataCloud](https://www.bigdatacloud.com/) kliens-oldali API-ja, kulcs nélkül.
 - Látogatottság: Cloudflare Web Analytics és GoatCounter, mindkettő cookie-mentes.
+- Nincs fix településlista: a `script.js` a felhasználó koordinátája köré dinamikusan
+  generál egy keresési rácsot (gyűrűk × irányok), és abban keresi a legközelebbi esőt,
+  egyre táguló körökben, amíg nem talál. Ha a talált pontnak nincs neve (pl. tenger
+  felett van), egy kis helyi kereséssel talál mellette megnevezhető helyet.
+- SEO alapok: `robots.txt`, `sitemap.xml`, WebSite structured data (JSON-LD),
+  favicon (`favicon.svg`), és egy generált `og-image.png` a közösségi megosztásokhoz.
+
+### Fontos: cache-busting a `?v=N` verziószámmal
+
+A `holazeso.hu` custom domain (ismeretlen okból, Cloudflare Pages-kvirk) **nem veszi
+figyelembe** a `_headers` fájl `no-cache` szabályát `script.js`/`style.css`-re, ezért
+a böngészők akár 4 óráig a régi verziót cache-elhetik. Ezért az `index.html`-ben
+`script.js?v=N` és `style.css?v=N` szerepel: **minden alkalommal, amikor módosítod
+a `script.js`-t vagy a `style.css`-t, bővítsd a megfelelő `?v=N` számot** az
+`index.html`-ben, különben a felhasználók a régi verziót fogják kapni a következő
+deployod után is. (Az `index.html` maga mindig frissen töltődik, `max-age=0`
+fejléccel, ezzel nincs teendő.)
 
 ## Lokális futtatás
 
