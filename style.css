@@ -95,6 +95,14 @@ body {
   margin-left: 0.35em;
 }
 
+.map-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: underline;
+}
+
 .place-line {
   font-size: clamp(32px, 9vw, 44px);
   font-weight: 600;

@@ -85,17 +85,22 @@ async function geocode(name) {
   const data = await res.json();
   if (!data.results || data.results.length === 0) return null;
   const r = data.results[0];
-  return { name: r.name, lat: r.latitude, lon: r.longitude };
+  return { name: r.name, lat: r.latitude, lon: r.longitude, countryCode: r.country_code, countryName: r.country };
 }
 
-// Koordinátából településnév az OpenStreetMap-alapú, kulcs nélküli BigDataCloud
-// reverse geocoding API-val. Ha nem sikerül, null-t adunk vissza, és általános
-// szöveggel folytatjuk. A koordináta enélkül is elég a válaszhoz.
+// Koordinátából településnév és ország az OpenStreetMap-alapú, kulcs nélküli
+// BigDataCloud reverse geocoding API-val. Ha nem sikerül, üres mezőkkel térünk
+// vissza, és általános szöveggel folytatjuk. A koordináta enélkül is elég a
+// válaszhoz.
 async function reverseGeocode(lat, lon) {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=hu`;
   const res = await fetch(url);
   const data = await res.json();
-  return data.city || data.locality || null;
+  return {
+    name: data.city || data.locality || null,
+    countryCode: data.countryCode || null,
+    countryName: data.countryName || null,
+  };
 }
 
 // A böngésző helymeghatározását Promise-ba csomagolja.
@@ -184,7 +189,7 @@ async function run(userLoc) {
     }
 
     if (nearest) {
-      await showNearestRain(nearest);
+      await showNearestRain(nearest, userLoc);
     } else {
       setHero("Sehol", "a közeledben most száraz idő van");
       setQ2(null);
@@ -200,26 +205,33 @@ async function run(userLoc) {
   }
 }
 
-async function showNearestRain(nearest) {
+async function showNearestRain(nearest, userLoc) {
   const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
   setHero(
     isNearby ? "Közelben" : "Távolban",
     isNearby ? "a közeli térségben esik" : "egy távolabbi térségben esik"
   );
 
-  let placeName = null;
+  let place = { name: null, countryCode: null, countryName: null };
   try {
-    placeName = await reverseGeocode(nearest.lat, nearest.lon);
+    place = await reverseGeocode(nearest.lat, nearest.lon);
   } catch (err) {
     console.error(err);
   }
 
+  const isForeign = place.countryCode && userLoc.countryCode && place.countryCode !== userLoc.countryCode;
+  const placeLabel = place.name
+    ? (isForeign ? `${place.name}, ${place.countryName}` : place.name)
+    : "egy közeli térségben";
+
   const direction = compassLabel(nearest.bearing);
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${nearest.lat},${nearest.lon}`;
   setQ2(
     "de hol esik pontosan?",
-    `<p class="place-line">${placeName || "egy közeli térségben"}</p>
+    `<p class="place-line">${placeLabel}</p>
      <p class="context">kb. ${Math.round(nearest.distance)} km innen
-     <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>`
+     <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
+     <a class="map-link" href="${mapsUrl}" target="_blank" rel="noopener">útvonal</a>`
   );
 }
 
@@ -269,13 +281,18 @@ async function tryAutoLocate() {
   showLoading(true, "helymeghatározás…");
   try {
     const coords = await detectLocation();
-    let name = null;
+    let place = { name: null, countryCode: null, countryName: null };
     try {
-      name = await reverseGeocode(coords.lat, coords.lon);
+      place = await reverseGeocode(coords.lat, coords.lon);
     } catch (err) {
       console.error(err);
     }
-    const loc = { name: name || "a jelenlegi helyzeted", lat: coords.lat, lon: coords.lon };
+    const loc = {
+      name: place.name || "a jelenlegi helyzeted",
+      lat: coords.lat,
+      lon: coords.lon,
+      countryCode: place.countryCode,
+    };
     saveLocation(loc);
     showLoading(false);
     showResult();
