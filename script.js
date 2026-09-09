@@ -174,7 +174,7 @@ async function run(userLoc) {
     }
 
     document.getElementById("q1-question").textContent =
-      `hol az eső ${userLoc.name} környékén?`;
+      `Esik-e ${userLoc.name} környékén?`;
 
     // Első kör: saját hely + legközelebbi gyűrűk egyetlen hívásban
     const firstGrid = generateSearchGrid(userLoc, SEARCH_BATCHES_KM[0]);
