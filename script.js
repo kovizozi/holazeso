@@ -96,8 +96,12 @@ async function reverseGeocode(lat, lon) {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=hu`;
   const res = await fetch(url);
   const data = await res.json();
+  // Csak a "city" mezőt használjuk névnek: gyéren lakott pontokon a
+  // "locality" mező BigDataCloud saját fallback-je miatt egy közigazgatási
+  // egység nevére ugorhat (pl. "Anglia" az Egyesült Királyságban egy
+  // konkrét helynév helyett), ami félrevezető lenne.
   return {
-    name: data.city || data.locality || null,
+    name: data.city || null,
     countryCode: data.countryCode || null,
     countryName: data.countryName || null,
   };
