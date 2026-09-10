@@ -322,7 +322,7 @@ async function showNearestRain(nearest, userLoc) {
   setQ2(
     "de hol esik pontosan?",
     `<p class="place-line">${placeLabel}</p>
-     <p class="context">kb. ${Math.round(displayDistance)} km innen
+     <p class="context">${Math.round(displayDistance)} km innen
      <span class="direction-arrow" style="transform: rotate(${displayBearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
      <a class="map-link" href="${mapsUrl}" target="_blank" rel="noopener">útvonal</a>`
   );
