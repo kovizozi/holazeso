@@ -16,6 +16,22 @@ const SEARCH_BEARINGS_DEG = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 3
 const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős hely
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
 
+// Csapadék-erősség sávok (mm/óra), melléknévi és határozói alakkal együtt,
+// hogy ne kelljen a végződést programból levezetni.
+const INTENSITY_BANDS = [
+  { max: 1, adj: "gyenge", adv: "gyengén" },
+  { max: 4, adj: "közepes", adv: "közepesen" },
+  { max: Infinity, adj: "erős", adv: "erősen" },
+];
+
+function intensityBand(mm) {
+  return INTENSITY_BANDS.find(b => mm <= b.max);
+}
+
+function formatMm(mm) {
+  return mm.toFixed(1).replace(".", ",");
+}
+
 // ---- Segédfüggvények ----
 
 // Adott koordinátától egy irányszög (fok) és távolság (km) alapján kiszámolja
@@ -154,7 +170,7 @@ async function fetchPrecipitation(points) {
   const lons = points.map(p => p.lon).join(",");
   // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
   // átnyúlhasson a következő napra, ne csak az aktuális nap 23:00-jánál vágja le.
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=precipitation&hourly=precipitation&forecast_days=2&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=precipitation&hourly=precipitation,precipitation_probability&forecast_days=2&timezone=auto`;
   const res = await fetch(url);
   return res.json();
 }
@@ -215,15 +231,40 @@ function isRainingNow(forecast) {
   return forecast.current.precipitation >= RAIN_THRESHOLD_MM;
 }
 
-function isRainingSoon(forecast) {
-  // A "current.time" perc-pontosságú (pl. "...T18:45"), az "hourly.time" viszont
-  // csak egész órás bontású ("...T18:00"), ezért kerekítsük le óra-pontosságra egyezéshez.
+// A "current.time" perc-pontosságú (pl. "...T18:45"), az "hourly.time" viszont
+// csak egész órás bontású ("...T18:00"), ezért kerekítsük le óra-pontosságra egyezéshez.
+function currentHourIndex(forecast) {
   const currentHour = forecast.current.time.slice(0, 13) + ":00";
-  const idx = forecast.hourly.time.indexOf(currentHour);
-  if (idx === -1) return false;
-  return forecast.hourly.precipitation
-    .slice(idx, idx + 3)
-    .some(v => v >= RAIN_THRESHOLD_MM);
+  return forecast.hourly.time.indexOf(currentHour);
+}
+
+// Megkeresi a következő 3 órán belül az első órát, amikor esni fog, és
+// visszaadja annak indexét az hourly tömbökben (vagy -1-et, ha egyikben sem esik).
+function soonRainIndex(forecast) {
+  const idx = currentHourIndex(forecast);
+  if (idx === -1) return -1;
+  for (let i = idx; i < Math.min(idx + 3, forecast.hourly.precipitation.length); i++) {
+    if (forecast.hourly.precipitation[i] >= RAIN_THRESHOLD_MM) return i;
+  }
+  return -1;
+}
+
+function isRainingSoon(forecast) {
+  return soonRainIndex(forecast) !== -1;
+}
+
+// Hány óra múlva áll el a jelenleg tartó eső (az hourly előrejelzés alapján
+// megkeresi az első száraz órát). Null, ha nem talál száraz órát az
+// előrejelzésben (2 napra nézünk előre).
+function rainDurationHours(forecast) {
+  const idx = currentHourIndex(forecast);
+  if (idx === -1) return null;
+  for (let i = idx; i < forecast.hourly.precipitation.length; i++) {
+    if (forecast.hourly.precipitation[i] < RAIN_THRESHOLD_MM) {
+      return i - idx;
+    }
+  }
+  return null;
 }
 
 // ---- Fő logika ----
@@ -254,12 +295,22 @@ async function run(userLoc) {
 
     // --- Nálad esik, vagy hamarosan fog ---
     if (isRainingNow(userForecast)) {
-      setHero("Nálad", "most esik");
+      const mm = userForecast.current.precipitation;
+      const band = intensityBand(mm);
+      const duration = rainDurationHours(userForecast);
+      const lines = [`${band.adv}, ${formatMm(mm)} mm/óra`];
+      lines.push(duration === null ? null : duration <= 0 ? "hamarosan eláll" : `még kb. ${duration} óráig tart`);
+      setHero("Most esik", lines);
       setQ2(null);
       return;
     }
     if (isRainingSoon(userForecast)) {
-      setHero("Nálad", "hamarosan elkezdődik");
+      const idx = soonRainIndex(userForecast);
+      const mm = userForecast.hourly.precipitation[idx];
+      const prob = userForecast.hourly.precipitation_probability?.[idx];
+      const band = intensityBand(mm);
+      const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel, ` : "";
+      setHero("Hamarosan", `${probText}${band.adj} eső várható`);
       setQ2(null);
       return;
     }
@@ -280,10 +331,8 @@ async function run(userLoc) {
     }
   } catch (err) {
     console.error(err);
-    setHero("Hiba", "");
+    setHero("Hiba", "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.");
     setQ2(null);
-    document.getElementById("q1-context").textContent =
-      "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.";
   } finally {
     showLoading(false);
   }
@@ -328,9 +377,16 @@ async function showNearestRain(nearest, userLoc) {
   );
 }
 
+// A context egy string vagy stringek tömbje lehet - a "Nálad" állapotoknál
+// (erősség, időtartam, valószínűség) néha több sorra van szükség, a többi
+// állapotnál (Közelben/Távolban/Sehol/Hiba) marad az egysoros válasz.
 function setHero(answer, context) {
   document.getElementById("q1-answer").textContent = answer;
-  document.getElementById("q1-context").textContent = context;
+  const lines = Array.isArray(context) ? context : [context];
+  document.getElementById("q1-context").innerHTML = lines
+    .filter(Boolean)
+    .map(line => `<p class="context">${line}</p>`)
+    .join("");
 }
 
 function setQ2(question, html) {

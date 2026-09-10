@@ -95,6 +95,10 @@ body {
   margin: var(--sp-2) 0 0;
 }
 
+.context + .context {
+  margin-top: 0.25rem;
+}
+
 .direction-arrow {
   display: inline-block;
   margin-left: 0.35em;
