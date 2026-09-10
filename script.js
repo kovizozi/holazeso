@@ -39,6 +39,31 @@ function destinationPoint(lat, lon, bearingDeg, distKm) {
   return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
 }
 
+// Két koordináta közti valódi távolság kilométerben (haversine-képlet). A
+// keresési rács pontjainak van saját "distance" mezőjük (mert a
+// destinationPoint generálta őket), de a findNearbyName által talált,
+// eltolt névadó pontnak nincs - ezt onnan számoljuk vissza.
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Két koordináta közti kezdő irányszög fokban (0 = észak, óramutató szerint).
+function bearingBetween(lat1, lon1, lat2, lon2) {
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaLon = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(deltaLon) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 const COMPASS_POINTS = ["É", "ÉK", "K", "DK", "D", "DNy", "Ny", "ÉNy"];
 
 function compassLabel(bearingDeg) {
@@ -152,13 +177,17 @@ const LOCAL_NAME_RINGS_KM = [20, 60, 150];
 
 // Megkeresi egy pont legközelebbi megnevezhető helyét. Előbb magát a pontot
 // próbálja, majd ha nincs neve, körülötte egyre táguló, párhuzamosan
-// lekérdezett gyűrűkben keres. Ha semmit nem talál, üres nevű objektumot ad
-// vissza, amit a hívó fél az általános "egy közeli térségben" szöveggel
-// helyettesít.
+// lekérdezett gyűrűkben keres. A talált hely SAJÁT koordinátáját is
+// visszaadja (lat/lon), mert az eltolódhat az eredeti ponttól akár 150 km-t
+// is - a hívó félnek emiatt a talált helyhez, nem az eredeti ponthoz kell
+// számolnia a távolságot/irányt, különben a kiírt adatok nem a mutatott
+// névhez tartoznának. Ha semmit nem talál, üres nevű objektumot ad vissza
+// az eredeti pont koordinátáival, amit a hívó fél az általános "egy közeli
+// térségben" szöveggel helyettesít.
 async function findNearbyName(point) {
   try {
     const place = await reverseGeocode(point.lat, point.lon);
-    if (place.name) return place;
+    if (place.name) return { ...place, lat: point.lat, lon: point.lon };
   } catch (err) {
     console.error(err);
   }
@@ -167,17 +196,19 @@ async function findNearbyName(point) {
     const offsets = SEARCH_BEARINGS_DEG.map(bearing => destinationPoint(point.lat, point.lon, bearing, radius));
     const results = await Promise.all(
       offsets.map(p =>
-        reverseGeocode(p.lat, p.lon).catch(err => {
-          console.error(err);
-          return { name: null, countryCode: null, countryName: null };
-        })
+        reverseGeocode(p.lat, p.lon)
+          .then(place => ({ ...place, lat: p.lat, lon: p.lon }))
+          .catch(err => {
+            console.error(err);
+            return { name: null, countryCode: null, countryName: null, lat: p.lat, lon: p.lon };
+          })
       )
     );
     const named = results.find(r => r.name);
     if (named) return named;
   }
 
-  return { name: null, countryCode: null, countryName: null };
+  return { name: null, countryCode: null, countryName: null, lat: point.lat, lon: point.lon };
 }
 
 function isRainingNow(forecast) {
@@ -261,6 +292,11 @@ async function run(userLoc) {
 async function showNearestRain(nearest, userLoc) {
   const place = await findNearbyName(nearest);
 
+  // A "Közelben/Távolban" mindig a tényleges esős pont valódi távolságát
+  // tükrözi. A lenti kártya viszont a MEGNEVEZETT helyről szól, ezért annak
+  // saját koordinátáihoz kell számolni a távolságot/irányt/útvonalat - a
+  // névadó pont a keresés során eltolódhatott az esős ponttól, így a kettő
+  // nem feltétlenül ugyanaz.
   const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
   setHero(
     isNearby ? "Közelben" : "Távolban",
@@ -272,13 +308,22 @@ async function showNearestRain(nearest, userLoc) {
     ? (isForeign ? `${place.name}, ${place.countryName}` : place.name)
     : "egy közeli térségben";
 
-  const direction = compassLabel(nearest.bearing);
-  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${nearest.lat},${nearest.lon}`;
+  const targetLat = place.name ? place.lat : nearest.lat;
+  const targetLon = place.name ? place.lon : nearest.lon;
+  const displayDistance = place.name
+    ? distanceKm(userLoc.lat, userLoc.lon, place.lat, place.lon)
+    : nearest.distance;
+  const displayBearing = place.name
+    ? bearingBetween(userLoc.lat, userLoc.lon, place.lat, place.lon)
+    : nearest.bearing;
+
+  const direction = compassLabel(displayBearing);
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${targetLat},${targetLon}`;
   setQ2(
     "de hol esik pontosan?",
     `<p class="place-line">${placeLabel}</p>
-     <p class="context">kb. ${Math.round(nearest.distance)} km innen
-     <span class="direction-arrow" style="transform: rotate(${nearest.bearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
+     <p class="context">kb. ${Math.round(displayDistance)} km innen
+     <span class="direction-arrow" style="transform: rotate(${displayBearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
      <a class="map-link" href="${mapsUrl}" target="_blank" rel="noopener">útvonal</a>`
   );
 }
