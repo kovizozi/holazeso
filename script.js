@@ -361,8 +361,7 @@ let runInProgress = false;
 async function run(userLoc) {
   if (runInProgress) return;
   runInProgress = true;
-  showLoading(true);
-  document.getElementById("radar-svg").hidden = false;
+  showLoading(true, "töltés…", { radar: true });
   radarReset();
   try {
     // Régebbi mentett helyzeteknél még hiányozhat az országkód (korábbi
@@ -447,7 +446,6 @@ async function run(userLoc) {
     setQ2(null);
   } finally {
     showLoading(false);
-    document.getElementById("radar-svg").hidden = true;
     runInProgress = false;
   }
 }
@@ -494,13 +492,23 @@ async function showNearestRain(nearest, userLoc) {
 // A context egy string vagy stringek tömbje lehet - a "Nálad" állapotoknál
 // (erősség, időtartam, valószínűség) néha több sorra van szükség, a többi
 // állapotnál (Közelben/Távolban/Sehol/Hiba) marad az egysoros válasz.
+//
+// A szöveget azonnal frissítjük, de a hero-block "pending" osztályt kap,
+// ami elrejti - így a régi/új szöveg csere a betöltő/radar mögött történik,
+// és csak a revealHero() hívásakor (a betöltő eltűnése UTÁN) válik láthatóvá,
+// szépen beúszva.
 function setHero(answer, context) {
+  document.querySelector(".hero-block").classList.add("pending");
   document.getElementById("q1-answer").textContent = answer;
   const lines = Array.isArray(context) ? context : [context];
   document.getElementById("q1-context").innerHTML = lines
     .filter(Boolean)
     .map(line => `<p class="context">${line}</p>`)
     .join("");
+}
+
+function revealHero() {
+  document.querySelector(".hero-block").classList.remove("pending");
 }
 
 function setQ2(question, html) {
@@ -543,9 +551,44 @@ document.addEventListener("visibilitychange", () => {
   if (shouldAutoRefresh()) run(currentLoc);
 });
 
-function showLoading(on, text = "töltés…") {
-  document.getElementById("loading-text").textContent = text;
-  document.getElementById("loading").hidden = !on;
+// A betöltő/radar blokk ne tűnjön el azonnal, ha a keresés túl gyorsan
+// végetért (kevésbé zavaró, ha egy pillanatra biztosan látszik, hogy
+// dolgozunk), és eltűnéskor ne ugorjon ki, hanem szépen csússzon lejjebb és
+// halványuljon el - a válasz szövege (lásd revealHero()) csak EZUTÁN jelenik
+// meg, beúszva.
+const MIN_LOADING_MS = 800;
+const LOADING_EXIT_MS = 400;
+let loadingShownAt = 0;
+let loadingHideTimer = null;
+
+// A radar-svg láthatóságát is itt kezeljük (nem a run()-ban közvetlenül),
+// hogy pontosan a szöveges konténerrel EGYSZERRE, a kicsúszás/elhalványulás
+// VÉGÉN tűnjön el - ne ugorjon ki korábban, mielőtt a konténer elhalványult.
+function showLoading(on, text = "töltés…", { radar = false } = {}) {
+  const el = document.getElementById("loading");
+  const radarEl = document.getElementById("radar-svg");
+  if (loadingHideTimer) {
+    clearTimeout(loadingHideTimer);
+    loadingHideTimer = null;
+  }
+  if (on) {
+    document.getElementById("loading-text").textContent = text;
+    el.classList.remove("exiting");
+    el.hidden = false;
+    radarEl.hidden = !radar;
+    loadingShownAt = Date.now();
+    return;
+  }
+  const wait = Math.max(0, MIN_LOADING_MS - (Date.now() - loadingShownAt));
+  loadingHideTimer = setTimeout(() => {
+    el.classList.add("exiting");
+    loadingHideTimer = setTimeout(() => {
+      el.hidden = true;
+      radarEl.hidden = true;
+      el.classList.remove("exiting");
+      revealHero();
+    }, LOADING_EXIT_MS);
+  }, wait);
 }
 
 function showError(msg) {

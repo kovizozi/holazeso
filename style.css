@@ -175,6 +175,21 @@ button[type="submit"] {
   text-align: center;
   color: var(--muted);
   padding-top: 8rem;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.loading.exiting {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.hero-block {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.hero-block.pending {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 #radar-svg {
