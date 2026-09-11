@@ -14,13 +14,18 @@
 // esőrendszerek elfértek volna két pont között, miközben bent feleslegesen
 // sűrű volt a háló. Ezért az irányok száma a sugárral együtt nő, így a
 // pontok távolsága végig nagyságrendileg egyenletes marad (30 km-en 31 km,
-// 600 km-en 118 km, 9000 km-en 884 km).
+// 600 km-en 118 km, 9000 km-en 1285 km).
+//
+// Az első adag a legsűrűbb, mert szinte minden keresés ebben megvan, és a
+// radaron is ez látszik a leggyakrabban. A két távolabbi adag ritkább: egy
+// teljes, mindhárom adagot végigjáró keresés így is 446 pontot kér le, és az
+// Open-Meteo percenkénti limitje 600 körül van.
 //
 // Adagonként egyetlen Open-Meteo hívás megy ki: [sugár km, irányok száma]
 const SEARCH_RINGS = [
   [[30, 6], [65, 8], [110, 12], [175, 16], [270, 20], [400, 26], [600, 32]],
-  [[850, 34], [1200, 38], [1700, 42], [2300, 46], [3000, 50]],
-  [[4000, 52], [5300, 56], [6800, 60], [9000, 64]],
+  [[850, 28], [1200, 30], [1700, 32], [2300, 34], [3000, 36]],
+  [[4000, 38], [5300, 40], [6800, 42], [9000, 44]],
 ];
 
 function ringBearings(count) {
@@ -66,7 +71,11 @@ function destinationPoint(lat, lon, bearingDeg, distKm) {
     Math.cos(dOverR) - Math.sin(lat1) * Math.sin(lat2)
   );
 
-  return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
+  // A hosszúsági fokot vissza kell forgatni a [-180, 180] tartományba: a
+  // legtávolabbi gyűrűk átlógnak a dátumvonalon (Magyarországtól 9000 km-re
+  // keletre 199 fok jött ki), amit az Open-Meteo 400-as hibával utasít el.
+  const lon2Deg = (((lon2 * 180 / Math.PI) % 360) + 540) % 360 - 180;
+  return { lat: lat2 * 180 / Math.PI, lon: lon2Deg };
 }
 
 // Két koordináta közti valódi távolság kilométerben (haversine-képlet). A
@@ -179,14 +188,46 @@ function detectLocation() {
 
 // Lekéri a csapadék-előrejelzést tetszőleges pontlistára, egyetlen hívásban.
 // A válasz ugyanabban a sorrendben jön vissza, ahogy küldtük a koordinátákat.
-async function fetchPrecipitation(points) {
-  const lats = points.map(p => p.lat).join(",");
-  const lons = points.map(p => p.lon).join(",");
-  // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
-  // átnyúlhasson a következő napra, ne csak az aktuális nap 23:00-jánál vágja le.
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=precipitation&hourly=precipitation,precipitation_probability&forecast_days=2&timezone=auto`;
+// A koordinátákat 4 tizedesre kerekítve küldjük. Ez kb. 11 méteres pontosság,
+// nagyságrendekkel több, mint amit egy ~11 km-es rácsú időjárási modell
+// használni tud, viszont felére rövidíti a lekérdezés URL-jét: a nyers
+// float-okkal a legtávolabbi adag URL-je 8811 karakter lett, amit a szerver
+// "414 Request-URI Too Large" hibával visszautasított.
+const coord = value => value.toFixed(4);
+
+const API_BASE = "https://api.open-meteo.com/v1/forecast";
+
+async function openMeteo(url) {
   const res = await fetch(url);
-  return res.json();
+  const data = await res.json();
+  // Hibánál (pl. 429: percenkénti limit túllépve) az API nem előrejelzést,
+  // hanem egy {reason, error} objektumot ad vissza. Ezt itt kell elkapni,
+  // különben a hívó egy értelmezhetetlen alakon hasal el.
+  if (!res.ok || data.error) {
+    throw new Error(`Open-Meteo ${res.status}: ${data.reason || "ismeretlen hiba"}`);
+  }
+  return data;
+}
+
+// A rácspontokról CSAK azt kell tudnunk, esik-e ott MOST (isRainingNow). Az
+// órás előrejelzés (mikor áll el, mekkora eséllyel) egyedül a felhasználó
+// saját helyére kell, lásd fetchUserForecast. Korábban mind a 120+ rácspontra
+// lekértük a két napnyi órás adatot is, amitől a kérés súlya az Open-Meteo
+// percenkénti limitjét is átlépte (429).
+async function fetchPrecipitation(points) {
+  const lats = points.map(p => coord(p.lat)).join(",");
+  const lons = points.map(p => coord(p.lon)).join(",");
+  return openMeteo(`${API_BASE}?latitude=${lats}&longitude=${lons}&current=precipitation`);
+}
+
+// forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
+// átnyúlhasson a következő napra, ne csak az aktuális nap 23:00-jánál vágja le.
+async function fetchUserForecast(point) {
+  return openMeteo(
+    `${API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}` +
+    `&current=precipitation&hourly=precipitation,precipitation_probability` +
+    `&forecast_days=2&timezone=auto`
+  );
 }
 
 // Az esős pontokat adja vissza egy pont- és előrejelzés-listából, távolság
@@ -436,17 +477,18 @@ async function run(userLoc, { silent = false } = {}) {
     document.getElementById("q1-question").textContent =
       `Esik-e ${userLoc.name} környékén?`;
 
-    // Első kör: saját hely + legközelebbi gyűrűk egyetlen hívásban. A radar
-    // kört a hívás ELŐTT rajzoljuk fel (üresen), hogy a pásztázó vonal a
-    // várakozás alatt is fusson, majd a válasz megérkezésekor egyszerre
-    // fedjük fel az összes pontját - nincs pontonkénti, kitalált időzítés.
+    // Első kör: a saját hely részletes előrejelzése és a legközelebbi gyűrűk
+    // párhuzamosan. A radar kört a hívás ELŐTT rajzoljuk fel (üresen), hogy a
+    // pásztázó vonal a várakozás alatt is fusson, és a válasz megérkezésekor
+    // legyen mit felfestenie.
     const firstBatch = SEARCH_RINGS[0];
     const firstMaxRadius = firstBatch[firstBatch.length - 1][0];
     const firstGrid = generateSearchGrid(userLoc, firstBatch);
     radarAddTier(firstGrid, firstMaxRadius);
-    const firstForecasts = await fetchPrecipitation([userLoc, ...firstGrid]);
-    const userForecast = firstForecasts[0];
-    const firstGridForecasts = firstForecasts.slice(1);
+    const [userForecast, firstGridForecasts] = await Promise.all([
+      fetchUserForecast(userLoc),
+      fetchPrecipitation(firstGrid),
+    ]);
     const firstRainingIndices = firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]));
