@@ -345,10 +345,6 @@ function radarRevealTier(rainingIndices) {
   });
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // ---- Fő logika ----
 
 // Ha két run() futna egyszerre (pl. a percenkénti automatikus frissítés
@@ -358,11 +354,17 @@ function sleep(ms) {
 // hívás egyszerűen kimarad, amíg az aktuális be nem fejeződik.
 let runInProgress = false;
 
-async function run(userLoc) {
+// A "silent" futás a percenkénti háttérfrissítés: ilyenkor NEM játsszuk újra
+// a teljes koreográfiát (nem tűnik el a válasz, nem ugrik vissza a radar a
+// kiinduló helyére), csak az adatok és a radar pontjai frissülnek a helyükön.
+async function run(userLoc, { silent = false } = {}) {
   if (runInProgress) return;
   runInProgress = true;
-  showLoading(true, "töltés…", { radar: true });
-  radarReset();
+  if (silent) {
+    radarReset();
+  } else {
+    beginSearchUI();
+  }
   try {
     // Régebbi mentett helyzeteknél még hiányozhat az országkód (korábbi
     // verzióban nem tároltuk) - pótoljuk, hogy a külföldi találatoknál
@@ -434,7 +436,6 @@ async function run(userLoc) {
     }
 
     if (raining.length > 0) {
-      await sleep(500); // hagyjunk időt látni a pulzáló találatot, mielőtt váltunk
       await showNearestRain(raining[0], userLoc);
     } else {
       setHero("Sehol", "a közeledben most száraz idő van");
@@ -445,7 +446,7 @@ async function run(userLoc) {
     setHero("Hiba", "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.");
     setQ2(null);
   } finally {
-    showLoading(false);
+    if (!silent) scheduleReveal();
     runInProgress = false;
   }
 }
@@ -493,12 +494,11 @@ async function showNearestRain(nearest, userLoc) {
 // (erősség, időtartam, valószínűség) néha több sorra van szükség, a többi
 // állapotnál (Közelben/Távolban/Sehol/Hiba) marad az egysoros válasz.
 //
-// A szöveget azonnal frissítjük, de a hero-block "pending" osztályt kap,
-// ami elrejti - így a régi/új szöveg csere a betöltő/radar mögött történik,
-// és csak a revealHero() hívásakor (a betöltő eltűnése UTÁN) válik láthatóvá,
-// szépen beúszva.
+// Ezek a függvények CSAK a tartalmat írják. Hogy a tartalom mikor válik
+// láthatóvá, azt egyedül a keresés koreográfiája dönti el (a #result
+// "searching" osztálya, lásd lent) - így nem tud két hely egymás ellen
+// dolgozni, és a layout sem ugrik meg keresés közben.
 function setHero(answer, context) {
-  document.querySelector(".hero-block").classList.add("pending");
   document.getElementById("q1-answer").textContent = answer;
   const lines = Array.isArray(context) ? context : [context];
   document.getElementById("q1-context").innerHTML = lines
@@ -507,22 +507,12 @@ function setHero(answer, context) {
     .join("");
 }
 
-function revealHero() {
-  document.querySelector(".hero-block").classList.remove("pending");
-  document.getElementById("q2-block").classList.remove("pending");
-}
-
-// A "de hol esik pontosan?" részletblokk ugyanúgy rejtve marad (pending),
-// amíg a radar még a fix helyén dolgozik/áll - csak a revealHero()-val
-// EGYÜTT válik láthatóvá, nem azonnal, amint a helynév megvan.
 function setQ2(question, html) {
   const block = document.getElementById("q2-block");
   if (question === null) {
     block.hidden = true;
-    block.classList.remove("pending");
     return;
   }
-  block.classList.add("pending");
   block.hidden = false;
   document.getElementById("q2-question").textContent = question;
   document.getElementById("q2-answer").innerHTML = html;
@@ -550,63 +540,99 @@ function shouldAutoRefresh() {
 }
 
 setInterval(() => {
-  if (shouldAutoRefresh()) run(currentLoc);
+  if (shouldAutoRefresh()) run(currentLoc, { silent: true });
 }, 60 * 1000);
 
 document.addEventListener("visibilitychange", () => {
-  if (shouldAutoRefresh()) run(currentLoc);
+  if (shouldAutoRefresh()) run(currentLoc, { silent: true });
 });
 
-// A radar NEM tűnik el a keresés végén: a keresés BEFEJEZTÉTŐL számítva
-// (nem a keresés indulásától!) legalább MIN_LOADING_MS-ig a fix (eredeti)
-// helyén marad teljesen láthatóan, hogy a találat (mely pontok jeleztek
-// esőt) jól kiolvasható legyen, majd lejjebb csúszik és onnantól ott is
-// marad - közben (revealHero()) a válasz szövege felfedhető.
+// ---- A keresés koreográfiája ----
 //
-// FONTOS: korábban ezt a keresés INDULÁSÁHOZ (loadingShownAt) viszonyítva
-// számoltuk, ami hibás volt - egy hosszabb keresésnél (pl. "Közelben"/
-// "Távolban", ahol a helynév-keresés is további hálózati hívásokkal jár) a
-// keresés önmagában simán kitöltötte a 3 másodpercet, így mire a
-// showLoading(false) lefutott, a várakozás már 0 volt, és a radar szinte
-// azonnal lecsúszott, a szöveg is szinte azonnal megjelent.
-const MIN_LOADING_MS = 3000;
-let settleTimer = null;
+// Három állapot, ebben a sorrendben:
+//
+// 1. KERESÉS: csak a kérdés és a radar látszik. A válasz (nagy szó, magyarázó
+//    sorok, "de hol esik pontosan?" blokk) ilyenkor a LAYOUTBAN SINCS benne
+//    (#result.searching -> display: none), így a radar a keresés teljes ideje
+//    alatt egy helyben marad. Korábban itt volt a hiba: a setQ2() már a
+//    keresés közben helyet foglalt a részletblokknak, ami lelökte a radart.
+// 2. VÁRAKOZÁS: a keresés befejeztétől számítva REVEAL_DELAY_MS ideig semmi
+//    nem mozdul, hogy a találat leolvasható legyen a radarról.
+// 3. FELFEDÉS: a radar egyetlen mozdulattal lecsúszik a végleges, kisebb
+//    helyére és ott is marad, közben a válasz szövege beúszik fölötte.
+const REVEAL_DELAY_MS = 3000;
+const REVEAL_SLIDE_MS = 600;
+let revealTimer = null;
 
-// A radar-svg láthatóságát is itt kezeljük (nem a run()-ban közvetlenül),
-// hogy a "helymeghatározás…" fázisban (ahol nincs radar) és a keresés
-// fázisában (ahol van) egy helyen legyen szabályozva.
-function showLoading(on, text = "töltés…", { radar = false } = {}) {
-  const el = document.getElementById("loading");
-  const radarEl = document.getElementById("radar-svg");
-  if (settleTimer) {
-    clearTimeout(settleTimer);
-    settleTimer = null;
-  }
-  if (on) {
-    document.getElementById("loading-text").textContent = text;
-    el.classList.remove("settled");
-    el.hidden = false;
-    radarEl.hidden = !radar;
-    return;
-  }
-  settleTimer = setTimeout(() => {
-    el.classList.add("settled");
-    revealHero();
-  }, MIN_LOADING_MS);
+function beginSearchUI() {
+  clearTimeout(revealTimer);
+  revealTimer = null;
+  const loading = document.getElementById("loading");
+  const svg = document.getElementById("radar-svg");
+  document.getElementById("result").classList.add("searching");
+  document.getElementById("loading-text").textContent = "töltés…";
+  loading.classList.remove("settled", "locating");
+  loading.hidden = false;
+  svg.style.transition = "";
+  svg.style.transform = "";
+  radarReset();
 }
 
-// Új keresés/helyszín-módosítás előtt a maradék (előző keresésből "settled"
-// állapotban lemaradt) radart is el kell tüntetni, különben ott lógna a
-// helyszín-kereső form alatt.
-function hideLoadingImmediately() {
-  if (settleTimer) {
-    clearTimeout(settleTimer);
-    settleTimer = null;
+function scheduleReveal() {
+  clearTimeout(revealTimer);
+  revealTimer = setTimeout(revealAnswer, REVEAL_DELAY_MS);
+}
+
+// A felfedéskor a szöveg megjelenése és a radar kisebb helyre kerülése
+// egyszerre változtatja meg a layoutot, amit a böngésző egy ugrással
+// hajtana végre. Ezért FLIP-technikát használunk: megmérjük a radar helyét
+// és méretét a változtatás ELŐTT és UTÁN, a különbséggel visszatoljuk oda,
+// ahol volt, majd onnan animáljuk a végleges helyére. Így ugrás helyett
+// szépen lecsúszik, miközben a szöveg beúszik fölötte.
+function revealAnswer() {
+  const loading = document.getElementById("loading");
+  const svg = document.getElementById("radar-svg");
+  const first = svg.getBoundingClientRect();
+
+  loading.classList.add("settled");
+  document.getElementById("result").classList.remove("searching");
+
+  const last = svg.getBoundingClientRect();
+  const scale = last.width ? first.width / last.width : 1;
+
+  svg.style.transition = "none";
+  svg.style.transformOrigin = "top left";
+  svg.style.transform =
+    `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${scale})`;
+  svg.getBoundingClientRect(); // kényszerített újraszámolás, hogy legyen mihez animálni
+  svg.style.transition = `transform ${REVEAL_SLIDE_MS}ms ease`;
+  svg.style.transform = "translate(0, 0) scale(1)";
+}
+
+// Csak a helymeghatározás fázisához kell: radar nélküli, egyszerű szöveges
+// töltésjelző, még mielőtt bármit tudnánk arról, hol keressünk.
+function showLoading(on, text = "töltés…") {
+  const loading = document.getElementById("loading");
+  if (!on) {
+    loading.hidden = true;
+    return;
   }
-  const el = document.getElementById("loading");
-  el.hidden = true;
-  el.classList.remove("settled");
-  document.getElementById("radar-svg").hidden = true;
+  clearTimeout(revealTimer);
+  revealTimer = null;
+  loading.classList.remove("settled");
+  loading.classList.add("locating");
+  document.getElementById("loading-text").textContent = text;
+  loading.hidden = false;
+}
+
+// Helyszín-módosításkor a lemaradt (settled) radart is el kell tüntetni,
+// különben ott lógna a helyszín-kereső form alatt.
+function hideLoadingImmediately() {
+  clearTimeout(revealTimer);
+  revealTimer = null;
+  const loading = document.getElementById("loading");
+  loading.hidden = true;
+  loading.classList.remove("settled", "locating");
 }
 
 function showError(msg) {

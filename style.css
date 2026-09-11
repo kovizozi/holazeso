@@ -171,43 +171,60 @@ button[type="submit"] {
   margin-top: 1rem;
 }
 
+/* Keresés közben a válasz még a layoutban sincs benne: így a radar végig
+   egy helyben marad, nem lökik lejjebb a közben elkészülő szövegek. */
+#result.searching #q1-answer,
+#result.searching #q1-context,
+#result.searching #q2-block {
+  display: none;
+}
+
+#result:not(.searching) #q1-answer,
+#result:not(.searching) #q1-context,
+#result:not(.searching) #q2-block {
+  animation: answer-in 0.45s ease both;
+}
+
+@keyframes answer-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .loading {
   text-align: center;
   color: var(--muted);
   padding-top: 8rem;
-  transition: transform 0.6s ease;
 }
 
-/* A keresés végén a radar NEM tűnik el: lejjebb csúszik, és ott is marad,
-   hogy a találat (mely pontok jeleztek esőt) még jól látható legyen. */
+/* A keresés végén a radar NEM tűnik el: kisebb lesz, és felveszi a végleges
+   helyét a válasz alatt, hogy a találat (mely pontok jeleztek esőt) ott is
+   látható maradjon. Kompaktan, hogy telefonon se csússzon a hajtás alá. */
 .loading.settled {
-  transform: translateY(var(--sp-6));
+  padding-top: var(--sp-5);
 }
 
-.loading #loading-text {
-  transition: opacity 0.3s ease;
-}
-
-.loading.settled #loading-text {
-  opacity: 0;
-}
-
-.hero-block,
-.detail-block {
-  transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-.hero-block.pending,
-.detail-block.pending {
-  opacity: 0;
-  transform: translateY(10px);
+.loading.settled #loading-text,
+.loading.settled #radar-sweep {
+  display: none;
 }
 
 #radar-svg {
   display: block;
   margin: 0 auto var(--sp-2);
+  width: 220px;
+  height: 220px;
   max-width: 100%;
-  height: auto;
+}
+
+.loading.settled #radar-svg {
+  width: 140px;
+  height: 140px;
+}
+
+/* Helymeghatározás közben még nincs mit mutatni a radaron. SVG elemen nincs
+   .hidden property, ezért ezt CSS-ből kell kapcsolni, nem JS-ből. */
+.loading.locating #radar-svg {
+  display: none;
 }
 
 #radar-sweep {
