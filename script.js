@@ -551,44 +551,51 @@ document.addEventListener("visibilitychange", () => {
   if (shouldAutoRefresh()) run(currentLoc);
 });
 
-// A betöltő/radar blokk ne tűnjön el azonnal, ha a keresés túl gyorsan
-// végetért (kevésbé zavaró, ha egy pillanatra biztosan látszik, hogy
-// dolgozunk), és eltűnéskor ne ugorjon ki, hanem szépen csússzon lejjebb és
-// halványuljon el - a válasz szövege (lásd revealHero()) csak EZUTÁN jelenik
-// meg, beúszva.
-const MIN_LOADING_MS = 800;
-const LOADING_EXIT_MS = 400;
+// A radar NEM tűnik el a keresés végén: legalább MIN_LOADING_MS-ig a fix
+// (eredeti) helyén marad teljesen láthatóan, hogy a találat (mely pontok
+// jeleztek esőt) jól kiolvasható legyen, majd lejjebb csúszik és onnantól
+// ott is marad - közben (revealHero()) a válasz szövege felfedhető.
+const MIN_LOADING_MS = 3000;
 let loadingShownAt = 0;
-let loadingHideTimer = null;
+let settleTimer = null;
 
 // A radar-svg láthatóságát is itt kezeljük (nem a run()-ban közvetlenül),
-// hogy pontosan a szöveges konténerrel EGYSZERRE, a kicsúszás/elhalványulás
-// VÉGÉN tűnjön el - ne ugorjon ki korábban, mielőtt a konténer elhalványult.
+// hogy a "helymeghatározás…" fázisban (ahol nincs radar) és a keresés
+// fázisában (ahol van) egy helyen legyen szabályozva.
 function showLoading(on, text = "töltés…", { radar = false } = {}) {
   const el = document.getElementById("loading");
   const radarEl = document.getElementById("radar-svg");
-  if (loadingHideTimer) {
-    clearTimeout(loadingHideTimer);
-    loadingHideTimer = null;
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+    settleTimer = null;
   }
   if (on) {
     document.getElementById("loading-text").textContent = text;
-    el.classList.remove("exiting");
+    el.classList.remove("settled");
     el.hidden = false;
     radarEl.hidden = !radar;
     loadingShownAt = Date.now();
     return;
   }
   const wait = Math.max(0, MIN_LOADING_MS - (Date.now() - loadingShownAt));
-  loadingHideTimer = setTimeout(() => {
-    el.classList.add("exiting");
-    loadingHideTimer = setTimeout(() => {
-      el.hidden = true;
-      radarEl.hidden = true;
-      el.classList.remove("exiting");
-      revealHero();
-    }, LOADING_EXIT_MS);
+  settleTimer = setTimeout(() => {
+    el.classList.add("settled");
+    revealHero();
   }, wait);
+}
+
+// Új keresés/helyszín-módosítás előtt a maradék (előző keresésből "settled"
+// állapotban lemaradt) radart is el kell tüntetni, különben ott lógna a
+// helyszín-kereső form alatt.
+function hideLoadingImmediately() {
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+    settleTimer = null;
+  }
+  const el = document.getElementById("loading");
+  el.hidden = true;
+  el.classList.remove("settled");
+  document.getElementById("radar-svg").hidden = true;
 }
 
 function showError(msg) {
@@ -605,6 +612,7 @@ function showResult() {
 function showPicker() {
   document.getElementById("result").hidden = true;
   document.getElementById("location-picker").hidden = false;
+  hideLoadingImmediately();
 }
 
 // Automatikus helymeghatározás: ez az alapértelmezett út. Ha a felhasználó
