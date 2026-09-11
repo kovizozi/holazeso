@@ -223,11 +223,12 @@ button[type="submit"] {
   display: none;
 }
 
-/* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok felfedése
-   a vonal körbeéréséhez van igazítva, ezért a kettőnek egyeznie kell. */
+/* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
+   villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
+   egyeznie kell. */
 #radar-sweep {
   transform-origin: 175px 175px;
-  animation: radar-spin 1.2s linear infinite;
+  animation: radar-spin 1.5s linear infinite;
 }
 
 @keyframes radar-spin {

@@ -311,8 +311,10 @@ function radarReset() {
 }
 
 // A pásztázó vonal egy körbefordulásának ideje. Tartsd szinkronban a
-// style.css #radar-sweep animációjának időtartamával.
-const RADAR_SWEEP_MS = 1200;
+// style.css #radar-sweep animációjának időtartamával: a pontok felfedése
+// ehhez az értékhez igazítva számolja ki, mikor ér a vonal az adott
+// irányhoz (lásd radarRevealTier).
+const RADAR_SWEEP_MS = 1500;
 let sweepStartedAt = 0;
 
 function radarRestartSweep() {
@@ -323,17 +325,6 @@ function radarRestartSweep() {
   sweepStartedAt = Date.now();
 }
 
-// Egy kör pontjait csak akkor fedjük fel, amikor a pásztázó vonal épp
-// körbeér - különben a pontok (és a találatok) már azelőtt kint lennének,
-// hogy a vonal egyszer is végigment volna rajtuk, ami érthetetlen.
-// Ettől még adatvezérelt marad: a pontok SOSEM villanhatnak fel előbb,
-// mint ahogy a valódi Open-Meteo válasz megérkezik, csak megvárjuk, hogy
-// a pásztázás is befejezze az aktuális fordulatát.
-function waitForSweepPass() {
-  const elapsed = Date.now() - sweepStartedAt;
-  return new Promise(resolve =>
-    setTimeout(resolve, RADAR_SWEEP_MS - (elapsed % RADAR_SWEEP_MS)));
-}
 
 // Új kört ad a radarhoz, a saját legnagyobb sugarához igazított skálán. A
 // korábban hozzáadott köröket arányosan összébb zoomolja (CSS transition),
@@ -355,6 +346,7 @@ function radarAddTier(points, maxRadiusKm) {
     dot.setAttribute("cy", y);
     dot.setAttribute("r", 2.5);
     dot.dataset.index = i;
+    dot.dataset.bearing = point.bearing;
     g.appendChild(dot);
   });
 
@@ -362,26 +354,49 @@ function radarAddTier(points, maxRadiusKm) {
   radarTierGroups.push({ el: g, maxRadiusKm });
 }
 
-// A legutóbb hozzáadott kör pontjait egyszerre felfedi (mert a valóságban
-// egyszerre is érkeznek meg), és megjelöli, amelyiken esik.
-function radarRevealTier(rainingIndices) {
+function revealDot(dot, isRain) {
+  dot.classList.add("revealed");
+  if (!isRain) return;
+  dot.classList.add("rain");
+  dot.setAttribute("r", 5);
+  const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  pulse.setAttribute("cx", dot.getAttribute("cx"));
+  pulse.setAttribute("cy", dot.getAttribute("cy"));
+  pulse.setAttribute("r", 5);
+  pulse.classList.add("radar-pulse", "pulsing");
+  dot.parentNode.appendChild(pulse);
+}
+
+// Egy kör adata EGYBEN érkezik meg (egyetlen Open-Meteo hívás), a
+// megjelenítés viszont úgy működik, mint egy igazi radarernyőn: a pásztázó
+// vonal "festi fel" a pontokat, ahogy elhalad fölöttük. Minden pont akkor
+// villan fel, amikor a vonal épp az ő irányához ér.
+//
+// Ettől a megjelenítés adatvezérelt marad: felvillanni csak olyan pont tud,
+// aminek a válasza már megérkezett. A pásztázás a festés módja, nem a
+// lekérdezés üteme - nem tesz úgy, mintha pontonként kérdeznénk le.
+//
+// A visszaadott promise akkor teljesül, amikor a vonal a kör összes pontját
+// végigfestette, tehát a hívó megvárhatja, mielőtt a következő körre lép.
+function radarRevealTier(rainingIndices, { instant = false } = {}) {
   const tier = radarTierGroups[radarTierGroups.length - 1];
-  if (!tier) return;
+  if (!tier) return Promise.resolve();
   const rainSet = new Set(rainingIndices);
-  const svgNS = "http://www.w3.org/2000/svg";
-  tier.el.querySelectorAll(".radar-dot").forEach(dot => {
-    dot.classList.add("revealed");
-    if (rainSet.has(Number(dot.dataset.index))) {
-      dot.classList.add("rain");
-      dot.setAttribute("r", 5);
-      const pulse = document.createElementNS(svgNS, "circle");
-      pulse.setAttribute("cx", dot.getAttribute("cx"));
-      pulse.setAttribute("cy", dot.getAttribute("cy"));
-      pulse.setAttribute("r", 5);
-      pulse.classList.add("radar-pulse", "pulsing");
-      tier.el.appendChild(pulse);
-    }
+  const dots = tier.el.querySelectorAll(".radar-dot");
+  const isRain = dot => rainSet.has(Number(dot.dataset.index));
+
+  if (instant) {
+    dots.forEach(dot => revealDot(dot, isRain(dot)));
+    return Promise.resolve();
+  }
+
+  const elapsed = (Date.now() - sweepStartedAt) % RADAR_SWEEP_MS;
+  const sweepAngle = (elapsed / RADAR_SWEEP_MS) * 360;
+  dots.forEach(dot => {
+    const degreesAhead = (Number(dot.dataset.bearing) - sweepAngle + 360) % 360;
+    setTimeout(() => revealDot(dot, isRain(dot)), (degreesAhead / 360) * RADAR_SWEEP_MS);
   });
+  return new Promise(resolve => setTimeout(resolve, RADAR_SWEEP_MS));
 }
 
 // ---- Fő logika ----
@@ -435,8 +450,7 @@ async function run(userLoc, { silent = false } = {}) {
     const firstRainingIndices = firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]));
-    if (!silent) await waitForSweepPass();
-    radarRevealTier(firstRainingIndices);
+    await radarRevealTier(firstRainingIndices, { instant: silent });
 
     // --- Nálad esik, vagy hamarosan fog ---
     if (isRainingNow(userForecast)) {
@@ -471,8 +485,7 @@ async function run(userLoc, { silent = false } = {}) {
       const rainingIndices = grid
         .map((_, idx) => idx)
         .filter(idx => isRainingNow(forecasts[idx]));
-      if (!silent) await waitForSweepPass();
-      radarRevealTier(rainingIndices);
+      await radarRevealTier(rainingIndices, { instant: silent });
       raining = sortRaining(grid, forecasts);
     }
 
