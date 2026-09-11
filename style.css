@@ -192,11 +192,13 @@ button[type="submit"] {
   opacity: 0;
 }
 
-.hero-block {
+.hero-block,
+.detail-block {
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
-.hero-block.pending {
+.hero-block.pending,
+.detail-block.pending {
   opacity: 0;
   transform: translateY(10px);
 }

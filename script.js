@@ -509,14 +509,20 @@ function setHero(answer, context) {
 
 function revealHero() {
   document.querySelector(".hero-block").classList.remove("pending");
+  document.getElementById("q2-block").classList.remove("pending");
 }
 
+// A "de hol esik pontosan?" részletblokk ugyanúgy rejtve marad (pending),
+// amíg a radar még a fix helyén dolgozik/áll - csak a revealHero()-val
+// EGYÜTT válik láthatóvá, nem azonnal, amint a helynév megvan.
 function setQ2(question, html) {
   const block = document.getElementById("q2-block");
   if (question === null) {
     block.hidden = true;
+    block.classList.remove("pending");
     return;
   }
+  block.classList.add("pending");
   block.hidden = false;
   document.getElementById("q2-question").textContent = question;
   document.getElementById("q2-answer").innerHTML = html;
