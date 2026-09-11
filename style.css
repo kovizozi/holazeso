@@ -196,11 +196,12 @@ button[type="submit"] {
   padding-top: 8rem;
 }
 
-/* A keresés végén a radar NEM tűnik el: kisebb lesz, és felveszi a végleges
-   helyét a válasz alatt, hogy a találat (mely pontok jeleztek esőt) ott is
-   látható maradjon. Kompaktan, hogy telefonon se csússzon a hajtás alá. */
+/* A keresés végén a radar NEM tűnik el és nem is kicsinyedik le: változatlan
+   méretben csúszik a végleges helyére a válasz alá, hogy a találat (mely
+   pontok jeleztek esőt) ugyanúgy leolvasható maradjon. A szűkebb felső
+   térköz tartja bent a képernyőn. */
 .loading.settled {
-  padding-top: var(--sp-5);
+  padding-top: var(--sp-3);
 }
 
 .loading.settled #loading-text,
@@ -216,20 +217,17 @@ button[type="submit"] {
   max-width: 100%;
 }
 
-.loading.settled #radar-svg {
-  width: 140px;
-  height: 140px;
-}
-
 /* Helymeghatározás közben még nincs mit mutatni a radaron. SVG elemen nincs
    .hidden property, ezért ezt CSS-ből kell kapcsolni, nem JS-ből. */
 .loading.locating #radar-svg {
   display: none;
 }
 
+/* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok felfedése
+   a vonal körbeéréséhez van igazítva, ezért a kettőnek egyeznie kell. */
 #radar-sweep {
   transform-origin: 175px 175px;
-  animation: radar-spin 3s linear infinite;
+  animation: radar-spin 1.2s linear infinite;
 }
 
 @keyframes radar-spin {

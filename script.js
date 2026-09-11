@@ -14,13 +14,13 @@
 // esőrendszerek elfértek volna két pont között, miközben bent feleslegesen
 // sűrű volt a háló. Ezért az irányok száma a sugárral együtt nő, így a
 // pontok távolsága végig nagyságrendileg egyenletes marad (30 km-en 31 km,
-// 9000 km-en 1571 km).
+// 600 km-en 118 km, 9000 km-en 884 km).
 //
 // Adagonként egyetlen Open-Meteo hívás megy ki: [sugár km, irányok száma]
 const SEARCH_RINGS = [
-  [[30, 6], [65, 8], [110, 10], [175, 12], [270, 14], [400, 16], [600, 18]],
-  [[850, 20], [1200, 22], [1700, 24], [2300, 26], [3000, 28]],
-  [[4000, 30], [5300, 32], [6800, 34], [9000, 36]],
+  [[30, 6], [65, 8], [110, 12], [175, 16], [270, 20], [400, 26], [600, 32]],
+  [[850, 34], [1200, 38], [1700, 42], [2300, 46], [3000, 50]],
+  [[4000, 52], [5300, 56], [6800, 60], [9000, 64]],
 ];
 
 function ringBearings(count) {
@@ -310,6 +310,31 @@ function radarReset() {
   radarTierGroups = [];
 }
 
+// A pásztázó vonal egy körbefordulásának ideje. Tartsd szinkronban a
+// style.css #radar-sweep animációjának időtartamával.
+const RADAR_SWEEP_MS = 1200;
+let sweepStartedAt = 0;
+
+function radarRestartSweep() {
+  const sweep = document.getElementById("radar-sweep");
+  sweep.style.animation = "none";
+  sweep.getBoundingClientRect(); // kényszerített újraszámolás, hogy tényleg újrainduljon
+  sweep.style.animation = "";
+  sweepStartedAt = Date.now();
+}
+
+// Egy kör pontjait csak akkor fedjük fel, amikor a pásztázó vonal épp
+// körbeér - különben a pontok (és a találatok) már azelőtt kint lennének,
+// hogy a vonal egyszer is végigment volna rajtuk, ami érthetetlen.
+// Ettől még adatvezérelt marad: a pontok SOSEM villanhatnak fel előbb,
+// mint ahogy a valódi Open-Meteo válasz megérkezik, csak megvárjuk, hogy
+// a pásztázás is befejezze az aktuális fordulatát.
+function waitForSweepPass() {
+  const elapsed = Date.now() - sweepStartedAt;
+  return new Promise(resolve =>
+    setTimeout(resolve, RADAR_SWEEP_MS - (elapsed % RADAR_SWEEP_MS)));
+}
+
 // Új kört ad a radarhoz, a saját legnagyobb sugarához igazított skálán. A
 // korábban hozzáadott köröket arányosan összébb zoomolja (CSS transition),
 // hogy az új, nagyobb kör is beleférjen ugyanabba a fizikai méretbe.
@@ -410,6 +435,7 @@ async function run(userLoc, { silent = false } = {}) {
     const firstRainingIndices = firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]));
+    if (!silent) await waitForSweepPass();
     radarRevealTier(firstRainingIndices);
 
     // --- Nálad esik, vagy hamarosan fog ---
@@ -445,6 +471,7 @@ async function run(userLoc, { silent = false } = {}) {
       const rainingIndices = grid
         .map((_, idx) => idx)
         .filter(idx => isRainingNow(forecasts[idx]));
+      if (!silent) await waitForSweepPass();
       radarRevealTier(rainingIndices);
       raining = sortRaining(grid, forecasts);
     }
@@ -590,6 +617,7 @@ function beginSearchUI() {
   svg.style.transition = "";
   svg.style.transform = "";
   radarReset();
+  radarRestartSweep();
 }
 
 function scheduleReveal() {
