@@ -351,7 +351,16 @@ function sleep(ms) {
 
 // ---- Fő logika ----
 
+// Ha két run() futna egyszerre (pl. a percenkénti automatikus frissítés
+// pont akkor indulna, amikor egy korábbi keresés még nem ért véget), a
+// kettő versenyhelyzetbe kerülne: az első befejeződő "finally"-ja elrejtené
+// a radart a másik alól. Ezért csak egy run() futhat egyszerre - a többi
+// hívás egyszerűen kimarad, amíg az aktuális be nem fejeződik.
+let runInProgress = false;
+
 async function run(userLoc) {
+  if (runInProgress) return;
+  runInProgress = true;
   showLoading(true);
   document.getElementById("radar-svg").hidden = false;
   radarReset();
@@ -439,6 +448,7 @@ async function run(userLoc) {
   } finally {
     showLoading(false);
     document.getElementById("radar-svg").hidden = true;
+    runInProgress = false;
   }
 }
 
