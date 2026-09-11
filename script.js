@@ -4,14 +4,28 @@
 // országban egyformán pontos, nem csak Magyarországon vagy egy előre
 // kiválasztott városlistán.
 //
-// Ha az első körben (600 km-ig) nem találunk esőt, egyre távolabbi köröket
-// próbálunk, amíg nem találunk, vagy amíg el nem fogynak a körök.
-const SEARCH_BATCHES_KM = [
-  [30, 70, 150, 300, 600],
-  [1000, 1500, 2200, 3000],
-  [4000, 5500, 7000, 9000],
+// Ha az első adagban (600 km-ig) nem találunk esőt, egyre távolabbi
+// gyűrűket próbálunk, amíg nem találunk, vagy amíg el nem fogynak.
+//
+// Egy gyűrűn NEM fix számú irányt kérdezünk le, hanem annyit, amennyi a
+// gyűrű kerületéhez illik. Korábban mindegyiken 12 irány volt, amitől a
+// szomszédos pontok távolsága kifelé haladva elszállt: 30 km-en 16 km-re
+// voltak egymástól, 9000 km-en viszont már 4712 km-re - vagyis kint egész
+// esőrendszerek elfértek volna két pont között, miközben bent feleslegesen
+// sűrű volt a háló. Ezért az irányok száma a sugárral együtt nő, így a
+// pontok távolsága végig nagyságrendileg egyenletes marad (30 km-en 31 km,
+// 9000 km-en 1571 km).
+//
+// Adagonként egyetlen Open-Meteo hívás megy ki: [sugár km, irányok száma]
+const SEARCH_RINGS = [
+  [[30, 6], [65, 8], [110, 10], [175, 12], [270, 14], [400, 16], [600, 18]],
+  [[850, 20], [1200, 22], [1700, 24], [2300, 26], [3000, 28]],
+  [[4000, 30], [5300, 32], [6800, 34], [9000, 36]],
 ];
-const SEARCH_BEARINGS_DEG = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+function ringBearings(count) {
+  return Array.from({ length: count }, (_, i) => (i * 360) / count);
+}
 
 const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős hely
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
@@ -91,8 +105,8 @@ function compassLabel(bearingDeg) {
 // gyűrűlistára, gyűrűnként növekvő távolsággal.
 function generateSearchGrid(userLoc, rings) {
   const points = [];
-  for (const distance of rings) {
-    for (const bearing of SEARCH_BEARINGS_DEG) {
+  for (const [distance, bearingCount] of rings) {
+    for (const bearing of ringBearings(bearingCount)) {
       const p = destinationPoint(userLoc.lat, userLoc.lon, bearing, distance);
       points.push({ lat: p.lat, lon: p.lon, distance, bearing });
     }
@@ -209,7 +223,7 @@ async function findNearbyName(point) {
   }
 
   for (const radius of LOCAL_NAME_RINGS_KM) {
-    const offsets = SEARCH_BEARINGS_DEG.map(bearing => destinationPoint(point.lat, point.lon, bearing, radius));
+    const offsets = ringBearings(12).map(bearing => destinationPoint(point.lat, point.lon, bearing, radius));
     const results = await Promise.all(
       offsets.map(p =>
         reverseGeocode(p.lat, p.lon)
@@ -386,9 +400,9 @@ async function run(userLoc, { silent = false } = {}) {
     // kört a hívás ELŐTT rajzoljuk fel (üresen), hogy a pásztázó vonal a
     // várakozás alatt is fusson, majd a válasz megérkezésekor egyszerre
     // fedjük fel az összes pontját - nincs pontonkénti, kitalált időzítés.
-    const firstBatchKm = SEARCH_BATCHES_KM[0];
-    const firstMaxRadius = firstBatchKm[firstBatchKm.length - 1];
-    const firstGrid = generateSearchGrid(userLoc, firstBatchKm);
+    const firstBatch = SEARCH_RINGS[0];
+    const firstMaxRadius = firstBatch[firstBatch.length - 1][0];
+    const firstGrid = generateSearchGrid(userLoc, firstBatch);
     radarAddTier(firstGrid, firstMaxRadius);
     const firstForecasts = await fetchPrecipitation([userLoc, ...firstGrid]);
     const userForecast = firstForecasts[0];
@@ -422,10 +436,10 @@ async function run(userLoc, { silent = false } = {}) {
 
     // --- Keressük meg az esős pontokat, egyre táguló körökben ---
     let raining = sortRaining(firstGrid, firstGridForecasts);
-    for (let i = 1; i < SEARCH_BATCHES_KM.length && raining.length === 0; i++) {
-      const batchKm = SEARCH_BATCHES_KM[i];
-      const maxRadius = batchKm[batchKm.length - 1];
-      const grid = generateSearchGrid(userLoc, batchKm);
+    for (let i = 1; i < SEARCH_RINGS.length && raining.length === 0; i++) {
+      const batch = SEARCH_RINGS[i];
+      const maxRadius = batch[batch.length - 1][0];
+      const grid = generateSearchGrid(userLoc, batch);
       radarAddTier(grid, maxRadius);
       const forecasts = await fetchPrecipitation(grid);
       const rainingIndices = grid
