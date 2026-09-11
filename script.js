@@ -557,12 +557,19 @@ document.addEventListener("visibilitychange", () => {
   if (shouldAutoRefresh()) run(currentLoc);
 });
 
-// A radar NEM tűnik el a keresés végén: legalább MIN_LOADING_MS-ig a fix
-// (eredeti) helyén marad teljesen láthatóan, hogy a találat (mely pontok
-// jeleztek esőt) jól kiolvasható legyen, majd lejjebb csúszik és onnantól
-// ott is marad - közben (revealHero()) a válasz szövege felfedhető.
+// A radar NEM tűnik el a keresés végén: a keresés BEFEJEZTÉTŐL számítva
+// (nem a keresés indulásától!) legalább MIN_LOADING_MS-ig a fix (eredeti)
+// helyén marad teljesen láthatóan, hogy a találat (mely pontok jeleztek
+// esőt) jól kiolvasható legyen, majd lejjebb csúszik és onnantól ott is
+// marad - közben (revealHero()) a válasz szövege felfedhető.
+//
+// FONTOS: korábban ezt a keresés INDULÁSÁHOZ (loadingShownAt) viszonyítva
+// számoltuk, ami hibás volt - egy hosszabb keresésnél (pl. "Közelben"/
+// "Távolban", ahol a helynév-keresés is további hálózati hívásokkal jár) a
+// keresés önmagában simán kitöltötte a 3 másodpercet, így mire a
+// showLoading(false) lefutott, a várakozás már 0 volt, és a radar szinte
+// azonnal lecsúszott, a szöveg is szinte azonnal megjelent.
 const MIN_LOADING_MS = 3000;
-let loadingShownAt = 0;
 let settleTimer = null;
 
 // A radar-svg láthatóságát is itt kezeljük (nem a run()-ban közvetlenül),
@@ -580,14 +587,12 @@ function showLoading(on, text = "töltés…", { radar = false } = {}) {
     el.classList.remove("settled");
     el.hidden = false;
     radarEl.hidden = !radar;
-    loadingShownAt = Date.now();
     return;
   }
-  const wait = Math.max(0, MIN_LOADING_MS - (Date.now() - loadingShownAt));
   settleTimer = setTimeout(() => {
     el.classList.add("settled");
     revealHero();
-  }, wait);
+  }, MIN_LOADING_MS);
 }
 
 // Új keresés/helyszín-módosítás előtt a maradék (előző keresésből "settled"
