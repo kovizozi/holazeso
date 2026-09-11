@@ -174,7 +174,7 @@ button[type="submit"] {
 .loading {
   text-align: center;
   color: var(--muted);
-  padding-top: 4rem;
+  padding-top: 8rem;
 }
 
 #radar-svg {
