@@ -177,6 +177,60 @@ button[type="submit"] {
   padding-top: 4rem;
 }
 
+#radar-svg {
+  display: block;
+  margin: 0 auto var(--sp-2);
+  max-width: 100%;
+  height: auto;
+}
+
+#radar-sweep {
+  transform-origin: 175px 175px;
+  animation: radar-spin 3s linear infinite;
+}
+
+@keyframes radar-spin {
+  to { transform: rotate(360deg); }
+}
+
+.radar-tier-group {
+  transform-origin: 175px 175px;
+  transition: transform 1s ease-in-out;
+}
+
+.radar-dot {
+  fill: var(--muted);
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+}
+
+.radar-dot.revealed {
+  opacity: 0.45;
+}
+
+.radar-dot.rain {
+  fill: var(--fg);
+}
+
+.radar-dot.rain.revealed {
+  opacity: 1;
+}
+
+.radar-pulse {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.radar-pulse.pulsing {
+  animation: radar-pulse 1.6s ease-out 3 forwards;
+}
+
+@keyframes radar-pulse {
+  0% { r: 5; stroke-opacity: 0.6; }
+  100% { r: 16; stroke-opacity: 0; }
+}
+
 footer {
   text-align: center;
   font-size: 12px;

@@ -267,10 +267,94 @@ function rainDurationHours(forecast) {
   return null;
 }
 
+// ---- Radar vizualizáció ----
+// A keresés közben ezt mutatjuk a "töltés…" szöveg helyett. Fontos: ez NEM
+// egy fix időzítésű animáció, amely úgy tesz, mintha egyenként kérdezné le
+// a pontokat - valójában egy kör összes pontja EGYETLEN Open-Meteo hívásban,
+// egyszerre érkezik meg. Ezért egy kör pontjai mind egyszerre válnak
+// láthatóvá, amint a hívás visszatér, nem szétdobálva időben. A pásztázó
+// vonal forgása csak "dolgozunk" jelzés, nincs konkrét ponthoz kötve. A
+// sugár (a következő, távolabbi körre váltás) is csak akkor nő, ha az előző
+// kör válasza megérkezett ÉS abban nem volt találat - nem egy fix idő után.
+const RADAR_VIEWBOX = 350;
+const RADAR_CENTER = RADAR_VIEWBOX / 2;
+const RADAR_MAX_PX = 160;
+
+let radarTierGroups = []; // { el, maxRadiusKm }
+
+function radarPolarPoint(bearingDeg, distKm, maxRadiusKm) {
+  const r = Math.min(distKm / maxRadiusKm, 1) * RADAR_MAX_PX;
+  const theta = bearingDeg * Math.PI / 180;
+  return {
+    x: RADAR_CENTER + r * Math.sin(theta),
+    y: RADAR_CENTER - r * Math.cos(theta),
+  };
+}
+
+function radarReset() {
+  document.getElementById("radar-tiers").innerHTML = "";
+  radarTierGroups = [];
+}
+
+// Új kört ad a radarhoz, a saját legnagyobb sugarához igazított skálán. A
+// korábban hozzáadott köröket arányosan összébb zoomolja (CSS transition),
+// hogy az új, nagyobb kör is beleférjen ugyanabba a fizikai méretbe.
+function radarAddTier(points, maxRadiusKm) {
+  radarTierGroups.forEach(tier => {
+    tier.el.style.transform = `scale(${tier.maxRadiusKm / maxRadiusKm})`;
+  });
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const g = document.createElementNS(svgNS, "g");
+  g.classList.add("radar-tier-group");
+
+  points.forEach((point, i) => {
+    const { x, y } = radarPolarPoint(point.bearing, point.distance, maxRadiusKm);
+    const dot = document.createElementNS(svgNS, "circle");
+    dot.classList.add("radar-dot");
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", 2.5);
+    dot.dataset.index = i;
+    g.appendChild(dot);
+  });
+
+  document.getElementById("radar-tiers").appendChild(g);
+  radarTierGroups.push({ el: g, maxRadiusKm });
+}
+
+// A legutóbb hozzáadott kör pontjait egyszerre felfedi (mert a valóságban
+// egyszerre is érkeznek meg), és megjelöli, amelyiken esik.
+function radarRevealTier(rainingIndices) {
+  const tier = radarTierGroups[radarTierGroups.length - 1];
+  if (!tier) return;
+  const rainSet = new Set(rainingIndices);
+  const svgNS = "http://www.w3.org/2000/svg";
+  tier.el.querySelectorAll(".radar-dot").forEach(dot => {
+    dot.classList.add("revealed");
+    if (rainSet.has(Number(dot.dataset.index))) {
+      dot.classList.add("rain");
+      dot.setAttribute("r", 5);
+      const pulse = document.createElementNS(svgNS, "circle");
+      pulse.setAttribute("cx", dot.getAttribute("cx"));
+      pulse.setAttribute("cy", dot.getAttribute("cy"));
+      pulse.setAttribute("r", 5);
+      pulse.classList.add("radar-pulse", "pulsing");
+      tier.el.appendChild(pulse);
+    }
+  });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ---- Fő logika ----
 
 async function run(userLoc) {
   showLoading(true);
+  document.getElementById("radar-svg").hidden = false;
+  radarReset();
   try {
     // Régebbi mentett helyzeteknél még hiányozhat az országkód (korábbi
     // verzióban nem tároltuk) - pótoljuk, hogy a külföldi találatoknál
@@ -288,10 +372,21 @@ async function run(userLoc) {
     document.getElementById("q1-question").textContent =
       `Esik-e ${userLoc.name} környékén?`;
 
-    // Első kör: saját hely + legközelebbi gyűrűk egyetlen hívásban
-    const firstGrid = generateSearchGrid(userLoc, SEARCH_BATCHES_KM[0]);
+    // Első kör: saját hely + legközelebbi gyűrűk egyetlen hívásban. A radar
+    // kört a hívás ELŐTT rajzoljuk fel (üresen), hogy a pásztázó vonal a
+    // várakozás alatt is fusson, majd a válasz megérkezésekor egyszerre
+    // fedjük fel az összes pontját - nincs pontonkénti, kitalált időzítés.
+    const firstBatchKm = SEARCH_BATCHES_KM[0];
+    const firstMaxRadius = firstBatchKm[firstBatchKm.length - 1];
+    const firstGrid = generateSearchGrid(userLoc, firstBatchKm);
+    radarAddTier(firstGrid, firstMaxRadius);
     const firstForecasts = await fetchPrecipitation([userLoc, ...firstGrid]);
     const userForecast = firstForecasts[0];
+    const firstGridForecasts = firstForecasts.slice(1);
+    const firstRainingIndices = firstGrid
+      .map((_, i) => i)
+      .filter(i => isRainingNow(firstGridForecasts[i]));
+    radarRevealTier(firstRainingIndices);
 
     // --- Nálad esik, vagy hamarosan fog ---
     if (isRainingNow(userForecast)) {
@@ -316,14 +411,22 @@ async function run(userLoc) {
     }
 
     // --- Keressük meg az esős pontokat, egyre táguló körökben ---
-    let raining = sortRaining(firstGrid, firstForecasts.slice(1));
+    let raining = sortRaining(firstGrid, firstGridForecasts);
     for (let i = 1; i < SEARCH_BATCHES_KM.length && raining.length === 0; i++) {
-      const grid = generateSearchGrid(userLoc, SEARCH_BATCHES_KM[i]);
+      const batchKm = SEARCH_BATCHES_KM[i];
+      const maxRadius = batchKm[batchKm.length - 1];
+      const grid = generateSearchGrid(userLoc, batchKm);
+      radarAddTier(grid, maxRadius);
       const forecasts = await fetchPrecipitation(grid);
+      const rainingIndices = grid
+        .map((_, idx) => idx)
+        .filter(idx => isRainingNow(forecasts[idx]));
+      radarRevealTier(rainingIndices);
       raining = sortRaining(grid, forecasts);
     }
 
     if (raining.length > 0) {
+      await sleep(500); // hagyjunk időt látni a pulzáló találatot, mielőtt váltunk
       await showNearestRain(raining[0], userLoc);
     } else {
       setHero("Sehol", "a közeledben most száraz idő van");
@@ -335,6 +438,7 @@ async function run(userLoc) {
     setQ2(null);
   } finally {
     showLoading(false);
+    document.getElementById("radar-svg").hidden = true;
   }
 }
 
@@ -430,9 +534,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function showLoading(on, text = "töltés…") {
-  const el = document.getElementById("loading");
-  el.textContent = text;
-  el.hidden = !on;
+  document.getElementById("loading-text").textContent = text;
+  document.getElementById("loading").hidden = !on;
 }
 
 function showError(msg) {
