@@ -4,8 +4,17 @@
 // országban egyformán pontos, nem csak Magyarországon vagy egy előre
 // kiválasztott városlistán.
 //
-// Ha az első adagban (600 km-ig) nem találunk esőt, egyre távolabbi
+// Ha az első adagban (150 km-ig) nem találunk esőt, egyre távolabbi
 // gyűrűket próbálunk, amíg nem találunk, vagy amíg el nem fogynak.
+//
+// Az adagok szűken indulnak és onnan tágulnak: az első csak 150 km-ig néz,
+// a következők 150 km-enként lépnek kijjebb (300, 450), és csak utána
+// gyorsul a lépés, hogy távoli eső esetén ne kelljen tucatnyi kört végigvárni.
+// Így a radar induló képe a közvetlen környéket mutatja olvashatóan, nem
+// egy 600 km-es, összezsúfolt áttekintést.
+//
+// Minden adag CSAK az új gyűrűt méri fel: a belső területet az előző adagok
+// már lefedték, a radaron pedig azok zoomolnak összébb az új adag alá.
 //
 // Egy gyűrűn NEM fix számú irányt kérdezünk le, hanem annyit, amennyi a
 // gyűrű kerületéhez illik. Korábban mindegyiken 12 irány volt, amitől a
@@ -14,18 +23,18 @@
 // esőrendszerek elfértek volna két pont között, miközben bent feleslegesen
 // sűrű volt a háló. Ezért az irányok száma a sugárral együtt nő, így a
 // pontok távolsága végig nagyságrendileg egyenletes marad (30 km-en 31 km,
-// 600 km-en 118 km, 9000 km-en 1285 km).
+// 450 km-en 88 km, 9000 km-en 1346 km).
 //
-// Az első adag a legsűrűbb, mert szinte minden keresés ebben megvan, és a
-// radaron is ez látszik a leggyakrabban. A két távolabbi adag ritkább: egy
-// teljes, mindhárom adagot végigjáró keresés így is 446 pontot kér le, és az
-// Open-Meteo percenkénti limitje 600 körül van.
-//
-// Adagonként egyetlen Open-Meteo hívás megy ki: [sugár km, irányok száma]
+// Minden adag egyetlen Open-Meteo hívás: [sugár km, irányok száma]. A
+// legrosszabb eset (mind a hat adag lefut) 572 pont, az Open-Meteo
+// percenkénti limitje pedig 600 körül van.
 const SEARCH_RINGS = [
-  [[30, 6], [65, 8], [110, 12], [175, 16], [270, 20], [400, 26], [600, 32]],
-  [[850, 28], [1200, 30], [1700, 32], [2300, 34], [3000, 36]],
-  [[4000, 38], [5300, 40], [6800, 42], [9000, 44]],
+  [[30, 6], [60, 10], [100, 14], [150, 18]],
+  [[200, 20], [250, 22], [300, 26]],
+  [[350, 28], [400, 30], [450, 32]],
+  [[550, 34], [700, 36], [900, 38]],
+  [[1200, 32], [1700, 34], [2500, 36]],
+  [[3500, 36], [5000, 38], [7000, 40], [9000, 42]],
 ];
 
 function ringBearings(count) {

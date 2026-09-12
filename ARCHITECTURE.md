@@ -22,12 +22,28 @@ irányok, a gömbi navigációs képlettel (`destinationPoint`) kiszámolt
 pontokkal. Ez azért jobb, mint egy fix településlista, mert bárhol a Földön
 egyformán pontos.
 
-**Fokozatosan táguló keresés** (`SEARCH_BATCHES_KM`): először 600 km-ig
-keresünk (5 gyűrű × 12 irány = 60 pont egyetlen Open-Meteo hívásban). Ha ott
-nincs eső, egy újabb, távolabbi köröket tartalmazó hívást indítunk (1000-3000
-km), majd ha kell, egy még távolabbit (4000-9000 km). Ez azért kell, mert egy
-fix, csak 600 km-es rács sokszor "Sehol"-t mondott volna olyankor is, amikor
-valójában volt eső, csak a rács nem talált rá.
+**Fokozatosan táguló keresés** (`SEARCH_RINGS`): hat adag, mindegyik egyetlen
+Open-Meteo hívás. Az első csak 150 km-ig néz (48 pont), a következők 150
+km-enként lépnek kijjebb (300, majd 450 km), és csak utána gyorsul a lépés
+(900, 2500, végül 9000 km), hogy távoli eső esetén se kelljen tucatnyi kört
+végigvárni. Minden adag CSAK az új gyűrűt méri fel, a belsőt az előzőek már
+lefedték. Ez azért kell, mert egy fix, szűk rács sokszor "Sehol"-t mondott
+volna olyankor is, amikor valójában volt eső, csak a rács nem talált rá.
+
+**A gyűrűk pontsűrűsége**: egy gyűrűn nem fix számú irányt kérdezünk le,
+hanem annyit, amennyi a kerületéhez illik (6-tól 42-ig). Fix 12 iránnyal a
+szomszédos pontok 30 km-en 16 km-re, 9000 km-en viszont már 4712 km-re estek
+egymástól, vagyis kint egész esőrendszerek elfértek volna két pont között.
+
+**API-terhelés**: a rácspontokról CSAK azt kérdezzük le, esik-e ott most
+(`current=precipitation`). Az órás előrejelzés (mikor áll el, mekkora
+eséllyel) egyedül a felhasználó saját helyére kell, azt a `fetchUserForecast`
+külön, párhuzamosan kéri le. Amíg ez egyben ment, a kérés súlya átlépte az
+Open-Meteo percenkénti limitjét (429). A koordinátákat 4 tizedesre kerekítve
+küldjük (`coord`), különben a legtávolabbi adag URL-je túllépi a szerver
+8 KB-os korlátját (414). A `destinationPoint` a hosszúsági fokot visszaforgatja
+a [-180, 180] tartományba, mert a legtávolabbi gyűrűk átlógnak a dátumvonalon
+(ezek nélkül a távoli keresés egyáltalán nem működött).
 
 **Névfeloldás (`findNearbyName`)**: a legközelebbi esős rácspontnak gyakran
 nincs neve (pl. tenger felett van). Ilyenkor a pont körül egyre táguló
