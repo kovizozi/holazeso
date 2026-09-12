@@ -57,10 +57,13 @@ const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
 
 // Csapadék-erősség sávok (mm/óra), melléknévi és határozói alakkal együtt,
 // hogy ne kelljen a végződést programból levezetni.
+// A "key" és a "dotRadius" a radar pöttyeihez kell: a gyengébb esőt halványabb
+// és kisebb pötty jelzi. Itt tartjuk, hogy az intenzitás-sávoknak egyetlen
+// forrása legyen, és a szöveg meg a rajz ne csúszhasson szét egymástól.
 const INTENSITY_BANDS = [
-  { max: 1, adj: "gyenge", adv: "gyengén" },
-  { max: 4, adj: "közepes", adv: "közepesen" },
-  { max: Infinity, adj: "erős", adv: "erősen" },
+  { max: 1, key: "light", dotRadius: 4, adj: "gyenge", adv: "gyengén" },
+  { max: 4, key: "medium", dotRadius: 5, adj: "közepes", adv: "közepesen" },
+  { max: Infinity, key: "heavy", dotRadius: 6, adj: "erős", adv: "erősen" },
 ];
 
 function intensityBand(mm) {
@@ -597,15 +600,19 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   radarTierGroups.push({ el: g, maxRadiusKm, scale: 1 });
 }
 
-function revealDot(dot, isRain) {
+// Az mm a csapadék mennyisége (mm/óra) azon a ponton, vagy undefined, ha ott
+// nem esik. A pötty mérete és árnyalata az intenzitás-sávot követi, hogy a
+// gyengébb eső halványabb és kisebb legyen.
+function revealDot(dot, mm) {
   dot.classList.add("revealed");
-  if (!isRain) return;
-  dot.classList.add("rain");
-  dot.setAttribute("r", 5);
+  if (mm === undefined) return;
+  const band = intensityBand(mm);
+  dot.classList.add("rain", `rain-${band.key}`);
+  dot.setAttribute("r", band.dotRadius);
   const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
   pulse.setAttribute("cx", dot.getAttribute("cx"));
   pulse.setAttribute("cy", dot.getAttribute("cy"));
-  pulse.setAttribute("r", 5);
+  pulse.setAttribute("r", band.dotRadius);
   pulse.classList.add("radar-pulse", "pulsing");
   dot.parentNode.appendChild(pulse);
 }
@@ -621,22 +628,23 @@ function revealDot(dot, isRain) {
 //
 // A visszaadott promise akkor teljesül, amikor a vonal a kör összes pontját
 // végigfestette, tehát a hívó megvárhatja, mielőtt a következő körre lép.
-function radarRevealTier(rainingIndices, { instant = false } = {}) {
+// A rainByIndex egy Map: rácspont indexe -> csapadék mm/órában. Ami nincs
+// benne, azon nem esik.
+function radarRevealTier(rainByIndex, { instant = false } = {}) {
   const tier = radarTierGroups[radarTierGroups.length - 1];
   if (!tier) return Promise.resolve();
-  const rainSet = new Set(rainingIndices);
   const dots = tier.el.querySelectorAll(".radar-dot");
-  const isRain = dot => rainSet.has(Number(dot.dataset.index));
+  const mmOf = dot => rainByIndex.get(Number(dot.dataset.index));
 
   if (instant) {
-    dots.forEach(dot => revealDot(dot, isRain(dot)));
+    dots.forEach(dot => revealDot(dot, mmOf(dot)));
     return Promise.resolve();
   }
 
   const sweepAngle = sweepAngleNow();
   dots.forEach(dot => {
     const degreesAhead = (Number(dot.dataset.bearing) - sweepAngle + 360) % 360;
-    setTimeout(() => revealDot(dot, isRain(dot)), (degreesAhead / 360) * RADAR_SWEEP_MS);
+    setTimeout(() => revealDot(dot, mmOf(dot)), (degreesAhead / 360) * RADAR_SWEEP_MS);
   });
   return new Promise(resolve => setTimeout(resolve, RADAR_SWEEP_MS));
 }
@@ -700,9 +708,10 @@ async function run(userLoc, { silent = false } = {}) {
       fetchPrecipitation(firstGrid),
     ]);
     if (superseded()) return;
-    const firstRainingIndices = firstGrid
+    const firstRain = new Map(firstGrid
       .map((_, i) => i)
-      .filter(i => isRainingNow(firstGridForecasts[i]));
+      .filter(i => isRainingNow(firstGridForecasts[i]))
+      .map(i => [i, firstGridForecasts[i].current.precipitation]));
     let raining = sortRaining(firstGrid, firstGridForecasts);
 
     // A helynév-lekérést már a felfestés ALATT elindítjuk. Enélkül a radar a
@@ -713,7 +722,7 @@ async function run(userLoc, { silent = false } = {}) {
       ? findNearbyName(raining[0])
       : null;
 
-    await radarRevealTier(firstRainingIndices, { instant: silent });
+    await radarRevealTier(firstRain, { instant: silent });
     if (superseded()) return;
 
     // Ha nálad esik (vagy hamarosan fog), a "de hol esik pontosan?" kérdés
@@ -766,12 +775,13 @@ async function run(userLoc, { silent = false } = {}) {
       radarAddTier(grid, maxRadius, userLoc);
       const forecasts = await fetchPrecipitation(grid);
       if (superseded()) return;
-      const rainingIndices = grid
+      const rainByIndex = new Map(grid
         .map((_, idx) => idx)
-        .filter(idx => isRainingNow(forecasts[idx]));
+        .filter(idx => isRainingNow(forecasts[idx]))
+        .map(idx => [idx, forecasts[idx].current.precipitation]));
       raining = sortRaining(grid, forecasts);
       if (raining.length > 0) placeLookup = findNearbyName(raining[0]);
-      await radarRevealTier(rainingIndices, { instant: silent });
+      await radarRevealTier(rainByIndex, { instant: silent });
       if (superseded()) return;
     }
 

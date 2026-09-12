@@ -304,6 +304,19 @@ button[type="submit"] {
   opacity: 1;
 }
 
+/* Intenzitás szerinti árnyalat: a gyengébb eső halványabb (a mérete is
+   kisebb, azt a script.js állítja a sávhoz). A leghalványabb esős pötty is
+   érezhetően sötétebb marad a száraz pontoknál (0,45), hogy a "gyengén esik"
+   és a "nem esik" ne mosódjon össze. Ezek a szabályok a fenti .rain.revealed
+   után állnak, mert azonos erősségűek, és a sorrend dönt. */
+.radar-dot.rain-light.revealed {
+  opacity: 0.66;
+}
+
+.radar-dot.rain-medium.revealed {
+  opacity: 0.85;
+}
+
 .radar-pulse {
   fill: none;
   stroke: var(--fg);
