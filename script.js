@@ -703,6 +703,16 @@ async function run(userLoc, { silent = false } = {}) {
     const firstRainingIndices = firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]));
+    let raining = sortRaining(firstGrid, firstGridForecasts);
+
+    // A helynév-lekérést már a felfestés ALATT elindítjuk. Enélkül a radar a
+    // kész kép fölött pörögne tovább, amíg a geokódoló válaszol: a pontok
+    // mind kint vannak, mégsem történik semmi.
+    const rainsAtUser = isRainingNow(userForecast) || isRainingSoon(userForecast);
+    let placeLookup = !rainsAtUser && raining.length > 0
+      ? findNearbyName(raining[0])
+      : null;
+
     await radarRevealTier(firstRainingIndices, { instant: silent });
     if (superseded()) return;
 
@@ -729,7 +739,6 @@ async function run(userLoc, { silent = false } = {}) {
       return;
     }
 
-    let raining = sortRaining(firstGrid, firstGridForecasts);
     const answer = raining.length > 0 ? "Igen" : "Nem";
 
     // Csendes háttérfrissítésnél csak akkor megyünk tovább a távoli
@@ -760,16 +769,16 @@ async function run(userLoc, { silent = false } = {}) {
       const rainingIndices = grid
         .map((_, idx) => idx)
         .filter(idx => isRainingNow(forecasts[idx]));
+      raining = sortRaining(grid, forecasts);
+      if (raining.length > 0) placeLookup = findNearbyName(raining[0]);
       await radarRevealTier(rainingIndices, { instant: silent });
       if (superseded()) return;
-      raining = sortRaining(grid, forecasts);
     }
 
     if (raining.length > 0) {
-      const nearest = raining[0];
-      const place = await findNearbyName(nearest);
+      const place = await placeLookup;
       if (superseded()) return;
-      showNearestRain(nearest, place, userLoc);
+      showNearestRain(raining[0], place, userLoc);
     } else {
       const maxKm = SEARCH_RINGS[SEARCH_RINGS.length - 1].at(-1)[0];
       setQ2Answer(`<p class="place-line">Sehol</p>
@@ -903,12 +912,13 @@ document.addEventListener("visibilitychange", () => {
 // Az első válasz ("Igen"/"Nem") nem várakozik külön: mire idáig érünk, a
 // pásztázó vonal már körbeért egyszer, hiszen a pontokat pont ő festette fel
 // (radarRevealTier egy teljes fordulat alatt végez). Ez önmagában elég idő a
-// kör leolvasásához. A VÉGSŐ válasz előtt viszont marad a hosszabb
-// várakozás, hogy a megtalált esőt is meg lehessen nézni a radaron.
+// kör leolvasásához. A VÉGSŐ válasz előtt is csak egy rövid szünet van: a
+// pontok addigra mind kint vannak, és a helynév-lekérés is a felfestéssel
+// párhuzamosan futott, tehát a radar nem pörög üresen a kész kép fölött.
 const PHASE_LOCAL = "local";
 const PHASE_WHERE = "where";
 const PHASE_DONE = "done";
-const REVEAL_DELAY_MS = 3000;
+const REVEAL_DELAY_MS = 1200;
 const REVEAL_SLIDE_MS = 600;
 let revealTimer = null;
 let revealResolve = null;
