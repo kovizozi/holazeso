@@ -1,127 +1,161 @@
 # PROGRESS.md
 
-Ez a fájl egy hosszú munkamenet állapotát rögzíti, hogy egy új session (vagy
-egy `/compact` utáni folytatás) pontosan onnan tudjon továbbmenni, ahol
-abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le,
-az `ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi
-munkamenet konkrét, aktuális állapotát**.
+Ez a fájl a munka aktuális állapotát rögzíti, hogy egy új session (vagy egy
+`/compact` utáni folytatás) pontosan onnan tudjon továbbmenni, ahol
+abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le, az
+`ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi állapotot és
+a nyitott szálakat**.
+
+Utolsó frissítés: 2026-09-12.
 
 ## Legfontosabb: nyitott, befejezetlen teendő
 
-**A push-worker KV-migrációja még nincs befejezve.** Történet:
+**A push-worker KV-migrációja még mindig nincs befejezve.** Ehhez a
+2026-09-11 és 09-12 közötti munka egyáltalán nem nyúlt hozzá, tehát az
+alábbi állapot változatlan, de **ellenőrizni kell, mielőtt bármit lépnél**,
+mert több nap telt el azóta.
+
+Történet:
 
 1. A KV-tárolást átalakítottuk kulcsonkénti rekordokról egyetlen
    `subscriptions` kulcs alatti JSON tömbre (lásd `ARCHITECTURE.md`,
-   "Tárolás: EGYETLEN KV kulcs" szakasz) - a régi felépítés napi 1000
+   "Tárolás: EGYETLEN KV kulcs" szakasz) - a régi felépítés a napi 1000
    írás/listázás limitet lépte túl percenkénti cronnal.
 2. A 4 meglévő (régi formátumú) feliratkozást kiolvastuk a régi
    per-endpoint kulcsokból, de az új `subscriptions` kulcsba **nem sikerült
    beírni** őket, mert épp akkor merült ki a napi KV írási kvóta.
 3. A régi per-endpoint kulcsokat **nem töröltük**, tehát az adat még ott
-   van, csak a `run()` (scheduled handler) mostantól kizárólag a
-   `subscriptions` kulcsot olvassa, ami jelenleg üres/nem létezik - **egy
-   feliratkozó sem kap értesítést**, amíg ezt nem javítjuk.
+   van, csak a `scheduled` handler kizárólag a `subscriptions` kulcsot
+   olvassa, ami üres/nem létezik - **egy feliratkozó sem kap értesítést**,
+   amíg ezt nem javítjuk.
 
-**Mit kell tenni, ha ez a session folytatja:**
-1. Ellenőrizd, resetelődött-e már a KV írási kvóta:
-   `curl -s -X PUT ".../storage/kv/namespaces/b930cf16ba13431787bccd98a88257f0/values/subscriptions" ...`
-   (account ID: `c61cb06c1083cbbcf897a3e1afa23647`, namespace ID:
-   `b930cf16ba13431787bccd98a88257f0`)
-2. Listázd a régi kulcsokat (`.../storage/kv/namespaces/<id>/keys`), olvasd
-   ki mindegyik értékét, és írd be egy tömbként a `subscriptions` kulcs alá.
-3. Ellenőrizd a végeredményt, majd (opcionálisan, ha minden migrált) töröld
-   a régi per-endpoint kulcsokat, hogy tiszta legyen a namespace.
+**Mit kell tenni:**
 
-## Munkamenet során hozott döntések (időrendben, tömören)
+1. Először LISTÁZD a namespace kulcsait, és nézd meg, mi van most ott
+   (`.../storage/kv/namespaces/<id>/keys`) - lehet, hogy azóta változott.
+   Account ID: `c61cb06c1083cbbcf897a3e1afa23647`, namespace ID:
+   `b930cf16ba13431787bccd98a88257f0`.
+2. Olvasd ki a régi per-endpoint kulcsok értékét, és írd be egy tömbként a
+   `subscriptions` kulcs alá.
+3. Ellenőrizd a végeredményt, majd (ha minden migrált) töröld a régi
+   per-endpoint kulcsokat, hogy tiszta legyen a namespace.
 
-- **Infrastruktúra**: GitHub repó (`kovizozi/holazeso`, publikus) →
-  Cloudflare Pages, Git-integrációval automatikus deploy. Domain
-  `holazeso.hu` (kanonikus) + `holazeső.hu` (301 redirect rá, Cloudflare
-  Redirect Rule-lal). Cloudflare Web Analytics + GoatCounter (mindkettő
-  cookie-mentes).
-- **Helymeghatározás**: böngésző geolocation az alapértelmezett út, kézi
-  településkeresés csak fallback. Bármely ország elfogadott (a korábbi
-  Magyarország-only szűrést kivettük, mert hibásan viselkedett).
-- **Keresési algoritmus**: nincs fix településlista - dinamikus rács a
-  felhasználó köré, egyre táguló körökben (`SEARCH_BATCHES_KM`), amíg talál
-  esőt. Ha a talált pontnak nincs neve, kis helyi kereséssel keres mellette
-  megnevezhető helyet (`findNearbyName`) - ennek saját koordinátáihoz kell
-  számolni a távolságot/irányt, nem az eredeti ponthoz (ez egy valós, javított
-  hiba volt).
-- **Design**: szigorúan monokróm, tipográfia-vezérelt. A bal felső sarokból
-  kivettük a "HOLAZESO.HU" feliratot (AI-sablon minta volt). Fibonacci
-  térköz-skála (8/13/21/34/55/89px), szerep szerint kiosztva. A "Nálad" hero
-  szót lecseréltük "Most esik"/"Hamarosan"-ra (informatívabb, a kérdés már
-  eleve a keresett helyről szól). Nincs em dash (—) sehol, ez ismételten
-  megerősített szabály.
-- **Válasz-gazdagítás**: intenzitás (gyenge/közepes/erős + mm/óra),
-  valószínűség (`precipitation_probability`), és becsült időtartam
-  (mikor áll el, az hourly előrejelzésből visszafelé nézve).
-- **Radar-vizualizáció** (keresés közben, a "töltés…" helyett): SVG,
-  pásztázó vonal folyamatosan forog ("dolgozunk" jelzés), egy kör pontjai
-  EGYSZERRE villannak fel, amikor a valódi (egyetlen, batch-elt) Open-Meteo
-  hívás visszatér - ez tudatosan NEM egy kitalált, pontonkénti időzítés.
-  Ha egy kör üres, a rács a következő, távolabbi körre vált, és az addig
-  felvillant körök CSS transition-nel zoomolnak összébb (cumulatív
-  `scale()`, `transform-origin` a radar közepére állítva - ez volt egy
-  valós hiba, alapból a bal felső sarokhoz zoomolt volna). A megoldást a
-  Claude Design vászon segítségével terveztük meg előre (lásd lent).
-- **Push-értesítés**: külön Cloudflare Worker (`holazeso-push-worker`,
-  privát repó), Web Push + VAPID (`@pushforge/builder`, natív Web Crypto,
-  nem kell `nodejs_compat`). Cooldown-logika: csak akkor értesít, ha
-  legalább 2 órája száraz volt, mielőtt esni kezdett - nem szól újra
-  minden percben, amíg tart az eső. iOS-en csak telepített (Add to Home
-  Screen) appként működik a `PushManager`, ez Apple platform-korlátozása.
-- **PWA**: manifest.json, ikonok, service worker. A service worker
-  eredetileg minden navigációs kérést (az `index.html`-t is) cache-elte,
-  ami örökre megragaszthatta volna egy telepített appot egy régi
-  `script.js?v=N` verziónál - javítva (`event.request.mode === "navigate"`
-  kizárva a cache-ből).
-- **Cache-busting kvirk**: a `holazeso.hu` custom domain nem tartja
-  tiszteletben a `_headers` fájl `no-cache` szabályát (nem sikerült
-  megoldani, csak megkerülni). Ezért a `?v=N` query param bővítése
-  KÖTELEZŐ minden `script.js`/`style.css` módosításnál - lásd `CLAUDE.md`.
-- **Tervezés vizuálisan**: több döntést (márkajelzés helye, térköz-rendszer,
-  a valószínűség/intenzitás megjelenítési formája, a radar-koncepció) egy
-  Claude Design vászon-artifacton (`https://claude.ai/code/artifact/6bb94c8b-4a7c-4a09-8f33-ed6437509f75`)
-  terveztünk meg előre, mielőtt kódoltunk - ez a vászon továbbra is elérhető
-  referenciaként, és frissíthető, ha újabb vizuális ötlet jön.
+## Ami a legutóbbi munkamenetben történt (2026-09-11 / 09-12)
 
-## Ebben a session-ben módosított/létrehozott fájlok
+Az egész menet a keresés vizualizációjáról és a helyességéről szólt. A
+tanulság, ami a `CLAUDE.md`-be és a memóriába is bekerült: **a vizuális
+panaszok mögött itt sorra valódi kódhibák voltak**, nem animációs ízlésbeli
+kérdések. Amíg a tünetet állítgattam (időzítés, térköz, fade), semmi nem
+javult; amikor végigolvastam a láncot és MÉRTEM, előkerült három API-hiba és
+hat lappangó hiba.
 
-**`holazeso-v0` repó** (teljes commit-lista időrendben, lásd `git log`):
-`index.html`, `style.css`, `script.js`, `sw.js`, `manifest.json`,
-`icon-192.png`, `icon-512.png`, `favicon.svg`, `og-image.png`,
-`robots.txt`, `sitemap.xml`, `_headers`, `README.md`, `ARCHITECTURE.md`,
-`CLAUDE.md` (ez a session hozta létre mindet, a repót is ez a session
-inicializálta a semmiből).
+### A keresés koreográfiája (a felhasználó által kért végállapot)
 
-**`holazeso-push-worker` repó** (külön, privát): `wrangler.toml`,
-`package.json`, `src/index.js` - ugyanez a session hozta létre.
+1. **1. fázis, "Esik-e X környékén?"**: csak ezt keressük (saját pont + a
+   150 km-es első gyűrű). A radar végig egy helyben áll, mert a még nem
+   esedékes válasz a LAYOUTBAN SINCS benne (`#result` `data-phase`).
+2. Amint megvan, a radar **azonnal** lecsúszik egy lépéssel (nincs külön
+   várakozás: a pontok felfestése már kitöltött egy teljes pásztázó
+   fordulatot, ~1,8 mp az egész), kiíródik a válasz, és megjelenik a
+   "de hol esik pontosan?" kérdés.
+3. **2. fázis**: a keresés a radar alatt folytatódik kifelé.
+4. Ha megvan, **3 mp várakozás** (hogy a találat leolvasható legyen a
+   radarról), majd a radar újra lecsúszik, és fölötte megjelenik a hely, a
+   távolság és az útvonal.
+
+A lecsúszás FLIP-animáció (`slideRadar`), különben a megjelenő szöveg
+ugrással lökné odébb a radart. A radar NEM tűnik el és NEM zsugorodik.
+
+A pásztázó vonal **festi fel** a pontokat, ahogy elhalad az irányuk fölött
+(`radarRevealTier`). Ez a felhasználó kifejezett kérése volt; az
+adatvezéreltség attól marad meg, hogy pont sosem villanhat fel előbb, mint
+ahogy a valódi válasz megérkezett.
+
+### Válasz-szókincs (tudatos változtatás, a felhasználó tud róla)
+
+A kétfázisú bontás miatt az első válasz nem függhet a távoli kereséstől,
+ezért a régi `Közelben`/`Távolban`/`Sehol` hármas helyett:
+
+- 1. fázis: `Most esik` / `Hamarosan` (nálad) / `Igen` / `Nem`
+- 2. fázis: a hely neve, a tényleges távolság és az útvonal, vagy `Sehol`
+
+A felhasználónak felajánlottam, hogy visszahozom a régi szavakat, ha
+szeretné - erre még nem válaszolt.
+
+### Három API-hiba, ami miatt a keresés részben NEM MŰKÖDÖTT
+
+1. **414 Request-URI Too Large**: a legtávolabbi adag URL-je 8811 karakter
+   volt a nyers float koordinátáktól. Javítva: 4 tizedesre kerekítés
+   (`coord`).
+2. **429 Minutely API request limit exceeded**: lásd lent, a kvóta szakaszt.
+3. **400 Longitude must be in range of -180 to 180**: a legtávolabbi gyűrűk
+   átlógnak a dátumvonalon. Javítva: `destinationPoint` visszaforgatja a
+   hosszúsági fokot.
+
+### Az API-kvóta, amit rosszul feltételeztem
+
+Utánanézve (hivatalos súlyozó képlet, `calculateQueryWeight`): **minden
+lekérdezett pont külön 1 egységet ér**, és 10 változó / 14 nap alatt a
+változók száma és a napok száma NEM módosít rajta. Limit IP-nként 600/perc,
+5000/óra, 10000/nap; egy kérésben max. 1000 pont.
+
+Ebből: a rácsra a `current=precipitation` szétválasztása gyorsít és rövidíti
+az URL-t, de a kvótán **nem segít**. Ezért a keresés mérete 573-ról **295
+pontra** csökkent (a 9000 km-es adag kiesett), a frissítés **5 percenként**
+fut, és a csendes frissítés csak az 1. fázist futtatja (49 pont), kivéve ha
+a környék válasza megváltozott. Részletek az `ARCHITECTURE.md`-ben.
+
+### Hat lappangó hiba (kódátvizsgálásból, mind javítva)
+
+1. **Végleges befagyás**: a `revealPhase` ígéretét megszakításkor senki nem
+   oldotta fel, így keresés közbeni helyszínváltás után a `run()` örökre ott
+   állt, és onnantól minden keresés némán kimaradt. Javítva: `cancelReveal`.
+2. Az új helyszín keresése elveszett a `runInProgress` őrön. Javítva:
+   futás-token, az új keresés felülírja a régit.
+3. Csendes frissítés hibája letörölte a képernyőn álló jó választ.
+4. Háttérbe került lapon elcsúszott a felfestés a pásztázó vonaltól (a CSS
+   animáció megáll, a `Date.now()` nem). Javítva: Web Animations API.
+5. Elavult komment a radar szakaszban.
+6. A service worker gyorsítótára verzióról verzióra nőtt.
+
+## Ellenőrzés: mivel teszteltem
+
+Böngésző-automatizálás nincs ebben a környezetben, ezért **jsdom-os
+állapotgép-tesztekkel** dolgozom, a valódi `index.html` + `script.js`
+betöltésével (`new Function`-nel, a lenti "Indítás" blokkot levágva). A
+tesztfájlok a session scratchpad mappájában vannak, nem a repóban. Ez a
+módszer több valódi hibát talált (pl. hogy SVG elemen nincs `.hidden`
+property), tehát érdemes folytatni.
+
+Amit érdemes újra lefuttatni változtatás után: a fázis-átmenetek
+(local → where → done) mind a négy ágon (nálad esik / környéken esik /
+távolabb esik / sehol), a pásztázás-szinkron (a felfedett pontok száma
+lineárisan követi-e a vonal szögét), és a biztonsági ágak (helyszínváltás
+keresés közben, csendes hiba).
+
+Egy 30 kiindulópontos (sarkok, dátumvonal, óceánok) geometriai stressz-teszt
+~103 000 rácspontra hibátlan volt, éles lekérésekkel együtt.
 
 ## Nyitott ötletek (felmerültek, de NEM valósítottuk meg)
 
-- Országhatárok megjelenítése a radaron nagy sugárnál (tudatosan
-  későbbre hagyva, külön döntés kell hozzá - lásd a vászon 3. oldalát).
+- Országhatárok megjelenítése a radaron nagy sugárnál.
 - Pontossági jelzés a helymeghatározásnál (ha a böngésző csak IP-alapú,
   pontatlan helyzetet ad).
 - Sötét/világos mód kézi váltása (jelenleg csak `prefers-color-scheme`).
-- A push-értesítés teljes végpontos tesztje valós (nem manuálisan
-  triggerelt) esőeseménnyel még nem történt meg.
+- A push-értesítés teljes végpontos tesztje valós esőeseménnyel.
+- A régi `Közelben`/`Távolban` szavak visszahozása, ha a felhasználó
+  mégis hiányolja őket.
 
 ## Instrukció a `/compact`-hoz
 
-Ha ez a beszélgetés hamarosan compact-olásra kerül, a compact parancsnak
-add meg ezt az instrukciót, hogy a lényeg megmaradjon:
-
 ```
 /compact Tartsd meg: a push-worker KV-migráció befejezetlen állapotát és a
-pontos helyreállítási lépéseket (lásd PROGRESS.md a repóban), az összes
-"Kritikus szabály" pontot a CLAUDE.md-ből (főleg az em dash tilalmat és a
-?v=N cache-busting kötelezettséget), és a Cloudflare API token/fiók
-azonosítókat (account c61cb06c1083cbbcf897a3e1afa23647, push-worker KV
-namespace b930cf16ba13431787bccd98a88257f0). A részletes technikai
-háttér (keresési algoritmus, radar-logika, push cooldown) ne kerüljön be
-szó szerint, mert az ARCHITECTURE.md-ben és a kódban megvan - elég rájuk
-hivatkozni.
+pontos azonosítókat (account c61cb06c1083cbbcf897a3e1afa23647, KV namespace
+b930cf16ba13431787bccd98a88257f0), a CLAUDE.md összes "Kritikus szabály"
+pontját (főleg az em dash tilalmat és a ?v=N cache-busting kötelezettséget),
+az Open-Meteo kvóta tényeit (pontonként 1 egység, 600/perc, 5000/óra,
+10000/nap), és azt a munkamódszert, hogy vizuális panasznál előbb a kódot
+kell végigolvasni és mérni. A keresési rács konkrét számai, a radar-logika
+és a push cooldown ne kerüljön be szó szerint, mert az ARCHITECTURE.md-ben
+és a kódban megvan - elég rájuk hivatkozni.
 ```
