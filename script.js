@@ -41,7 +41,6 @@ function ringBearings(count) {
   return Array.from({ length: count }, (_, i) => (i * 360) / count);
 }
 
-const NEARBY_LIMIT_KM = 70; // eddig számít "közelinek" egy esős hely
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
 
 // Csapadék-erősség sávok (mm/óra), melléknévi és határozói alakkal együtt,
@@ -486,10 +485,11 @@ async function run(userLoc, { silent = false } = {}) {
     document.getElementById("q1-question").textContent =
       `Esik-e ${userLoc.name} környékén?`;
 
-    // Első kör: a saját hely részletes előrejelzése és a legközelebbi gyűrűk
-    // párhuzamosan. A radar kört a hívás ELŐTT rajzoljuk fel (üresen), hogy a
-    // pásztázó vonal a várakozás alatt is fusson, és a válasz megérkezésekor
-    // legyen mit felfestenie.
+    // === 1. FÁZIS: esik-e a környéken? ===
+    // Csak ezt keressük: a saját hely részletes előrejelzését és a legelső,
+    // 150 km-es gyűrűt (ez a "környék"). A radar kört a hívás ELŐTT rajzoljuk
+    // fel üresen, hogy a pásztázó vonal a várakozás alatt is fusson, és a
+    // válasz megérkezésekor legyen mit felfestenie.
     const firstBatch = SEARCH_RINGS[0];
     const firstMaxRadius = firstBatch[firstBatch.length - 1][0];
     const firstGrid = generateSearchGrid(userLoc, firstBatch);
@@ -503,7 +503,8 @@ async function run(userLoc, { silent = false } = {}) {
       .filter(i => isRainingNow(firstGridForecasts[i]));
     await radarRevealTier(firstRainingIndices, { instant: silent });
 
-    // --- Nálad esik, vagy hamarosan fog ---
+    // Ha nálad esik (vagy hamarosan fog), a "de hol esik pontosan?" kérdés
+    // értelmetlen: a válasz az, hogy itt. Ilyenkor nincs 2. fázis.
     if (isRainingNow(userForecast)) {
       const mm = userForecast.current.precipitation;
       const band = intensityBand(mm);
@@ -511,7 +512,7 @@ async function run(userLoc, { silent = false } = {}) {
       const lines = [`${band.adv}, ${formatMm(mm)} mm/óra`];
       lines.push(duration === null ? null : duration <= 0 ? "hamarosan eláll" : `még kb. ${duration} óráig tart`);
       setHero("Most esik", lines);
-      setQ2(null);
+      hideQ2();
       return;
     }
     if (isRainingSoon(userForecast)) {
@@ -521,12 +522,19 @@ async function run(userLoc, { silent = false } = {}) {
       const band = intensityBand(mm);
       const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel, ` : "";
       setHero("Hamarosan", `${probText}${band.adj} eső várható`);
-      setQ2(null);
+      hideQ2();
       return;
     }
 
-    // --- Keressük meg az esős pontokat, egyre táguló körökben ---
     let raining = sortRaining(firstGrid, firstGridForecasts);
+    setHero(raining.length > 0 ? "Igen" : "Nem", null);
+    showQ2("de hol esik pontosan?");
+
+    // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
+    // következő kérdés, és a keresés alatta folytatódik.
+    if (!silent) await revealPhase(PHASE_WHERE);
+
+    // === 2. FÁZIS: de hol esik pontosan? ===
     for (let i = 1; i < SEARCH_RINGS.length && raining.length === 0; i++) {
       const batch = SEARCH_RINGS[i];
       const maxRadius = batch[batch.length - 1][0];
@@ -543,13 +551,14 @@ async function run(userLoc, { silent = false } = {}) {
     if (raining.length > 0) {
       await showNearestRain(raining[0], userLoc);
     } else {
-      setHero("Sehol", "a közeledben most száraz idő van");
-      setQ2(null);
+      const maxKm = SEARCH_RINGS[SEARCH_RINGS.length - 1].at(-1)[0];
+      setQ2Answer(`<p class="place-line">Sehol</p>
+        <p class="context">${maxKm} km-en belül sem találtunk esőt</p>`);
     }
   } catch (err) {
     console.error(err);
     setHero("Hiba", "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.");
-    setQ2(null);
+    hideQ2();
   } finally {
     if (!silent) scheduleReveal();
     runInProgress = false;
@@ -559,17 +568,10 @@ async function run(userLoc, { silent = false } = {}) {
 async function showNearestRain(nearest, userLoc) {
   const place = await findNearbyName(nearest);
 
-  // A "Közelben/Távolban" mindig a tényleges esős pont valódi távolságát
-  // tükrözi. A lenti kártya viszont a MEGNEVEZETT helyről szól, ezért annak
-  // saját koordinátáihoz kell számolni a távolságot/irányt/útvonalat - a
-  // névadó pont a keresés során eltolódhatott az esős ponttól, így a kettő
-  // nem feltétlenül ugyanaz.
-  const isNearby = nearest.distance <= NEARBY_LIMIT_KM;
-  setHero(
-    isNearby ? "Közelben" : "Távolban",
-    isNearby ? "a közeli térségben esik" : "egy távolabbi térségben esik"
-  );
-
+  // A kiírt kártya a MEGNEVEZETT helyről szól, ezért annak saját
+  // koordinátáihoz kell számolni a távolságot/irányt/útvonalat - a névadó
+  // pont a keresés során eltolódhatott az esős ponttól, így a kettő nem
+  // feltétlenül ugyanaz.
   const isForeign = place.countryCode && userLoc.countryCode && place.countryCode !== userLoc.countryCode;
   const placeLabel = place.name
     ? (isForeign ? `${place.name}, ${place.countryName}` : place.name)
@@ -586,8 +588,7 @@ async function showNearestRain(nearest, userLoc) {
 
   const direction = compassLabel(displayBearing);
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${targetLat},${targetLon}`;
-  setQ2(
-    "de hol esik pontosan?",
+  setQ2Answer(
     `<p class="place-line">${placeLabel}</p>
      <p class="context">${Math.round(displayDistance)} km innen
      <span class="direction-arrow" style="transform: rotate(${displayBearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
@@ -595,13 +596,12 @@ async function showNearestRain(nearest, userLoc) {
   );
 }
 
-// A context egy string vagy stringek tömbje lehet - a "Nálad" állapotoknál
-// (erősség, időtartam, valószínűség) néha több sorra van szükség, a többi
-// állapotnál (Közelben/Távolban/Sehol/Hiba) marad az egysoros válasz.
+// A context egy string vagy stringek tömbje lehet: a "Most esik" állapotnál
+// (erősség, időtartam) néha több sorra van szükség.
 //
 // Ezek a függvények CSAK a tartalmat írják. Hogy a tartalom mikor válik
 // láthatóvá, azt egyedül a keresés koreográfiája dönti el (a #result
-// "searching" osztálya, lásd lent) - így nem tud két hely egymás ellen
+// data-phase attribútuma, lásd lent) - így nem tud két hely egymás ellen
 // dolgozni, és a layout sem ugrik meg keresés közben.
 function setHero(answer, context) {
   document.getElementById("q1-answer").textContent = answer;
@@ -612,15 +612,18 @@ function setHero(answer, context) {
     .join("");
 }
 
-function setQ2(question, html) {
-  const block = document.getElementById("q2-block");
-  if (question === null) {
-    block.hidden = true;
-    return;
-  }
-  block.hidden = false;
+function showQ2(question) {
+  document.getElementById("q2-block").hidden = false;
   document.getElementById("q2-question").textContent = question;
+}
+
+function setQ2Answer(html) {
   document.getElementById("q2-answer").innerHTML = html;
+}
+
+function hideQ2() {
+  document.getElementById("q2-block").hidden = true;
+  document.getElementById("q2-answer").innerHTML = "";
 }
 
 // ---- UI-vezérlés ----
@@ -654,17 +657,24 @@ document.addEventListener("visibilitychange", () => {
 
 // ---- A keresés koreográfiája ----
 //
-// Három állapot, ebben a sorrendben:
+// A keresés két kérdésre válaszol, egymás után, és a radar mindkettő után
+// lejjebb csúszik egy lépéssel. A #result data-phase attribútuma mondja meg,
+// mi látszik éppen; a többit a CSS intézi.
 //
-// 1. KERESÉS: csak a kérdés és a radar látszik. A válasz (nagy szó, magyarázó
-//    sorok, "de hol esik pontosan?" blokk) ilyenkor a LAYOUTBAN SINCS benne
-//    (#result.searching -> display: none), így a radar a keresés teljes ideje
-//    alatt egy helyben marad. Korábban itt volt a hiba: a setQ2() már a
-//    keresés közben helyet foglalt a részletblokknak, ami lelökte a radart.
-// 2. VÁRAKOZÁS: a keresés befejeztétől számítva REVEAL_DELAY_MS ideig semmi
-//    nem mozdul, hogy a találat leolvasható legyen a radarról.
-// 3. FELFEDÉS: a radar egyetlen mozdulattal lecsúszik a végleges, kisebb
-//    helyére és ott is marad, közben a válasz szövege beúszik fölötte.
+// PHASE_LOCAL ("esik-e a környéken?"): csak a kérdés és a radar látszik.
+//   A válasz és a második blokk ilyenkor a LAYOUTBAN SINCS benne, így a radar
+//   a keresés teljes ideje alatt egy helyben marad. (Korábban itt volt egy
+//   hiba: a válaszblokk már keresés közben helyet foglalt, és lelökte.)
+// PHASE_WHERE ("de hol esik pontosan?"): az első válasz és a második kérdés
+//   már látszik, a második válasz még nem. A radar egy lépéssel lejjebb
+//   csúszott, és alatta folytatódik a keresés.
+// PHASE_DONE: minden látszik, a radar a végleges helyén marad.
+//
+// Fázisváltás előtt mindig van REVEAL_DELAY_MS várakozás, amíg semmi nem
+// mozdul, hogy az addigi találat leolvasható legyen a radarról.
+const PHASE_LOCAL = "local";
+const PHASE_WHERE = "where";
+const PHASE_DONE = "done";
 const REVEAL_DELAY_MS = 3000;
 const REVEAL_SLIDE_MS = 600;
 let revealTimer = null;
@@ -674,7 +684,7 @@ function beginSearchUI() {
   revealTimer = null;
   const loading = document.getElementById("loading");
   const svg = document.getElementById("radar-svg");
-  document.getElementById("result").classList.add("searching");
+  document.getElementById("result").dataset.phase = PHASE_LOCAL;
   document.getElementById("loading-text").textContent = "töltés…";
   loading.classList.remove("settled", "locating");
   loading.hidden = false;
@@ -684,24 +694,35 @@ function beginSearchUI() {
   radarRestartSweep();
 }
 
-function scheduleReveal() {
+// Várakozik, majd átlép a megadott fázisba. A hívó await-elheti, hogy a
+// keresés következő szakasza csak a lecsúszás után induljon el.
+function revealPhase(phase) {
   clearTimeout(revealTimer);
-  revealTimer = setTimeout(revealAnswer, REVEAL_DELAY_MS);
+  return new Promise(resolve => {
+    revealTimer = setTimeout(() => {
+      slideRadar(() => {
+        document.getElementById("result").dataset.phase = phase;
+        if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
+      });
+      resolve();
+    }, REVEAL_DELAY_MS);
+  });
 }
 
-// A felfedéskor a szöveg megjelenése és a radar kisebb helyre kerülése
-// egyszerre változtatja meg a layoutot, amit a böngésző egy ugrással
-// hajtana végre. Ezért FLIP-technikát használunk: megmérjük a radar helyét
-// és méretét a változtatás ELŐTT és UTÁN, a különbséggel visszatoljuk oda,
-// ahol volt, majd onnan animáljuk a végleges helyére. Így ugrás helyett
-// szépen lecsúszik, miközben a szöveg beúszik fölötte.
-function revealAnswer() {
-  const loading = document.getElementById("loading");
+function scheduleReveal() {
+  revealPhase(PHASE_DONE);
+}
+
+// A fázisváltáskor megjelenő szöveg egy ugrással lökné lejjebb a radart.
+// Ezért FLIP-technikát használunk: megmérjük a radar helyét a változtatás
+// ELŐTT és UTÁN, a különbséggel visszatoljuk oda, ahol volt, majd onnan
+// animáljuk az új helyére. Így ugrás helyett szépen lecsúszik, miközben a
+// szöveg beúszik fölötte.
+function slideRadar(applyLayoutChange) {
   const svg = document.getElementById("radar-svg");
   const first = svg.getBoundingClientRect();
 
-  loading.classList.add("settled");
-  document.getElementById("result").classList.remove("searching");
+  applyLayoutChange();
 
   const last = svg.getBoundingClientRect();
   const scale = last.width ? first.width / last.width : 1;

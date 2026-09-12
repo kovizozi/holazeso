@@ -171,17 +171,26 @@ button[type="submit"] {
   margin-top: 1rem;
 }
 
-/* Keresés közben a válasz még a layoutban sincs benne: így a radar végig
-   egy helyben marad, nem lökik lejjebb a közben elkészülő szövegek. */
-#result.searching #q1-answer,
-#result.searching #q1-context,
-#result.searching #q2-block {
+/* A még nem esedékes válasz a LAYOUTBAN SINCS benne, így a radar az adott
+   szakasz keresése alatt végig egy helyben marad, nem lökik lejjebb a
+   közben elkészülő szövegek. Lásd a script.js fázisait.
+
+   "local": még csak az "esik-e a környéken?" kérdésre keressük a választ.
+   "where": az első válasz és a második kérdés már látszik, alatta folyik
+            tovább a keresés, a második válasz még rejtve.  */
+#result[data-phase="local"] #q1-answer,
+#result[data-phase="local"] #q1-context,
+#result[data-phase="local"] #q2-block,
+#result[data-phase="where"] #q2-answer {
   display: none;
 }
 
-#result:not(.searching) #q1-answer,
-#result:not(.searching) #q1-context,
-#result:not(.searching) #q2-block {
+/* Mindegyik akkor animálódik be, amikor a fázisváltás láthatóvá teszi:
+   a display: none feloldása magától újraindítja az animációt. */
+#q1-answer,
+#q1-context,
+#q2-block,
+#q2-answer {
   animation: answer-in 0.45s ease both;
 }
 

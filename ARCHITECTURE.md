@@ -55,9 +55,25 @@ esős ponthoz, különben a kiírt szám nem egyezik a mutatott névvel. (Ez egy
 valós hiba volt, amit javítottunk: egy angliai teszt esetén 300 km-t írt ki
 "Mattishall" mellé, miközben Mattishall valójában csak 150 km-re volt.)
 
-A "Közelben"/"Távolban" címke mindig a **valódi esős pont** távolságán
-alapul (70 km a küszöb), függetlenül attól, hogy a névadó pont esetleg
-messzebb van.
+## A válasz két szakaszban (`run`)
+
+A keresés két kérdésre válaszol, egymás után, és a radar mindkettő után
+lejjebb csúszik egy lépéssel (`#result` `data-phase` attribútuma vezérli, mi
+látszik; a FLIP-animációt a `slideRadar` intézi):
+
+1. **"Esik-e X környékén?"** Ehhez csak a saját pont előrejelzése és a legelső,
+   150 km-es gyűrű kell. Válasz: `Most esik` / `Hamarosan` (nálad), `Igen`
+   (a környéken esik), `Nem`. Az első kettőnél nincs második szakasz: ha
+   nálad esik, a "hol esik pontosan" kérdés értelmetlen.
+2. **"De hol esik pontosan?"** Csak az első válasz kimondása UTÁN indul, és
+   csak akkor, ha nálad nem esik. Innen tágul kifelé a keresés, amíg talál,
+   majd névfeloldás után kiírja a helyet, a távolságot és az útvonalat. Ha
+   sehol nem talált, a válasz "Sehol".
+
+Az első szakasz válasza szándékosan nem függ a távoli kereséstől: enélkül nem
+lehetne két szakaszra bontani, mert a "Közelben/Távolban/Sehol" típusú válasz
+csak a teljes keresés végén derülne ki. A közel/távol információt most a
+második szakasz kiírt távolsága hordozza.
 
 ## Push-értesítés rendszer
 
