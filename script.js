@@ -443,6 +443,156 @@ function loadBorders() {
   return bordersLoading;
 }
 
+// ---- Radarkép a radaron ----
+// A csapadékképet a RainViewer publikus radarcsempéiből rakjuk össze.
+//
+// FONTOS, mit jelent ez és mit nem: ez CSAK KÉP. A válasz továbbra is az
+// Open-Meteo adatán alapul, nem ezen. A kettő eltérhet, és le is mértük, hogy
+// eltér: a radar a magasban lévő visszaverődést látja, beleértve a talajzavart
+// és a leérés előtt elpárolgó csapadékot, az Open-Meteo pedig a felszíni
+// csapadékot modellezi. A csempe átlátszó pixele ráadásul kétértelmű: jelenthet
+// "nem esik"-et és "itt nincs radarlefedettség"-et is. Ezért a radarkép
+// tájékoztató háttér, nem döntési alap.
+//
+// Monokróm marad: a csempék színes palettáját nem vesszük át, a pixel
+// erősségét a saját előtérszínünk átlátszóságára képezzük le.
+const RAINVIEWER_INDEX_URL = "https://api.rainviewer.com/public/weather-maps.json";
+const RADAR_IMAGE_MAX_TILES = 9;
+const RADAR_IMAGE_INK = 0.45; // mennyire erős legyen a kép a pontok alatt
+let radarFrame = null;
+let radarFrameLoading = null;
+
+function loadRadarFrame() {
+  if (radarFrameLoading) return radarFrameLoading;
+  radarFrameLoading = fetch(RAINVIEWER_INDEX_URL)
+    .then(res => res.json())
+    .then(data => {
+      const past = data.radar && data.radar.past;
+      radarFrame = past && past.length
+        ? { host: data.host, path: past[past.length - 1].path }
+        : null;
+    })
+    .catch(err => {
+      console.error(err);
+      radarFrame = null;
+    });
+  return radarFrameLoading;
+}
+
+function lonLatToWorldPx(lon, lat, zoom) {
+  const size = 256 * 2 ** zoom;
+  const s = Math.min(Math.max(Math.sin(lat * Math.PI / 180), -0.9999), 0.9999);
+  return {
+    x: (lon + 180) / 360 * size,
+    y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size,
+  };
+}
+
+// Akkora nagyítást választunk, hogy a csempe felbontása nagyjából a radar
+// saját felbontásához illjen, de a letöltött csempék száma korlátos maradjon.
+function radarImageZoom(lat, maxRadiusKm) {
+  const kmPerRadarPx = maxRadiusKm / RADAR_MAX_PX;
+  const equatorKm = 40075 * Math.cos(lat * Math.PI / 180);
+  let zoom = Math.round(Math.log2(equatorKm / (256 * kmPerRadarPx)));
+  zoom = Math.max(1, Math.min(7, zoom));
+  while (zoom > 1) {
+    const tileKm = equatorKm / 2 ** zoom;
+    if ((2 * maxRadiusKm / tileKm + 1) ** 2 <= RADAR_IMAGE_MAX_TILES) break;
+    zoom -= 1;
+  }
+  return zoom;
+}
+
+function loadTileImage(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous"; // enélkül a canvas "megfertőződne", és nem lehetne pixelt olvasni
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+function foregroundRgb() {
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--fg").trim();
+  const hex = /^#([0-9a-f]{6})$/i.exec(value);
+  if (!hex) return [17, 17, 17];
+  const n = parseInt(hex[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+async function drawRadarImage() {
+  const el = document.getElementById("radar-image");
+  el.removeAttribute("href");
+  if (!bordersVisible || !radarFrame || !radarOrigin || !radarMaxRadiusKm) return;
+
+  const zoom = radarImageZoom(radarOrigin.lat, radarMaxRadiusKm);
+  const world = 256 * 2 ** zoom;
+  const tiles = 2 ** zoom;
+  const centre = lonLatToWorldPx(radarOrigin.lon, radarOrigin.lat, zoom);
+  const kmPerTilePx = 40075 * Math.cos(radarOrigin.lat * Math.PI / 180) / world;
+  const radiusPx = radarMaxRadiusKm / kmPerTilePx;
+  const tx0 = Math.floor((centre.x - radiusPx) / 256);
+  const tx1 = Math.floor((centre.x + radiusPx) / 256);
+  const ty0 = Math.floor((centre.y - radiusPx) / 256);
+  const ty1 = Math.floor((centre.y + radiusPx) / 256);
+
+  const stitched = document.createElement("canvas");
+  stitched.width = (tx1 - tx0 + 1) * 256;
+  stitched.height = (ty1 - ty0 + 1) * 256;
+  const stitchedCtx = stitched.getContext("2d", { willReadFrequently: true });
+  const loads = [];
+  for (let tx = tx0; tx <= tx1; tx++) {
+    for (let ty = ty0; ty <= ty1; ty++) {
+      if (ty < 0 || ty >= tiles) continue;
+      const wrapped = ((tx % tiles) + tiles) % tiles;
+      const url = `${radarFrame.host}${radarFrame.path}/256/${zoom}/${wrapped}/${ty}/2/1_1.png`;
+      loads.push(loadTileImage(url).then(img => {
+        if (img) stitchedCtx.drawImage(img, (tx - tx0) * 256, (ty - ty0) * 256);
+      }));
+    }
+  }
+  await Promise.all(loads);
+  if (!bordersVisible) return; // közben új keresés indulhatott
+
+  const source = stitchedCtx.getImageData(0, 0, stitched.width, stitched.height);
+  const out = document.createElement("canvas");
+  out.width = RADAR_VIEWBOX;
+  out.height = RADAR_VIEWBOX;
+  const outCtx = out.getContext("2d");
+  const target = outCtx.createImageData(RADAR_VIEWBOX, RADAR_VIEWBOX);
+  const [fr, fg, fb] = foregroundRgb();
+
+  // A radar azimutális ekvidisztáns vetület, a csempék Mercator-vetületűek,
+  // ezért pixelenként visszaszámoljuk, melyik koordináta tartozik ide.
+  for (let y = 0; y < RADAR_VIEWBOX; y++) {
+    for (let x = 0; x < RADAR_VIEWBOX; x++) {
+      const dx = x - RADAR_CENTER;
+      const dy = y - RADAR_CENTER;
+      const r = Math.hypot(dx, dy);
+      if (r > RADAR_MAX_PX) continue;
+      const bearing = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+      const point = destinationPoint(radarOrigin.lat, radarOrigin.lon, bearing,
+        r / RADAR_MAX_PX * radarMaxRadiusKm);
+      const w = lonLatToWorldPx(point.lon, point.lat, zoom);
+      let sx = Math.round(w.x - tx0 * 256);
+      const sy = Math.round(w.y - ty0 * 256);
+      if (sx < 0) sx += world;
+      if (sx >= world) sx -= world;
+      if (sx < 0 || sy < 0 || sx >= stitched.width || sy >= stitched.height) continue;
+      const alpha = source.data[(sy * stitched.width + sx) * 4 + 3];
+      if (!alpha) continue;
+      const di = (y * RADAR_VIEWBOX + x) * 4;
+      target.data[di] = fr;
+      target.data[di + 1] = fg;
+      target.data[di + 2] = fb;
+      target.data[di + 3] = Math.round(alpha * RADAR_IMAGE_INK);
+    }
+  }
+  outCtx.putImageData(target, 0, 0);
+  el.setAttribute("href", out.toDataURL());
+}
+
 function radarDrawBorders() {
   const layer = document.getElementById("radar-borders");
   layer.innerHTML = "";
@@ -601,6 +751,7 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   radarOrigin = userLoc;
   radarMaxRadiusKm = maxRadiusKm;
   radarDrawBorders();
+  drawRadarImage().catch(err => console.error(err));
   radarTierGroups.forEach(tier => {
     tier.scale = tier.maxRadiusKm / maxRadiusKm;
     tier.el.style.transform = `scale(${tier.scale})`;
@@ -1020,7 +1171,12 @@ function beginSearchUI() {
   bordersVisible = false; // keresés közben tiszta radar, csak a pontokkal
   radarReset();
   radarRestartSweep();
-  loadBorders(); // lusta betöltés, a választ sosem várakoztatja
+  document.getElementById("radar-image").removeAttribute("href");
+  loadBorders();     // lusta betöltés, a választ sosem várakoztatja
+  // A radarkép 10 percenként frissül, ezért keresésenként újrakérjük a
+  // katalógust. Ha nem jön meg, a radar egyszerűen kép nélkül működik tovább.
+  radarFrameLoading = null;
+  loadRadarFrame();
 }
 
 // Vár a megadott ideig, majd átlép a megadott fázisba. A hívó await-elheti,
@@ -1037,9 +1193,11 @@ function revealPhase(phase, delayMs) {
         if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
       });
       if (phase === PHASE_DONE) {
-        // A határok csak most, a végleges válasszal együtt úsznak be.
+        // A határok és a radarkép csak most, a végleges válasszal együtt
+        // jelennek meg. A radarkép hálózatról jön, ezért nem várjuk meg.
         bordersVisible = true;
         radarDrawBorders();
+        drawRadarImage().catch(err => console.error(err));
       }
       resolve();
     }, delayMs);

@@ -238,9 +238,6 @@ button[type="submit"] {
   display: none;
 }
 
-/* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
-   villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
-   egyeznie kell. */
 /* Országhatárok: halvány háttérrajz, a pontok alatt.
 
    A vonalvastagság non-scaling-stroke nélkül a viewBox léptékében értendő
@@ -264,6 +261,9 @@ button[type="submit"] {
   to { opacity: 0.22; }
 }
 
+/* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
+   villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
+   egyeznie kell. */
 #radar-sweep {
   transform-origin: 175px 175px;
   animation: radar-spin 1.5s linear infinite;
@@ -365,4 +365,17 @@ footer a {
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+/* A radarkép a végleges válasszal együtt úszik be. A href beállítása az a
+   pillanat, amikor az elem illeszkedni kezd a szabályra, és ettől indul az
+   animáció. Az erősségét nem itt állítjuk: a pixelek átlátszóságába van
+   beleszámolva (lásd RADAR_IMAGE_INK), hogy monokróm maradjon. */
+#radar-image[href] {
+  animation: radar-image-in 0.6s ease both;
+}
+
+@keyframes radar-image-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
