@@ -208,8 +208,14 @@ button[type="submit"] {
 /* A keresés végén a radar NEM tűnik el és nem is kicsinyedik le: változatlan
    méretben csúszik a végleges helyére a válasz alá, hogy a találat (mely
    pontok jeleztek esőt) ugyanúgy leolvasható maradjon. A szűkebb felső
-   térköz tartja bent a képernyőn. */
-.loading.settled {
+   térköz tartja bent a képernyőn.
+
+   A 2. szakaszban (a "de hol esik pontosan?" kérdés alatt keres) ugyanez a
+   szűk térköz kell: ott a kérdés közvetlenül a radar fölött áll, a nagy
+   felső térköz csak feleslegesen eltolná tőle. A #loading a #result
+   testvére, ezért a fázist innen a ~ kombinátorral olvassuk ki. */
+.loading.settled,
+#result[data-phase="where"] ~ .loading {
   padding-top: var(--sp-3);
 }
 
@@ -259,8 +265,16 @@ button[type="submit"] {
   opacity: 0.45;
 }
 
+/* Az esős pontok teljes erősségű, kattintható pöttyök. A vizuális méretük
+   kicsi, ujjal viszont el kell tudni találni őket, ezért kapnak egy
+   áttetsző, vastag körvonalat: az nem látszik, de a pointer-events: all
+   miatt fogadja a koppintást, így a tapintható felület jóval nagyobb. */
 .radar-dot.rain {
   fill: var(--fg);
+  cursor: pointer;
+  stroke: transparent;
+  stroke-width: 20;
+  pointer-events: all;
 }
 
 .radar-dot.rain.revealed {
@@ -271,6 +285,13 @@ button[type="submit"] {
   fill: none;
   stroke: var(--fg);
   stroke-width: 1.5;
+  pointer-events: none; /* ne fogja el a kattintást a pötty elől */
+}
+
+#radar-place {
+  color: var(--fg);
+  font-size: 15px;
+  margin: var(--sp-1) 0 0;
 }
 
 .radar-pulse.pulsing {

@@ -371,7 +371,58 @@ function radarPolarPoint(bearingDeg, distKm, maxRadiusKm) {
 function radarReset() {
   document.getElementById("radar-tiers").innerHTML = "";
   radarTierGroups = [];
+  clearRadarPlace();
 }
+
+// ---- Esős pont megkoppintása ----
+// Az esős pontok kattinthatók: megmutatjuk, melyik település fölött vannak.
+// Az országot csak akkor írjuk ki, ha eltér a felhasználó országától, hogy
+// belföldi találatnál ne legyen felesleges zaj.
+const radarPlaceCache = new Map();
+let radarPlaceToken = 0;
+
+function clearRadarPlace() {
+  const el = document.getElementById("radar-place");
+  el.hidden = true;
+  el.textContent = "";
+}
+
+async function showRadarPlace(dot) {
+  const el = document.getElementById("radar-place");
+  const key = `${dot.dataset.lat},${dot.dataset.lon}`;
+  el.hidden = false;
+
+  if (radarPlaceCache.has(key)) {
+    el.textContent = radarPlaceCache.get(key);
+    return;
+  }
+
+  // Ha közben másik pontra koppintanak, csak a legutolsó válasza kerüljön ki.
+  const token = ++radarPlaceToken;
+  el.textContent = "…";
+  let label;
+  try {
+    const place = await findNearbyName({
+      lat: Number(dot.dataset.lat),
+      lon: Number(dot.dataset.lon),
+    });
+    const isForeign = place.countryCode && currentLoc && currentLoc.countryCode &&
+      place.countryCode !== currentLoc.countryCode;
+    label = place.name
+      ? (isForeign ? `${place.name}, ${place.countryName}` : place.name)
+      : "névtelen térség";
+    radarPlaceCache.set(key, label);
+  } catch (err) {
+    console.error(err);
+    label = "a helynév most nem érhető el";
+  }
+  if (token === radarPlaceToken) el.textContent = label;
+}
+
+document.getElementById("radar-tiers").addEventListener("click", (event) => {
+  const dot = event.target.closest(".radar-dot.rain");
+  if (dot) showRadarPlace(dot);
+});
 
 // A pásztázó vonal egy körbefordulásának ideje. Tartsd szinkronban a
 // style.css #radar-sweep animációjának időtartamával: a pontok felfedése
@@ -426,6 +477,8 @@ function radarAddTier(points, maxRadiusKm) {
     dot.setAttribute("r", 2.5);
     dot.dataset.index = i;
     dot.dataset.bearing = point.bearing;
+    dot.dataset.lat = point.lat;
+    dot.dataset.lon = point.lon;
     g.appendChild(dot);
   });
 
