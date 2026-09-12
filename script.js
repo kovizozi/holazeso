@@ -368,6 +368,83 @@ function radarPolarPoint(bearingDeg, distKm, maxRadiusKm) {
   };
 }
 
+// ---- Országhatárok a radaron ----
+// A radar azimutális ekvidisztáns vetület a felhasználó körül: minden pont a
+// VALÓDI távolsága és iránya szerint kerül a helyére. Ezért a határvonalakat
+// is pontosan ugyanazzal a két függvénnyel vetítjük, amivel a rácspontokat
+// (distanceKm és bearingBetween) - nem kell hozzá külön térképvetület.
+//
+// Az adat lusta betöltésű és sosem várakoztatja a választ: ha nem érkezik meg
+// vagy hibázik, a radar egyszerűen határok nélkül működik tovább.
+const BORDERS_URL = "borders.json?v=1";
+let borderRings = null;
+let bordersLoading = null;
+let radarOrigin = null;
+let radarMaxRadiusKm = 0;
+
+function loadBorders() {
+  if (bordersLoading) return bordersLoading;
+  bordersLoading = fetch(BORDERS_URL)
+    .then(res => res.json())
+    .then(encoded => {
+      // Delta-kódolt egészek 0,01 fokos egységekben, gyűrűnként halmozva.
+      // Ez a felére csökkenti a fájlt a nyers koordinátalistához képest.
+      borderRings = encoded.map(flat => {
+        const ring = [];
+        let x = 0;
+        let y = 0;
+        for (let i = 0; i < flat.length; i += 2) {
+          x += flat[i];
+          y += flat[i + 1];
+          ring.push([x / 100, y / 100]);
+        }
+        return ring;
+      });
+      radarDrawBorders();
+    })
+    .catch(err => {
+      console.error(err);
+      borderRings = [];
+    });
+  return bordersLoading;
+}
+
+function radarDrawBorders() {
+  const layer = document.getElementById("radar-borders");
+  layer.innerHTML = "";
+  if (!borderRings || !radarOrigin || !radarMaxRadiusKm) return;
+
+  // Olcsó előszűrés szélesség szerint: kis sugárnál a csúcsok túlnyomó része
+  // eleve kiesik, így nem kell rájuk gömbi távolságot számolni.
+  const latSpan = (radarMaxRadiusKm / 111) * 1.4 + 1;
+  let d = "";
+  for (const ring of borderRings) {
+    let connected = false;
+    for (const [lon, lat] of ring) {
+      let projected = null;
+      if (Math.abs(lat - radarOrigin.lat) <= latSpan) {
+        const dist = distanceKm(radarOrigin.lat, radarOrigin.lon, lat, lon);
+        if (dist <= radarMaxRadiusKm) {
+          const bearing = bearingBetween(radarOrigin.lat, radarOrigin.lon, lat, lon);
+          projected = radarPolarPoint(bearing, dist, radarMaxRadiusKm);
+        }
+      }
+      if (!projected) {
+        connected = false; // a látható körből kilépő szakaszt megszakítjuk
+        continue;
+      }
+      d += `${connected ? "L" : "M"}${projected.x.toFixed(1)} ${projected.y.toFixed(1)}`;
+      connected = true;
+    }
+  }
+  if (!d) return;
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", d);
+  path.classList.add("radar-border");
+  layer.appendChild(path);
+}
+
 function radarReset() {
   document.getElementById("radar-tiers").innerHTML = "";
   radarTierGroups = [];
@@ -482,9 +559,14 @@ function sweepAngleNow() {
 // Új kört ad a radarhoz, a saját legnagyobb sugarához igazított skálán. A
 // korábban hozzáadott köröket arányosan összébb zoomolja (CSS transition),
 // hogy az új, nagyobb kör is beleférjen ugyanabba a fizikai méretbe.
-function radarAddTier(points, maxRadiusKm) {
+function radarAddTier(points, maxRadiusKm, userLoc) {
   // A radar átskálázódik, tehát a korábbi felirat rossz helyre mutatna.
   clearRadarPlace();
+  // A határréteg mindig az aktuális, legnagyobb sugárhoz igazodik, ezért a
+  // korábbi körökkel ellentétben nem zoomoljuk, hanem újrarajzoljuk.
+  radarOrigin = userLoc;
+  radarMaxRadiusKm = maxRadiusKm;
+  radarDrawBorders();
   radarTierGroups.forEach(tier => {
     tier.scale = tier.maxRadiusKm / maxRadiusKm;
     tier.el.style.transform = `scale(${tier.scale})`;
@@ -609,7 +691,7 @@ async function run(userLoc, { silent = false } = {}) {
     const firstBatch = SEARCH_RINGS[0];
     const firstMaxRadius = firstBatch[firstBatch.length - 1][0];
     const firstGrid = generateSearchGrid(userLoc, firstBatch);
-    radarAddTier(firstGrid, firstMaxRadius);
+    radarAddTier(firstGrid, firstMaxRadius, userLoc);
     const [userForecast, firstGridForecasts] = await Promise.all([
       fetchUserForecast(userLoc),
       fetchPrecipitation(firstGrid),
@@ -669,7 +751,7 @@ async function run(userLoc, { silent = false } = {}) {
       const batch = SEARCH_RINGS[i];
       const maxRadius = batch[batch.length - 1][0];
       const grid = generateSearchGrid(userLoc, batch);
-      radarAddTier(grid, maxRadius);
+      radarAddTier(grid, maxRadius, userLoc);
       const forecasts = await fetchPrecipitation(grid);
       if (superseded()) return;
       const rainingIndices = grid
@@ -852,6 +934,7 @@ function beginSearchUI() {
   svg.style.transform = "";
   radarReset();
   radarRestartSweep();
+  loadBorders(); // lusta betöltés, a választ sosem várakoztatja
 }
 
 // Vár a megadott ideig, majd átlép a megadott fázisba. A hívó await-elheti,

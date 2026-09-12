@@ -76,6 +76,30 @@ esős ponthoz, különben a kiírt szám nem egyezik a mutatott névvel. (Ez egy
 valós hiba volt, amit javítottunk: egy angliai teszt esetén 300 km-t írt ki
 "Mattishall" mellé, miközben Mattishall valójában csak 150 km-re volt.)
 
+### Országhatárok a radaron (`borders.json`)
+
+A radar **azimutális ekvidisztáns vetület** a felhasználó körül: minden pont a
+valódi távolsága és iránya szerint kerül a helyére. Ezért a határvonalakhoz
+nem kell külön térképvetület, ugyanaz a `distanceKm` + `bearingBetween` pár
+vetíti őket, mint a rácspontokat.
+
+- **Forrás**: Natural Earth 1:50m `admin_0_countries` (közkincs, nem kér
+  feltüntetést). Az ország-poligonok körvonalát használjuk, tehát a
+  tengerpartok is megjelennek, nem csak a szárazföldi határok.
+- **Előállítás**: Douglas-Peucker ritkítás 0,08 fokos tűréssel, a 0,4 foknál
+  kisebb szigetek elhagyva, koordináták 2 tizedesre kerekítve. Ezután
+  delta-kódolás: 0,01 fokos egész egységek, gyűrűnként az előző ponthoz
+  képest. Ez 289 KB-ról 137 KB-ra viszi a fájlt (gzippel 97 KB helyett 52 KB).
+  99613 csúcsból 20262 marad.
+- **Betöltés**: lusta, a keresés indulásakor, és SOSEM várakoztatja a választ.
+  Ha nem érkezik meg vagy hibázik, a radar határok nélkül működik tovább.
+- **Rajzolás**: a határréteg mindig az aktuális legnagyobb sugárhoz igazodik,
+  ezért a köröktől eltérően nem zoomoljuk, hanem minden új körnél
+  újrarajzoljuk. A látható körből kilépő szakaszokat megszakítjuk (nem a
+  peremre lapítjuk). Olcsó szélesség szerinti előszűrés előzi meg a gömbi
+  számolást, különben kis sugárnál feleslegesen menne végig mind a 20 ezer
+  csúcson.
+
 ## A válasz két szakaszban (`run`)
 
 A keresés két kérdésre válaszol, egymás után, és a radar mindkettő után

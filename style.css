@@ -241,6 +241,15 @@ button[type="submit"] {
 /* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
    villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
    egyeznie kell. */
+/* Országhatárok: halvány háttérrajz, a pontok alatt. */
+.radar-border {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
 #radar-sweep {
   transform-origin: 175px 175px;
   animation: radar-spin 1.5s linear infinite;
