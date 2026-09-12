@@ -241,12 +241,18 @@ button[type="submit"] {
 /* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
    villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
    egyeznie kell. */
-/* Országhatárok: halvány háttérrajz, a pontok alatt. */
+/* Országhatárok: halvány háttérrajz, a pontok alatt.
+
+   A vonalvastagság non-scaling-stroke nélkül a viewBox léptékében értendő
+   (350 egység = 220 px, tehát 1 egység = 0,63 px), amitől egy 1-es vastagságú
+   vonal 18% átlátszósággal gyakorlatilag láthatatlan volt. Így viszont
+   pontosan 1 képpont széles marad, a nagyítástól függetlenül. */
 .radar-border {
   fill: none;
   stroke: var(--fg);
   stroke-width: 1;
-  opacity: 0.18;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.4;
   pointer-events: none;
 }
 
