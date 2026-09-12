@@ -9,7 +9,8 @@
 //
 // Az adagok szűken indulnak és onnan tágulnak: az első csak 150 km-ig néz,
 // a következők 150 km-enként lépnek kijjebb (300, 450), és csak utána
-// gyorsul a lépés, hogy távoli eső esetén ne kelljen tucatnyi kört végigvárni.
+// gyorsul a lépés (900, 2500), hogy távoli eső esetén ne kelljen tucatnyi
+// kört végigvárni.
 // Így a radar induló képe a közvetlen környéket mutatja olvashatóan, nem
 // egy 600 km-es, összezsúfolt áttekintést.
 //
@@ -25,16 +26,27 @@
 // pontok távolsága végig nagyságrendileg egyenletes marad (30 km-en 31 km,
 // 450 km-en 88 km, 9000 km-en 1346 km).
 //
-// Minden adag egyetlen Open-Meteo hívás: [sugár km, irányok száma]. A
-// legrosszabb eset (mind a hat adag lefut) 572 pont, az Open-Meteo
-// percenkénti limitje pedig 600 körül van.
+// Minden adag egyetlen Open-Meteo hívás: [sugár km, irányok száma].
+//
+// A pontszámot az Open-Meteo kvótája korlátozza, és ez szigorúbb, mint
+// elsőre látszik. A hivatalos súlyozás (ForecastApiResult.calculateQueryWeight)
+// szerint MINDEN lekérdezett pont külön egységet ér, és 10 változó / 14 nap
+// alatt a változók száma és a napok száma semmit nem módosít rajta. Vagyis
+// hiába kérünk a rácspontokról csak "current=precipitation"-t: a súly
+// ugyanannyi, mint a teljes órás előrejelzésnél. A limit IP-nként 600/perc,
+// 5000/óra és 10000/nap.
+//
+// Ezért a legtávolabbi, 9000 km-es adagot kivettük (2500 km-en belül
+// gyakorlatilag mindig van eső, és egy szándékosan ritka, félrevezető
+// távoli háló rosszabb, mint ha nem is nézzük), a középső adagokat pedig
+// ritkítottuk. A legrosszabb eset így 294 pont: két teljes keresés is
+// belefér egy percbe, ami korábban 429-et adott volna.
 const SEARCH_RINGS = [
   [[30, 6], [60, 10], [100, 14], [150, 18]],
-  [[200, 20], [250, 22], [300, 26]],
-  [[350, 28], [400, 30], [450, 32]],
-  [[550, 34], [700, 36], [900, 38]],
-  [[1200, 32], [1700, 34], [2500, 36]],
-  [[3500, 36], [5000, 38], [7000, 40], [9000, 42]],
+  [[200, 16], [250, 18], [300, 20]],
+  [[350, 20], [400, 22], [450, 24]],
+  [[550, 20], [700, 22], [900, 24]],
+  [[1200, 18], [1700, 20], [2500, 22]],
 ];
 
 function ringBearings(count) {
@@ -331,14 +343,16 @@ function rainDurationHours(forecast) {
 }
 
 // ---- Radar vizualizáció ----
-// A keresés közben ezt mutatjuk a "töltés…" szöveg helyett. Fontos: ez NEM
-// egy fix időzítésű animáció, amely úgy tesz, mintha egyenként kérdezné le
-// a pontokat - valójában egy kör összes pontja EGYETLEN Open-Meteo hívásban,
-// egyszerre érkezik meg. Ezért egy kör pontjai mind egyszerre válnak
-// láthatóvá, amint a hívás visszatér, nem szétdobálva időben. A pásztázó
-// vonal forgása csak "dolgozunk" jelzés, nincs konkrét ponthoz kötve. A
-// sugár (a következő, távolabbi körre váltás) is csak akkor nő, ha az előző
-// kör válasza megérkezett ÉS abban nem volt találat - nem egy fix idő után.
+// A keresés közben ezt mutatjuk a "töltés…" szöveg helyett.
+//
+// Fontos, mit jelent itt az "adatvezérelt": egy kör összes pontja EGYETLEN
+// Open-Meteo hívásban, egyszerre érkezik meg, és pont SOSEM villanhat fel
+// előbb, mint ahogy az a válasz megjött. A megjelenítés viszont úgy működik,
+// mint egy igazi radarernyőn: a pásztázó vonal festi fel a pontokat, ahogy
+// elhalad az irányuk fölött (radarRevealTier). Ez tehát nem kitalált
+// lekérdezési ütem, hanem a már meglévő adat festési módja. A sugár (a
+// következő, távolabbi körre váltás) is csak akkor nő, ha az előző kör
+// válasza megérkezett ÉS abban nem volt találat - nem egy fix idő után.
 const RADAR_VIEWBOX = 350;
 const RADAR_CENTER = RADAR_VIEWBOX / 2;
 const RADAR_MAX_PX = 160;
@@ -372,6 +386,22 @@ function radarRestartSweep() {
   sweep.getBoundingClientRect(); // kényszerített újraszámolás, hogy tényleg újrainduljon
   sweep.style.animation = "";
   sweepStartedAt = Date.now();
+}
+
+// Hol tart most a pásztázó vonal, fokban (0 = észak, óramutató szerint).
+//
+// A böngésző a háttérbe került lapon megállítja a CSS-animációt, a Date.now()
+// viszont fut tovább. Ha csak órával számolnánk, visszatéréskor a felfestés
+// elcsúszna a vonal valódi állásától, és a pontok rossz irányban villannának
+// fel. A Web Animations API a tényleges animációs időt adja vissza, ami a
+// megállást is figyelembe veszi; ha nem elérhető, marad az óra.
+function sweepAngleNow() {
+  const sweep = document.getElementById("radar-sweep");
+  const animation = sweep.getAnimations ? sweep.getAnimations()[0] : null;
+  const elapsed = animation && typeof animation.currentTime === "number"
+    ? animation.currentTime
+    : Date.now() - sweepStartedAt;
+  return ((elapsed % RADAR_SWEEP_MS) / RADAR_SWEEP_MS) * 360;
 }
 
 
@@ -439,8 +469,7 @@ function radarRevealTier(rainingIndices, { instant = false } = {}) {
     return Promise.resolve();
   }
 
-  const elapsed = (Date.now() - sweepStartedAt) % RADAR_SWEEP_MS;
-  const sweepAngle = (elapsed / RADAR_SWEEP_MS) * 360;
+  const sweepAngle = sweepAngleNow();
   dots.forEach(dot => {
     const degreesAhead = (Number(dot.dataset.bearing) - sweepAngle + 360) % 360;
     setTimeout(() => revealDot(dot, isRain(dot)), (degreesAhead / 360) * RADAR_SWEEP_MS);
@@ -456,12 +485,20 @@ function radarRevealTier(rainingIndices, { instant = false } = {}) {
 // a radart a másik alól. Ezért csak egy run() futhat egyszerre - a többi
 // hívás egyszerűen kimarad, amíg az aktuális be nem fejeződik.
 let runInProgress = false;
+let runToken = 0;
 
 // A "silent" futás a percenkénti háttérfrissítés: ilyenkor NEM játsszuk újra
 // a teljes koreográfiát (nem tűnik el a válasz, nem ugrik vissza a radar a
 // kiinduló helyére), csak az adatok és a radar pontjai frissülnek a helyükön.
 async function run(userLoc, { silent = false } = {}) {
-  if (runInProgress) return;
+  // A percenkénti háttérfrissítés nem szólhat bele egy futó keresésbe. Egy új
+  // KÉRT keresés viszont mindig felülírja a folyamatban lévőt: a régi futás a
+  // következő await után csendben kilép. Enélkül a helyszín módosítása után az
+  // új keresés némán kimaradt volna, és a régi település válasza íródott volna
+  // ki az új helyszín neve alá.
+  if (silent && runInProgress) return;
+  const token = ++runToken;
+  const superseded = () => token !== runToken;
   runInProgress = true;
   if (silent) {
     radarReset();
@@ -498,10 +535,12 @@ async function run(userLoc, { silent = false } = {}) {
       fetchUserForecast(userLoc),
       fetchPrecipitation(firstGrid),
     ]);
+    if (superseded()) return;
     const firstRainingIndices = firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]));
     await radarRevealTier(firstRainingIndices, { instant: silent });
+    if (superseded()) return;
 
     // Ha nálad esik (vagy hamarosan fog), a "de hol esik pontosan?" kérdés
     // értelmetlen: a válasz az, hogy itt. Ilyenkor nincs 2. fázis.
@@ -527,13 +566,24 @@ async function run(userLoc, { silent = false } = {}) {
     }
 
     let raining = sortRaining(firstGrid, firstGridForecasts);
-    setHero(raining.length > 0 ? "Igen" : "Nem", null);
+    const answer = raining.length > 0 ? "Igen" : "Nem";
+
+    // Csendes háttérfrissítésnél csak akkor megyünk tovább a távoli
+    // keresésre, ha a környék helyzete meg is változott. A "hol esik
+    // pontosan" válasz néhány perc alatt nem avul el annyira, hogy megérné
+    // érte minden frissítéskor újra végigjárni az összes távoli gyűrűt is:
+    // úgy egy nyitva hagyott lap napi több tízezer pontot kérne le.
+    const unchanged = silent &&
+      document.getElementById("q1-answer").textContent === answer;
+    setHero(answer, null);
     showQ2("de hol esik pontosan?");
+    if (unchanged) return;
 
     // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
     // következő kérdés, és a keresés alatta folytatódik. Itt nincs külön
     // várakozás, mert a pontok felfestése már kitöltött egy teljes fordulatot.
     if (!silent) await revealPhase(PHASE_WHERE, 0);
+    if (superseded()) return;
 
     // === 2. FÁZIS: de hol esik pontosan? ===
     for (let i = 1; i < SEARCH_RINGS.length && raining.length === 0; i++) {
@@ -542,15 +592,20 @@ async function run(userLoc, { silent = false } = {}) {
       const grid = generateSearchGrid(userLoc, batch);
       radarAddTier(grid, maxRadius);
       const forecasts = await fetchPrecipitation(grid);
+      if (superseded()) return;
       const rainingIndices = grid
         .map((_, idx) => idx)
         .filter(idx => isRainingNow(forecasts[idx]));
       await radarRevealTier(rainingIndices, { instant: silent });
+      if (superseded()) return;
       raining = sortRaining(grid, forecasts);
     }
 
     if (raining.length > 0) {
-      await showNearestRain(raining[0], userLoc);
+      const nearest = raining[0];
+      const place = await findNearbyName(nearest);
+      if (superseded()) return;
+      showNearestRain(nearest, place, userLoc);
     } else {
       const maxKm = SEARCH_RINGS[SEARCH_RINGS.length - 1].at(-1)[0];
       setQ2Answer(`<p class="place-line">Sehol</p>
@@ -558,17 +613,22 @@ async function run(userLoc, { silent = false } = {}) {
     }
   } catch (err) {
     console.error(err);
-    setHero("Hiba", "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.");
-    hideQ2();
+    // Csendes háttérfrissítésnél NEM írjuk felül a meglévő, jó választ egy
+    // hibaüzenettel: egy átmeneti hálózati hiba vagy 429 ilyenkor azonnal
+    // letörölné a képernyőn álló érvényes eredményt.
+    if (!silent && !superseded()) {
+      setHero("Hiba", "Nem sikerült lekérni az adatokat. Próbáld újra kicsit később.");
+      hideQ2();
+    }
   } finally {
-    if (!silent) scheduleReveal();
-    runInProgress = false;
+    if (!superseded()) {
+      if (!silent) scheduleReveal();
+      runInProgress = false;
+    }
   }
 }
 
-async function showNearestRain(nearest, userLoc) {
-  const place = await findNearbyName(nearest);
-
+function showNearestRain(nearest, place, userLoc) {
   // A kiírt kártya a MEGNEVEZETT helyről szól, ezért annak saját
   // koordinátáihoz kell számolni a távolságot/irányt/útvonalat - a névadó
   // pont a keresés során eltolódhatott az esős ponttól, így a kettő nem
@@ -630,9 +690,14 @@ function hideQ2() {
 // ---- UI-vezérlés ----
 
 // Telepített (standalone) módban nincs böngésző-frissítés gomb, ezért amíg az
-// app látható és van kiválasztott helyszín, percenként újra lekérdezzük az
-// időjárást. Háttérben (nem látható lapon) nem, hogy ne fogyjon feleslegesen
-// az akkumulátor/API-hívás.
+// app látható és van kiválasztott helyszín, magunktól frissítünk. Háttérben
+// (nem látható lapon) nem, hogy ne fogyjon feleslegesen az akkumulátor.
+//
+// Az ütem szándékosan 5 perc, nem 1: az Open-Meteo napi és órás kvótája
+// pontban méri a használatot (lásd SEARCH_RINGS), és a percenkénti frissítés
+// egy nyitva hagyott lapon egymagában felélte volna az órás keret felét.
+// Időjáráshoz 5 perc bőven elég sűrű.
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 let currentLoc = null;
 
 function runAndTrack(loc) {
@@ -650,7 +715,7 @@ function shouldAutoRefresh() {
 
 setInterval(() => {
   if (shouldAutoRefresh()) run(currentLoc, { silent: true });
-}, 60 * 1000);
+}, AUTO_REFRESH_MS);
 
 document.addEventListener("visibilitychange", () => {
   if (shouldAutoRefresh()) run(currentLoc, { silent: true });
@@ -682,10 +747,22 @@ const PHASE_DONE = "done";
 const REVEAL_DELAY_MS = 3000;
 const REVEAL_SLIDE_MS = 600;
 let revealTimer = null;
+let revealResolve = null;
 
-function beginSearchUI() {
+// A függőben lévő felfedés-ígéretet fel KELL oldani, amikor megszakítjuk,
+// különben az await-elő run() örökre ott áll, a finally sosem fut le, és
+// onnantól minden további keresés némán kimarad (az app újratöltésig halott).
+function cancelReveal() {
   clearTimeout(revealTimer);
   revealTimer = null;
+  if (revealResolve) {
+    revealResolve();
+    revealResolve = null;
+  }
+}
+
+function beginSearchUI() {
+  cancelReveal();
   const loading = document.getElementById("loading");
   const svg = document.getElementById("radar-svg");
   document.getElementById("result").dataset.phase = PHASE_LOCAL;
@@ -701,9 +778,12 @@ function beginSearchUI() {
 // Vár a megadott ideig, majd átlép a megadott fázisba. A hívó await-elheti,
 // hogy a keresés következő szakasza csak a lecsúszás után induljon el.
 function revealPhase(phase, delayMs) {
-  clearTimeout(revealTimer);
+  cancelReveal();
   return new Promise(resolve => {
+    revealResolve = resolve;
     revealTimer = setTimeout(() => {
+      revealTimer = null;
+      revealResolve = null;
       slideRadar(() => {
         document.getElementById("result").dataset.phase = phase;
         if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
@@ -748,8 +828,7 @@ function showLoading(on, text = "töltés…") {
     loading.hidden = true;
     return;
   }
-  clearTimeout(revealTimer);
-  revealTimer = null;
+  cancelReveal();
   loading.classList.remove("settled");
   loading.classList.add("locating");
   document.getElementById("loading-text").textContent = text;
@@ -759,8 +838,7 @@ function showLoading(on, text = "töltés…") {
 // Helyszín-módosításkor a lemaradt (settled) radart is el kell tüntetni,
 // különben ott lógna a helyszín-kereső form alatt.
 function hideLoadingImmediately() {
-  clearTimeout(revealTimer);
-  revealTimer = null;
+  cancelReveal();
   const loading = document.getElementById("loading");
   loading.hidden = true;
   loading.classList.remove("settled", "locating");

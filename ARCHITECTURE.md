@@ -35,15 +35,36 @@ hanem annyit, amennyi a kerületéhez illik (6-tól 42-ig). Fix 12 iránnyal a
 szomszédos pontok 30 km-en 16 km-re, 9000 km-en viszont már 4712 km-re estek
 egymástól, vagyis kint egész esőrendszerek elfértek volna két pont között.
 
-**API-terhelés**: a rácspontokról CSAK azt kérdezzük le, esik-e ott most
-(`current=precipitation`). Az órás előrejelzés (mikor áll el, mekkora
-eséllyel) egyedül a felhasználó saját helyére kell, azt a `fetchUserForecast`
-külön, párhuzamosan kéri le. Amíg ez egyben ment, a kérés súlya átlépte az
-Open-Meteo percenkénti limitjét (429). A koordinátákat 4 tizedesre kerekítve
-küldjük (`coord`), különben a legtávolabbi adag URL-je túllépi a szerver
-8 KB-os korlátját (414). A `destinationPoint` a hosszúsági fokot visszaforgatja
-a [-180, 180] tartományba, mert a legtávolabbi gyűrűk átlógnak a dátumvonalon
-(ezek nélkül a távoli keresés egyáltalán nem működött).
+### API-terhelés és kvóta
+
+Ezt fontos pontosan érteni, mert a keresés méretét ez korlátozza, nem a
+sebesség. Az Open-Meteo ingyenes limitje **IP-nként 600/perc, 5000/óra,
+10000/nap**. A súlyozás a szerver forrásából (`calculateQueryWeight`):
+
+```
+súly = Σ pontonként  max(1, max(V/10, (V/10) × (nap/14)))
+```
+
+Vagyis **minden lekérdezett pont külön 1 egységet ér**, és 10 változó / 14 nap
+alatt a változók száma és a napok száma **semmit nem módosít rajta**. Ebből
+két, első ránézésre meglepő következmény:
+
+- Hiába kérünk a rácspontokról csak `current=precipitation`-t: a kvóta
+  szempontjából ez ugyanannyi, mint a teljes órás előrejelzés. (A szétválasztás
+  ettől még hasznos: kisebb válasz, rövidebb URL, gyorsabb hálózat.)
+- Egy kérést több kérésre bontani sem segít: csak a pontok száma számít.
+
+Ezért a teljes keresés **295 pont**, és ezért frissítünk 5 percenként, nem
+percenként. A csendes háttérfrissítés ráadásul csak az 1. fázist futtatja le
+(49 pont), és csak akkor megy tovább a távoli keresésre, ha a környék válasza
+meg is változott.
+
+**Egyéb API-buktatók**: a koordinátákat 4 tizedesre kerekítve küldjük
+(`coord`), különben a legtávolabbi adag URL-je túllépi a szerver 8 KB-os
+korlátját (414). A `destinationPoint` a hosszúsági fokot visszaforgatja a
+[-180, 180] tartományba, mert a legtávolabbi gyűrűk átlógnak a dátumvonalon
+(enélkül a távoli keresés egyáltalán nem működött). Egy kérésben legfeljebb
+1000 pont lehet (nem dokumentált szerver-beállítás).
 
 **Névfeloldás (`findNearbyName`)**: a legközelebbi esős rácspontnak gyakran
 nincs neve (pl. tenger felett van). Ilyenkor a pont körül egyre táguló

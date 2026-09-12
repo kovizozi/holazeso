@@ -12,7 +12,21 @@ self.addEventListener("install", () => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil((async () => {
+    // A ?v=N cache-busting miatt minden verzió KÜLÖN kulcsot kap a
+    // gyorsítótárban, a régiekre pedig soha többé nincs szükség. Takarítás
+    // nélkül a tár verzióról verzióra csak nőne, ezért a service worker
+    // minden frissülésekor eldobjuk a verziózott bejegyzéseket; ami még
+    // kell, azt a következő kérés úgyis visszateszi.
+    const cache = await caches.open(CACHE_NAME);
+    const requests = await cache.keys();
+    await Promise.all(
+      requests
+        .filter((request) => new URL(request.url).searchParams.has("v"))
+        .map((request) => cache.delete(request))
+    );
+    await clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (event) => {
