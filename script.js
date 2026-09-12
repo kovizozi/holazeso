@@ -381,6 +381,9 @@ let borderRings = null;
 let bordersLoading = null;
 let radarOrigin = null;
 let radarMaxRadiusKm = 0;
+// A határok csak a keresés legvégén, a végleges válasszal együtt jelennek
+// meg: keresés közben a radar maradjon tiszta, csak a pontokkal.
+let bordersVisible = false;
 
 function loadBorders() {
   if (bordersLoading) return bordersLoading;
@@ -412,7 +415,7 @@ function loadBorders() {
 function radarDrawBorders() {
   const layer = document.getElementById("radar-borders");
   layer.innerHTML = "";
-  if (!borderRings || !radarOrigin || !radarMaxRadiusKm) return;
+  if (!bordersVisible || !borderRings || !radarOrigin || !radarMaxRadiusKm) return;
 
   // Olcsó előszűrés szélesség szerint: kis sugárnál a csúcsok túlnyomó része
   // eleve kiesik, így nem kell rájuk gömbi távolságot számolni.
@@ -932,6 +935,7 @@ function beginSearchUI() {
   loading.hidden = false;
   svg.style.transition = "";
   svg.style.transform = "";
+  bordersVisible = false; // keresés közben tiszta radar, csak a pontokkal
   radarReset();
   radarRestartSweep();
   loadBorders(); // lusta betöltés, a választ sosem várakoztatja
@@ -950,6 +954,11 @@ function revealPhase(phase, delayMs) {
         document.getElementById("result").dataset.phase = phase;
         if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
       });
+      if (phase === PHASE_DONE) {
+        // A határok csak most, a végleges válasszal együtt úsznak be.
+        bordersVisible = true;
+        radarDrawBorders();
+      }
       resolve();
     }, delayMs);
   });
