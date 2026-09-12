@@ -531,8 +531,9 @@ async function run(userLoc, { silent = false } = {}) {
     showQ2("de hol esik pontosan?");
 
     // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
-    // következő kérdés, és a keresés alatta folytatódik.
-    if (!silent) await revealPhase(PHASE_WHERE);
+    // következő kérdés, és a keresés alatta folytatódik. Itt nincs külön
+    // várakozás, mert a pontok felfestése már kitöltött egy teljes fordulatot.
+    if (!silent) await revealPhase(PHASE_WHERE, 0);
 
     // === 2. FÁZIS: de hol esik pontosan? ===
     for (let i = 1; i < SEARCH_RINGS.length && raining.length === 0; i++) {
@@ -670,8 +671,11 @@ document.addEventListener("visibilitychange", () => {
 //   csúszott, és alatta folytatódik a keresés.
 // PHASE_DONE: minden látszik, a radar a végleges helyén marad.
 //
-// Fázisváltás előtt mindig van REVEAL_DELAY_MS várakozás, amíg semmi nem
-// mozdul, hogy az addigi találat leolvasható legyen a radarról.
+// Az első válasz ("Igen"/"Nem") nem várakozik külön: mire idáig érünk, a
+// pásztázó vonal már körbeért egyszer, hiszen a pontokat pont ő festette fel
+// (radarRevealTier egy teljes fordulat alatt végez). Ez önmagában elég idő a
+// kör leolvasásához. A VÉGSŐ válasz előtt viszont marad a hosszabb
+// várakozás, hogy a megtalált esőt is meg lehessen nézni a radaron.
 const PHASE_LOCAL = "local";
 const PHASE_WHERE = "where";
 const PHASE_DONE = "done";
@@ -694,9 +698,9 @@ function beginSearchUI() {
   radarRestartSweep();
 }
 
-// Várakozik, majd átlép a megadott fázisba. A hívó await-elheti, hogy a
-// keresés következő szakasza csak a lecsúszás után induljon el.
-function revealPhase(phase) {
+// Vár a megadott ideig, majd átlép a megadott fázisba. A hívó await-elheti,
+// hogy a keresés következő szakasza csak a lecsúszás után induljon el.
+function revealPhase(phase, delayMs) {
   clearTimeout(revealTimer);
   return new Promise(resolve => {
     revealTimer = setTimeout(() => {
@@ -705,12 +709,12 @@ function revealPhase(phase) {
         if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
       });
       resolve();
-    }, REVEAL_DELAY_MS);
+    }, delayMs);
   });
 }
 
 function scheduleReveal() {
-  revealPhase(PHASE_DONE);
+  revealPhase(PHASE_DONE, REVEAL_DELAY_MS);
 }
 
 // A fázisváltáskor megjelenő szöveg egy ugrással lökné lejjebb a radart.
