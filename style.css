@@ -227,9 +227,9 @@ button[type="submit"] {
 #radar-svg {
   display: block;
   margin: 0 auto var(--sp-2);
-  width: 220px;
-  height: 220px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 350px;
+  height: auto;
 }
 
 /* Helymeghatározás közben még nincs mit mutatni a radaron. SVG elemen nincs
@@ -265,7 +265,7 @@ button[type="submit"] {
    villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
    egyeznie kell. */
 #radar-sweep {
-  transform-origin: 175px 175px;
+  transform-origin: 175px 110px;
   animation: radar-spin 1.5s linear infinite;
 }
 
@@ -274,7 +274,7 @@ button[type="submit"] {
 }
 
 .radar-tier-group {
-  transform-origin: 175px 175px;
+  transform-origin: 175px 110px;
   transition: transform 1s ease-in-out;
 }
 

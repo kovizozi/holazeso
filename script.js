@@ -384,18 +384,31 @@ function rainDurationHours(forecast) {
 // lekérdezési ütem, hanem a már meglévő adat festési módja. A sugár (a
 // következő, távolabbi körre váltás) is csak akkor nő, ha az előző kör
 // válasza megérkezett ÉS abban nem volt találat - nem egy fix idő után.
-const RADAR_VIEWBOX = 350;
-const RADAR_CENTER = RADAR_VIEWBOX / 2;
-const RADAR_MAX_PX = 160;
+// A képernyő TÉGLALAP, nem kör. A lépték mindkét irányban ugyanaz (különben
+// a térkép torzulna), ezért a keresési sugár a FÉL MAGASSÁGnak felel meg, és
+// oldalra ennél messzebbre látunk: a sarkokban a fél átló arányában, kb. a
+// sugár kétszereséig. A tartalmat a viewBox vágja el a széleknél.
+const RADAR_W = 350;
+const RADAR_H = 220;
+const RADAR_CENTER_X = RADAR_W / 2;
+const RADAR_CENTER_Y = RADAR_H / 2;
+const RADAR_MAX_PX = 100; // ennyi képpont felel meg a keresési sugárnak
+const RADAR_CORNER_FACTOR = Math.hypot(RADAR_CENTER_X, RADAR_CENTER_Y) / RADAR_MAX_PX;
 
 let radarTierGroups = []; // { el, maxRadiusKm }
 
 function radarPolarPoint(bearingDeg, distKm, maxRadiusKm) {
-  const r = Math.min(distKm / maxRadiusKm, 1) * RADAR_MAX_PX;
+  return radarProject(bearingDeg, Math.min(distKm, maxRadiusKm), maxRadiusKm);
+}
+
+// Vágás nélküli vetítés: a folytonos rétegeknek (radarkép, országhatárok) a
+// kör sugarán TÚL is kell pont, mert a téglalap sarkai messzebbre látnak.
+function radarProject(bearingDeg, distKm, maxRadiusKm) {
+  const r = (distKm / maxRadiusKm) * RADAR_MAX_PX;
   const theta = bearingDeg * Math.PI / 180;
   return {
-    x: RADAR_CENTER + r * Math.sin(theta),
-    y: RADAR_CENTER - r * Math.cos(theta),
+    x: RADAR_CENTER_X + r * Math.sin(theta),
+    y: RADAR_CENTER_Y - r * Math.cos(theta),
   };
 }
 
@@ -495,9 +508,13 @@ function radarImageZoom(lat, maxRadiusKm) {
   const equatorKm = 40075 * Math.cos(lat * Math.PI / 180);
   let zoom = Math.round(Math.log2(equatorKm / (256 * kmPerRadarPx)));
   zoom = Math.max(1, Math.min(7, zoom));
+  // A téglalap sarkai a sugárnál messzebbre látnak, tehát a letöltendő
+  // terület is ekkora: a becslésnek ezzel kell számolnia, különben a
+  // csempeszám túllépi a korlátot.
+  const reachKm = maxRadiusKm * RADAR_CORNER_FACTOR;
   while (zoom > 1) {
     const tileKm = equatorKm / 2 ** zoom;
-    if ((2 * maxRadiusKm / tileKm + 1) ** 2 <= RADAR_IMAGE_MAX_TILES) break;
+    if ((2 * reachKm / tileKm + 1) ** 2 <= RADAR_IMAGE_MAX_TILES) break;
     zoom -= 1;
   }
   return zoom;
@@ -531,7 +548,7 @@ async function drawRadarImage() {
   const tiles = 2 ** zoom;
   const centre = lonLatToWorldPx(radarOrigin.lon, radarOrigin.lat, zoom);
   const kmPerTilePx = 40075 * Math.cos(radarOrigin.lat * Math.PI / 180) / world;
-  const radiusPx = radarMaxRadiusKm / kmPerTilePx;
+  const radiusPx = (radarMaxRadiusKm * RADAR_CORNER_FACTOR) / kmPerTilePx;
   const tx0 = Math.floor((centre.x - radiusPx) / 256);
   const tx1 = Math.floor((centre.x + radiusPx) / 256);
   const ty0 = Math.floor((centre.y - radiusPx) / 256);
@@ -557,20 +574,19 @@ async function drawRadarImage() {
 
   const source = stitchedCtx.getImageData(0, 0, stitched.width, stitched.height);
   const out = document.createElement("canvas");
-  out.width = RADAR_VIEWBOX;
-  out.height = RADAR_VIEWBOX;
+  out.width = RADAR_W;
+  out.height = RADAR_H;
   const outCtx = out.getContext("2d");
-  const target = outCtx.createImageData(RADAR_VIEWBOX, RADAR_VIEWBOX);
+  const target = outCtx.createImageData(RADAR_W, RADAR_H);
   const [fr, fg, fb] = foregroundRgb();
 
   // A radar azimutális ekvidisztáns vetület, a csempék Mercator-vetületűek,
   // ezért pixelenként visszaszámoljuk, melyik koordináta tartozik ide.
-  for (let y = 0; y < RADAR_VIEWBOX; y++) {
-    for (let x = 0; x < RADAR_VIEWBOX; x++) {
-      const dx = x - RADAR_CENTER;
-      const dy = y - RADAR_CENTER;
+  for (let y = 0; y < RADAR_H; y++) {
+    for (let x = 0; x < RADAR_W; x++) {
+      const dx = x - RADAR_CENTER_X;
+      const dy = y - RADAR_CENTER_Y;
       const r = Math.hypot(dx, dy);
-      if (r > RADAR_MAX_PX) continue;
       const bearing = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
       const point = destinationPoint(radarOrigin.lat, radarOrigin.lon, bearing,
         r / RADAR_MAX_PX * radarMaxRadiusKm);
@@ -582,7 +598,7 @@ async function drawRadarImage() {
       if (sx < 0 || sy < 0 || sx >= stitched.width || sy >= stitched.height) continue;
       const alpha = source.data[(sy * stitched.width + sx) * 4 + 3];
       if (!alpha) continue;
-      const di = (y * RADAR_VIEWBOX + x) * 4;
+      const di = (y * RADAR_W + x) * 4;
       target.data[di] = fr;
       target.data[di + 1] = fg;
       target.data[di + 2] = fb;
@@ -599,8 +615,10 @@ function radarDrawBorders() {
   if (!bordersVisible || !borderRings || !radarOrigin || !radarMaxRadiusKm) return;
 
   // Olcsó előszűrés szélesség szerint: kis sugárnál a csúcsok túlnyomó része
-  // eleve kiesik, így nem kell rájuk gömbi távolságot számolni.
-  const latSpan = (radarMaxRadiusKm / 111) * 1.4 + 1;
+  // eleve kiesik, így nem kell rájuk gömbi távolságot számolni. A téglalap
+  // sarkai a sugárnál messzebbre látnak, ezért a sávot ki kell tágítani.
+  const reachKm = radarMaxRadiusKm * RADAR_CORNER_FACTOR;
+  const latSpan = (reachKm / 111) * 1.4 + 1;
   let d = "";
   for (const ring of borderRings) {
     let connected = false;
@@ -608,13 +626,16 @@ function radarDrawBorders() {
       let projected = null;
       if (Math.abs(lat - radarOrigin.lat) <= latSpan) {
         const dist = distanceKm(radarOrigin.lat, radarOrigin.lon, lat, lon);
-        if (dist <= radarMaxRadiusKm) {
+        if (dist <= reachKm) {
           const bearing = bearingBetween(radarOrigin.lat, radarOrigin.lon, lat, lon);
-          projected = radarPolarPoint(bearing, dist, radarMaxRadiusKm);
+          const p = radarProject(bearing, dist, radarMaxRadiusKm);
+          // A téglalapon kívülre eső csúcsok kimaradnak: a viewBox amúgy is
+          // levágná őket, de így a szakaszok is helyesen szakadnak meg.
+          if (p.x >= 0 && p.x <= RADAR_W && p.y >= 0 && p.y <= RADAR_H) projected = p;
         }
       }
       if (!projected) {
-        connected = false; // a látható körből kilépő szakaszt megszakítjuk
+        connected = false; // a látható területről kilépő szakaszt megszakítjuk
         continue;
       }
       d += `${connected ? "L" : "M"}${projected.x.toFixed(1)} ${projected.y.toFixed(1)}`;
@@ -653,8 +674,8 @@ function radarLabelPosition(dot) {
   const tier = radarTierGroups.find(t => t.el === dot.parentNode);
   const scale = tier ? tier.scale : 1;
   return {
-    x: RADAR_CENTER + (Number(dot.getAttribute("cx")) - RADAR_CENTER) * scale,
-    y: RADAR_CENTER + (Number(dot.getAttribute("cy")) - RADAR_CENTER) * scale,
+    x: RADAR_CENTER_X + (Number(dot.getAttribute("cx")) - RADAR_CENTER_X) * scale,
+    y: RADAR_CENTER_Y + (Number(dot.getAttribute("cy")) - RADAR_CENTER_Y) * scale,
   };
 }
 
@@ -663,7 +684,7 @@ function setRadarLabel(dot, text) {
   labels.innerHTML = "";
   const { x, y } = radarLabelPosition(dot);
   // A radar jobb felén befelé, balra írjuk a nevet, különben kilógna a képből.
-  const onRight = x > RADAR_CENTER;
+  const onRight = x > RADAR_CENTER_X;
   const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
   label.classList.add("radar-label");
   label.setAttribute("x", onRight ? x - 12 : x + 12);

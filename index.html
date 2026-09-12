@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 
@@ -75,13 +75,16 @@
     <div id="loading" class="loading" hidden>
       <!-- A láthatóságát a #loading "locating" osztálya szabályozza (CSS), nem
            a hidden attribútum: SVG elemen nincs .hidden property. -->
-      <svg id="radar-svg" viewBox="0 0 350 350" width="220" height="220">
+      <!-- A képernyő téglalap alakú, a tartalmat a viewBox vágja a széleinél.
+           A pásztázó vonal ezért a fél átlónál (207) hosszabb: így a forgás
+           minden szögében kifut a téglalap széléig, és ott vágódik el. -->
+      <svg id="radar-svg" viewBox="0 0 350 220" width="350" height="220">
         <!-- Radarkép és országhatárok, legalul, hogy a pontok alatt maradjanak -->
-        <image id="radar-image" x="0" y="0" width="350" height="350"></image>
+        <image id="radar-image" x="0" y="0" width="350" height="220"></image>
         <g id="radar-borders"></g>
         <g id="radar-tiers"></g>
-        <circle cx="175" cy="175" r="3" fill="var(--fg)"></circle>
-        <line id="radar-sweep" x1="175" y1="175" x2="175" y2="15" stroke="var(--fg)" stroke-width="1.5" opacity="0.55"></line>
+        <circle cx="175" cy="110" r="3" fill="var(--fg)"></circle>
+        <line id="radar-sweep" x1="175" y1="110" x2="175" y2="-97" stroke="var(--fg)" stroke-width="1.5" opacity="0.55"></line>
         <!-- A megkoppintott esős pont helyneve, a pötty mellé írva. Utolsóként,
              hogy a pontok és a pásztázó vonal fölé kerüljön. -->
         <g id="radar-labels"></g>
@@ -97,7 +100,7 @@
     határok: Natural Earth
   </footer>
 
-  <script src="script.js?v=37"></script>
+  <script src="script.js?v=38"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
