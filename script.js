@@ -382,24 +382,47 @@ const radarPlaceCache = new Map();
 let radarPlaceToken = 0;
 
 function clearRadarPlace() {
-  const el = document.getElementById("radar-place");
-  el.hidden = true;
-  el.textContent = "";
+  document.getElementById("radar-labels").innerHTML = "";
+}
+
+// A feliratot a pötty mellé írjuk. A pötty saját koordinátája a köre (tier)
+// helyi rendszerében van, a régebbi körök viszont össze vannak zoomolva,
+// ezért a tárolt nagyítással számoljuk vissza a tényleges helyet.
+function radarLabelPosition(dot) {
+  const tier = radarTierGroups.find(t => t.el === dot.parentNode);
+  const scale = tier ? tier.scale : 1;
+  return {
+    x: RADAR_CENTER + (Number(dot.getAttribute("cx")) - RADAR_CENTER) * scale,
+    y: RADAR_CENTER + (Number(dot.getAttribute("cy")) - RADAR_CENTER) * scale,
+  };
+}
+
+function setRadarLabel(dot, text) {
+  const labels = document.getElementById("radar-labels");
+  labels.innerHTML = "";
+  const { x, y } = radarLabelPosition(dot);
+  // A radar jobb felén befelé, balra írjuk a nevet, különben kilógna a képből.
+  const onRight = x > RADAR_CENTER;
+  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  label.classList.add("radar-label");
+  label.setAttribute("x", onRight ? x - 12 : x + 12);
+  label.setAttribute("y", y + 7);
+  label.setAttribute("text-anchor", onRight ? "end" : "start");
+  label.textContent = text;
+  labels.appendChild(label);
 }
 
 async function showRadarPlace(dot) {
-  const el = document.getElementById("radar-place");
   const key = `${dot.dataset.lat},${dot.dataset.lon}`;
-  el.hidden = false;
 
   if (radarPlaceCache.has(key)) {
-    el.textContent = radarPlaceCache.get(key);
+    setRadarLabel(dot, radarPlaceCache.get(key));
     return;
   }
 
   // Ha közben másik pontra koppintanak, csak a legutolsó válasza kerüljön ki.
   const token = ++radarPlaceToken;
-  el.textContent = "…";
+  setRadarLabel(dot, "…");
   let label;
   try {
     const place = await findNearbyName({
@@ -416,7 +439,7 @@ async function showRadarPlace(dot) {
     console.error(err);
     label = "a helynév most nem érhető el";
   }
-  if (token === radarPlaceToken) el.textContent = label;
+  if (token === radarPlaceToken) setRadarLabel(dot, label);
 }
 
 document.getElementById("radar-tiers").addEventListener("click", (event) => {
@@ -460,8 +483,11 @@ function sweepAngleNow() {
 // korábban hozzáadott köröket arányosan összébb zoomolja (CSS transition),
 // hogy az új, nagyobb kör is beleférjen ugyanabba a fizikai méretbe.
 function radarAddTier(points, maxRadiusKm) {
+  // A radar átskálázódik, tehát a korábbi felirat rossz helyre mutatna.
+  clearRadarPlace();
   radarTierGroups.forEach(tier => {
-    tier.el.style.transform = `scale(${tier.maxRadiusKm / maxRadiusKm})`;
+    tier.scale = tier.maxRadiusKm / maxRadiusKm;
+    tier.el.style.transform = `scale(${tier.scale})`;
   });
 
   const svgNS = "http://www.w3.org/2000/svg";
@@ -483,7 +509,7 @@ function radarAddTier(points, maxRadiusKm) {
   });
 
   document.getElementById("radar-tiers").appendChild(g);
-  radarTierGroups.push({ el: g, maxRadiusKm });
+  radarTierGroups.push({ el: g, maxRadiusKm, scale: 1 });
 }
 
 function revealDot(dot, isRain) {

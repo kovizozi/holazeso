@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 
@@ -79,10 +79,11 @@
         <g id="radar-tiers"></g>
         <circle cx="175" cy="175" r="3" fill="var(--fg)"></circle>
         <line id="radar-sweep" x1="175" y1="175" x2="175" y2="15" stroke="var(--fg)" stroke-width="1.5" opacity="0.55"></line>
+        <!-- A megkoppintott esős pont helyneve, a pötty mellé írva. Utolsóként,
+             hogy a pontok és a pásztázó vonal fölé kerüljön. -->
+        <g id="radar-labels"></g>
       </svg>
       <p id="loading-text">töltés…</p>
-      <!-- Ide kerül a radaron megkattintott esős pont helyneve -->
-      <p id="radar-place" hidden></p>
     </div>
 
   </main>
@@ -91,7 +92,7 @@
     holazeso.hu · Adatforrás: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)
   </footer>
 
-  <script src="script.js?v=30"></script>
+  <script src="script.js?v=31"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

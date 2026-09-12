@@ -288,10 +288,18 @@ button[type="submit"] {
   pointer-events: none; /* ne fogja el a kattintást a pötty elől */
 }
 
-#radar-place {
-  color: var(--fg);
-  font-size: 15px;
-  margin: var(--sp-1) 0 0;
+/* A megkoppintott pötty melletti helynév. A méret viewBox-egységben értendő
+   (350 egység = 220 px), tehát ez a radaron kb. 13 px. A háttérszínű körvonal
+   nem dísz: e nélkül a felirat olvashatatlan lenne a mögötte lévő pontokon,
+   a paint-order pedig a szöveg MÖGÉ teszi. */
+.radar-label {
+  fill: var(--fg);
+  font-family: var(--font);
+  font-size: 20px;
+  paint-order: stroke fill;
+  stroke: var(--bg);
+  stroke-width: 5;
+  pointer-events: none;
 }
 
 .radar-pulse.pulsing {
