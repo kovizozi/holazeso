@@ -250,9 +250,9 @@ button[type="submit"] {
 .radar-border {
   fill: none;
   stroke: var(--fg);
-  stroke-width: 1;
+  stroke-width: 0.75;
   vector-effect: non-scaling-stroke;
-  opacity: 0.4;
+  opacity: 0.28;
   pointer-events: none;
 }
 
