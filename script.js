@@ -53,6 +53,34 @@ function ringBearings(count) {
   return Array.from({ length: count }, (_, i) => (i * 360) / count);
 }
 
+// A durva háló egy gyűrűpontján akadunk rá az esőre, de az esőterület hozzánk
+// legközelebbi széle bárhol lehet az előző (üres) gyűrű és a találat között,
+// és oldalra is a szomszédos irányok félútjáig. Ezért a találat köré küldünk
+// még egy kis, sűrű hálót: 20 pont, egyetlen hívás. Ez a távoli találatoknál
+// több száz kilométeres bizonytalanságot visz le néhány tízre, és sokkal
+// olcsóbb, mint az egész hálót sűríteni (azt a kvóta amúgy sem bírná).
+const REFINE_DISTANCES = 4;
+const REFINE_BEARINGS = 5;
+const ALL_RINGS = SEARCH_RINGS.flat();
+
+function refinementGrid(userLoc, hit) {
+  const idx = ALL_RINGS.findIndex(([km]) => km === hit.distance);
+  if (idx < 0) return [];
+  const innerKm = idx > 0 ? ALL_RINGS[idx - 1][0] : 0;
+  const bearingSpan = 360 / ALL_RINGS[idx][1];
+  const points = [];
+  for (let i = 1; i <= REFINE_DISTANCES; i++) {
+    const distance = innerKm + (hit.distance - innerKm) * (i / REFINE_DISTANCES);
+    for (let j = 0; j < REFINE_BEARINGS; j++) {
+      const offset = bearingSpan * (j / (REFINE_BEARINGS - 1) - 0.5);
+      const bearing = (hit.bearing + offset + 360) % 360;
+      const p = destinationPoint(userLoc.lat, userLoc.lon, bearing, distance);
+      points.push({ lat: p.lat, lon: p.lon, distance, bearing });
+    }
+  }
+  return points;
+}
+
 const RAIN_THRESHOLD_MM = 0.1; // ennél kevesebb csapadékot zajnak tekintünk
 
 // Csapadék-erősség sávok (mm/óra), melléknévi és határozói alakkal együtt,
@@ -718,9 +746,7 @@ async function run(userLoc, { silent = false } = {}) {
     // kész kép fölött pörögne tovább, amíg a geokódoló válaszol: a pontok
     // mind kint vannak, mégsem történik semmi.
     const rainsAtUser = isRainingNow(userForecast) || isRainingSoon(userForecast);
-    let placeLookup = !rainsAtUser && raining.length > 0
-      ? findNearbyName(raining[0])
-      : null;
+    let lookup = !rainsAtUser && raining.length > 0 ? startLookup(userLoc, raining[0]) : null;
 
     await radarRevealTier(firstRain, { instant: silent });
     if (superseded()) return;
@@ -780,15 +806,22 @@ async function run(userLoc, { silent = false } = {}) {
         .filter(idx => isRainingNow(forecasts[idx]))
         .map(idx => [idx, forecasts[idx].current.precipitation]));
       raining = sortRaining(grid, forecasts);
-      if (raining.length > 0) placeLookup = findNearbyName(raining[0]);
+      if (raining.length > 0) lookup = startLookup(userLoc, raining[0]);
       await radarRevealTier(rainByIndex, { instant: silent });
       if (superseded()) return;
     }
 
     if (raining.length > 0) {
-      const place = await placeLookup;
+      const { refined, place } = await lookup;
       if (superseded()) return;
-      showNearestRain(raining[0], place, userLoc);
+      // A finomító pontokat ugyanazon a léptéken mutatjuk, mint az aktuális
+      // kört (azonos maxRadius mellett a radarAddTier nem zoomol át semmit).
+      if (!silent && refined.points.length > 0) {
+        radarAddTier(refined.points, radarMaxRadiusKm, userLoc);
+        await radarRevealTier(refined.rain);
+        if (superseded()) return;
+      }
+      showNearestRain(refined.nearest, place, userLoc);
     } else {
       const maxKm = SEARCH_RINGS[SEARCH_RINGS.length - 1].at(-1)[0];
       setQ2Answer(`<p class="place-line">Sehol</p>
@@ -809,6 +842,35 @@ async function run(userLoc, { silent = false } = {}) {
       runInProgress = false;
     }
   }
+}
+
+// Lefuttatja a finomító hálót, és megkeresi benne a hozzánk legközelebbi esős
+// pontot. Ha a finomítás nem talál esőt (előfordul: kis cella, amit a durva
+// háló épp eltalált), marad az eredeti találat.
+async function refineNearest(userLoc, hit) {
+  const points = refinementGrid(userLoc, hit);
+  if (points.length === 0) return { points, rain: new Map(), nearest: hit };
+  const forecasts = await fetchPrecipitation(points);
+  const rain = new Map(points
+    .map((_, i) => i)
+    .filter(i => isRainingNow(forecasts[i]))
+    .map(i => [i, forecasts[i].current.precipitation]));
+  const closest = sortRaining(points, forecasts)[0];
+  return {
+    points,
+    rain,
+    nearest: closest && closest.distance < hit.distance ? closest : hit,
+  };
+}
+
+// A finomítást és a rá épülő helynév-keresést EGYBEN indítjuk, még a kör
+// felfestése előtt. Így mindkettő a pásztázás alatt fut le, és mire az utolsó
+// pötty a helyére kerül, a végleges válasz általában készen van.
+function startLookup(userLoc, hit) {
+  return refineNearest(userLoc, hit).then(async refined => ({
+    refined,
+    place: await findNearbyName(refined.nearest),
+  }));
 }
 
 function showNearestRain(nearest, place, userLoc) {
