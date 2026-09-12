@@ -725,7 +725,7 @@ async function showRadarPlace(dot) {
 }
 
 document.getElementById("radar-tiers").addEventListener("click", (event) => {
-  const dot = event.target.closest(".radar-dot.rain");
+  const dot = event.target.closest(".radar-dot");
   if (dot) showRadarPlace(dot);
 });
 
@@ -778,76 +778,66 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
     tier.el.style.transform = `scale(${tier.scale})`;
   });
 
-  const svgNS = "http://www.w3.org/2000/svg";
-  const g = document.createElementNS(svgNS, "g");
+  // A lekérdezett pontokat NEM rajzoljuk ki: a radarkép már mutatja, hol van
+  // csapadék, a mintavételi háló kirajzolva csak zaj lenne. Pötty csak oda
+  // kerül, ahol tényleg esik (lásd radarRevealTier), ezért a kört üresen
+  // hozzuk létre, és a pontokat csak megjegyezzük hozzá.
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
   g.classList.add("radar-tier-group");
-
-  points.forEach((point, i) => {
-    const { x, y } = radarPolarPoint(point.bearing, point.distance, maxRadiusKm);
-    const dot = document.createElementNS(svgNS, "circle");
-    dot.classList.add("radar-dot");
-    dot.setAttribute("cx", x);
-    dot.setAttribute("cy", y);
-    dot.setAttribute("r", 2.5);
-    dot.dataset.index = i;
-    dot.dataset.bearing = point.bearing;
-    dot.dataset.lat = point.lat;
-    dot.dataset.lon = point.lon;
-    g.appendChild(dot);
-  });
-
   document.getElementById("radar-tiers").appendChild(g);
-  radarTierGroups.push({ el: g, maxRadiusKm, scale: 1 });
+  radarTierGroups.push({ el: g, maxRadiusKm, scale: 1, points });
 }
 
-// Az mm a csapadék mennyisége (mm/óra) azon a ponton, vagy undefined, ha ott
-// nem esik. A pötty mérete és árnyalata az intenzitás-sávot követi, hogy a
-// gyengébb eső halványabb és kisebb legyen.
-function revealDot(dot, mm) {
-  dot.classList.add("revealed");
-  if (mm === undefined) return;
+// Egyetlen esős pötty létrehozása. A mérete és árnyalata az intenzitás-sávot
+// követi, és rákoppintva megmutatja a helynevet (lásd showRadarPlace).
+function addRainDot(tier, index, mm) {
+  const point = tier.points[index];
+  if (!point) return;
   const band = intensityBand(mm);
-  dot.classList.add("rain", `rain-${band.key}`);
+  const { x, y } = radarPolarPoint(point.bearing, point.distance, tier.maxRadiusKm);
+  const svgNS = "http://www.w3.org/2000/svg";
+
+  const dot = document.createElementNS(svgNS, "circle");
+  dot.classList.add("radar-dot", `rain-${band.key}`);
+  dot.setAttribute("cx", x);
+  dot.setAttribute("cy", y);
   dot.setAttribute("r", band.dotRadius);
-  const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  pulse.setAttribute("cx", dot.getAttribute("cx"));
-  pulse.setAttribute("cy", dot.getAttribute("cy"));
+  dot.dataset.lat = point.lat;
+  dot.dataset.lon = point.lon;
+  tier.el.appendChild(dot);
+
+  const pulse = document.createElementNS(svgNS, "circle");
+  pulse.setAttribute("cx", x);
+  pulse.setAttribute("cy", y);
   pulse.setAttribute("r", band.dotRadius);
   pulse.classList.add("radar-pulse", "pulsing");
-  dot.parentNode.appendChild(pulse);
+  tier.el.appendChild(pulse);
 }
 
-// Egy kör adata EGYBEN érkezik meg (egyetlen Open-Meteo hívás), a
-// megjelenítés viszont úgy működik, mint egy igazi radarernyőn: a pásztázó
-// vonal "festi fel" a pontokat, ahogy elhalad fölöttük. Minden pont akkor
-// villan fel, amikor a vonal épp az ő irányához ér.
-//
-// Ettől a megjelenítés adatvezérelt marad: felvillanni csak olyan pont tud,
-// aminek a válasza már megérkezett. A pásztázás a festés módja, nem a
-// lekérdezés üteme - nem tesz úgy, mintha pontonként kérdeznénk le.
-//
-// A visszaadott promise akkor teljesül, amikor a vonal a kör összes pontját
-// végigfestette, tehát a hívó megvárhatja, mielőtt a következő körre lép.
-// A rainByIndex egy Map: rácspont indexe -> csapadék mm/órában. Ami nincs
-// benne, azon nem esik.
+// A rainByIndex egy Map: rácspont indexe -> csapadék mm/órában. Minden pötty
+// akkor jelenik meg, amikor a pásztázó vonal az ő irányához ér, tehát a vonal
+// "festi fel" őket. Az ígéret egy teljes fordulat után teljesül, akkor is, ha
+// ebben a körben nem volt eső: így a vonal láthatóan végigpásztázza a kört,
+// mielőtt a keresés kijjebb lép.
 function radarRevealTier(rainByIndex, { instant = false } = {}) {
   const tier = radarTierGroups[radarTierGroups.length - 1];
   if (!tier) return Promise.resolve();
-  const dots = tier.el.querySelectorAll(".radar-dot");
-  const mmOf = dot => rainByIndex.get(Number(dot.dataset.index));
 
   if (instant) {
-    dots.forEach(dot => revealDot(dot, mmOf(dot)));
+    rainByIndex.forEach((mm, index) => addRainDot(tier, index, mm));
     return Promise.resolve();
   }
 
   const sweepAngle = sweepAngleNow();
-  dots.forEach(dot => {
-    const degreesAhead = (Number(dot.dataset.bearing) - sweepAngle + 360) % 360;
-    setTimeout(() => revealDot(dot, mmOf(dot)), (degreesAhead / 360) * RADAR_SWEEP_MS);
+  rainByIndex.forEach((mm, index) => {
+    const point = tier.points[index];
+    if (!point) return;
+    const degreesAhead = (point.bearing - sweepAngle + 360) % 360;
+    setTimeout(() => addRainDot(tier, index, mm), (degreesAhead / 360) * RADAR_SWEEP_MS);
   });
   return new Promise(resolve => setTimeout(resolve, RADAR_SWEEP_MS));
 }
+
 
 // ---- Fő logika ----
 

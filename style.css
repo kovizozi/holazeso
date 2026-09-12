@@ -278,44 +278,31 @@ button[type="submit"] {
   transition: transform 1s ease-in-out;
 }
 
+/* Már csak ott van pötty, ahol tényleg esik: a mintavételi hálót nem
+   rajzoljuk ki, azt a radarkép váltotta ki. A pöttyök kattinthatók, és mivel
+   vizuálisan kicsik, kapnak egy áttetsző, vastag körvonalat tapintási
+   felületnek: az nem látszik, de a pointer-events: all miatt fogadja a
+   koppintást. */
 .radar-dot {
-  fill: var(--muted);
-  opacity: 0;
-  transition: opacity 0.25s ease-out;
-}
-
-.radar-dot.revealed {
-  opacity: 0.45;
-}
-
-/* Az esős pontok teljes erősségű, kattintható pöttyök. A vizuális méretük
-   kicsi, ujjal viszont el kell tudni találni őket, ezért kapnak egy
-   áttetsző, vastag körvonalat: az nem látszik, de a pointer-events: all
-   miatt fogadja a koppintást, így a tapintható felület jóval nagyobb. */
-.radar-dot.rain {
   fill: var(--fg);
+  opacity: var(--dot-opacity, 1);
   cursor: pointer;
   stroke: transparent;
   stroke-width: 20;
   pointer-events: all;
+  animation: dot-in 0.25s ease-out;
 }
 
-.radar-dot.rain.revealed {
-  opacity: 1;
+/* Csak "from" kulcskocka: a "to" a saját, sávtól függő átlátszóság lesz,
+   így egyetlen animáció szolgálja ki mind a három intenzitást. */
+@keyframes dot-in {
+  from { opacity: 0; }
 }
 
-/* Intenzitás szerinti árnyalat: a gyengébb eső halványabb (a mérete is
-   kisebb, azt a script.js állítja a sávhoz). A leghalványabb esős pötty is
-   érezhetően sötétebb marad a száraz pontoknál (0,45), hogy a "gyengén esik"
-   és a "nem esik" ne mosódjon össze. Ezek a szabályok a fenti .rain.revealed
-   után állnak, mert azonos erősségűek, és a sorrend dönt. */
-.radar-dot.rain-light.revealed {
-  opacity: 0.66;
-}
-
-.radar-dot.rain-medium.revealed {
-  opacity: 0.85;
-}
+/* A gyengébb eső halványabb (a mérete is kisebb, azt a script.js állítja). */
+.radar-dot.rain-light { --dot-opacity: 0.66; }
+.radar-dot.rain-medium { --dot-opacity: 0.85; }
+.radar-dot.rain-heavy { --dot-opacity: 1; }
 
 .radar-pulse {
   fill: none;
