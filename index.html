@@ -34,11 +34,20 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 
   <main id="app">
+
+    <!-- JavaScript nélkül az egész alkalmazás néma, ezért itt legalább leírjuk,
+         mi ez az oldal. Ez az egyetlen tartalom, amit ilyenkor látni lehet. -->
+    <noscript>
+      <p class="about">
+        A holazeso.hu megmondja, esik-e a környékeden, és ha nem, megkeresi, hol
+        esik a hozzád legközelebb. Az oldal használatához JavaScript szükséges.
+      </p>
+    </noscript>
 
     <!-- Helyszín-kereső: csak akkor látszik, ha az automatikus helymeghatározás nem sikerült -->
     <section id="location-picker" hidden>
@@ -95,9 +104,19 @@
   </main>
 
   <footer>
-    holazeso.hu · Adatforrás: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0) ·
-    radarkép: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> ·
-    határok: Natural Earth
+    <p class="about">
+      A holazeso.hu egyetlen kérdésre válaszol: esik-e az eső a környékeden.
+      Ha nem esik, megkeresi, hol esik a hozzád legközelebb, és megmutatja a
+      település nevét, a távolságát és az eső erősségét. Valós idejű időjárási
+      és csapadékadatból dolgozik, automatikus helymeghatározással vagy kézzel
+      megadott településsel, és radarképen is megjeleníti a környéket.
+      Regisztráció és követés nélkül, bármelyik országban működik.
+    </p>
+    <p class="credits">
+      holazeso.hu · Adatforrás: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0) ·
+      radarkép: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> ·
+      határok: Natural Earth
+    </p>
   </footer>
 
   <script src="script.js?v=39"></script>

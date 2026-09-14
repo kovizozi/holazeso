@@ -366,3 +366,24 @@ footer a {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Rövid, valódi leírás az oldalról. Nem robotnak elrejtett szöveg: mindenki
+   látja, csak visszafogottan, a lábléc tetején. Enélkül egy JavaScriptet nem
+   futtató olvasó (és az automatikus besoroló) összesen pár gombfeliratot lát
+   az oldalból, ami alapján nem lehet megmondani, mi ez. */
+.about {
+  max-width: 46em;
+  margin: 0 auto var(--sp-3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+noscript .about {
+  padding-top: var(--sp-5);
+  color: var(--muted);
+  text-align: center;
+}
+
+.credits {
+  margin: 0;
+}
