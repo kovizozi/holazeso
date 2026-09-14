@@ -283,11 +283,14 @@ async function fetchUserForecast(point) {
 
 // Az esős pontokat adja vissza egy pont- és előrejelzés-listából, távolság
 // szerint növekvő sorrendben.
+// A csapadék mennyiségét is rátesszük a pontra: enélkül a hívó már nem tudná
+// visszakeresni, mennyire esik a megtalált helyen, és csak a helynevet meg a
+// távolságot tudnánk kiírni.
 function sortRaining(points, forecasts) {
   return points
     .map((point, i) => ({ point, forecast: forecasts[i] }))
     .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ point }) => point)
+    .map(({ point, forecast }) => ({ ...point, mm: forecast.current.precipitation }))
     .sort((a, b) => a.distance - b.distance);
 }
 
@@ -1056,10 +1059,17 @@ function showNearestRain(nearest, place, userLoc) {
 
   const direction = compassLabel(displayBearing);
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${targetLat},${targetLon}`;
+  // Az erősség a megtalált esős PONTRA vonatkozik, nem a névadó településre:
+  // a kettő eltérhet, ha a legközelebbi esős pontnak nem volt neve.
+  const band = typeof nearest.mm === "number" ? intensityBand(nearest.mm) : null;
+  const intensity = band
+    ? `<p class="context">${band.adv} esik, ${formatMm(nearest.mm)} mm/óra</p>`
+    : "";
   setQ2Answer(
     `<p class="place-line">${placeLabel}</p>
      <p class="context">${Math.round(displayDistance)} km innen
      <span class="direction-arrow" style="transform: rotate(${displayBearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
+     ${intensity}
      <a class="map-link" href="${mapsUrl}" target="_blank" rel="noopener">útvonal</a>`
   );
 }
