@@ -373,9 +373,27 @@ footer a {
    az oldalból, ami alapján nem lehet megmondani, mi ez. */
 .about {
   max-width: 46em;
-  margin: 0 auto var(--sp-3);
+  margin: var(--sp-2) auto 0;
   font-size: 13px;
   line-height: 1.6;
+  text-align: left;
+}
+
+/* A nyitógomb ugyanúgy néz ki, mint a többi szöveges kapcsoló az oldalon:
+   aláhúzott, halvány. Az alapértelmezett háromszöget elrejtjük, mert nem
+   illik a tipográfia-vezérelt megjelenéshez. */
+.about-details {
+  margin-bottom: var(--sp-3);
+}
+
+.about-details summary {
+  cursor: pointer;
+  text-decoration: underline;
+  list-style: none;
+}
+
+.about-details summary::-webkit-details-marker {
+  display: none;
 }
 
 noscript .about {
