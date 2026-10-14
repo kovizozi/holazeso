@@ -290,7 +290,7 @@ function sortRaining(points, forecasts) {
   return points
     .map((point, i) => ({ point, forecast: forecasts[i] }))
     .filter(({ forecast }) => isRainingNow(forecast))
-    .map(({ point, forecast }) => ({ ...point, mm: forecast.current.precipitation }))
+    .map(({ point, forecast }) => ({ ...point, mm: currentPrecipRate(forecast) }))
     .sort((a, b) => a.distance - b.distance);
 }
 
@@ -336,8 +336,19 @@ async function findNearbyName(point) {
   return { name: null, countryCode: null, countryName: null, lat: point.lat, lon: point.lon };
 }
 
+// A "current.precipitation" NEM mm/óra: az Open-Meteo a modell saját
+// frissítési közét ("current.interval", másodpercben) adja vissza, ami a
+// legtöbb európai pontra 900 (15 perc), nem 3600 (1 óra). Felszorzás nélkül
+// a valós óránkénti csapadék negyedét mutattuk volna, ezért a kiírt érték
+// mindig irreálisan alacsonynak ("0,x mm") tűnt, és a 0,1 mm/órás küszöb is
+// a négyszeresére, kb. 0,4 mm/órára szigorult.
+function currentPrecipRate(forecast) {
+  const { precipitation, interval } = forecast.current;
+  return precipitation * 3600 / interval;
+}
+
 function isRainingNow(forecast) {
-  return forecast.current.precipitation >= RAIN_THRESHOLD_MM;
+  return currentPrecipRate(forecast) >= RAIN_THRESHOLD_MM;
 }
 
 // A "current.time" perc-pontosságú (pl. "...T18:45"), az "hourly.time" viszont
@@ -904,7 +915,7 @@ async function run(userLoc, { silent = false } = {}) {
     const firstRain = new Map(firstGrid
       .map((_, i) => i)
       .filter(i => isRainingNow(firstGridForecasts[i]))
-      .map(i => [i, firstGridForecasts[i].current.precipitation]));
+      .map(i => [i, currentPrecipRate(firstGridForecasts[i])]));
     let raining = sortRaining(firstGrid, firstGridForecasts);
 
     // A helynév-lekérést már a felfestés ALATT elindítjuk. Enélkül a radar a
@@ -919,7 +930,7 @@ async function run(userLoc, { silent = false } = {}) {
     // Ha nálad esik (vagy hamarosan fog), a "de hol esik pontosan?" kérdés
     // értelmetlen: a válasz az, hogy itt. Ilyenkor nincs 2. fázis.
     if (isRainingNow(userForecast)) {
-      const mm = userForecast.current.precipitation;
+      const mm = currentPrecipRate(userForecast);
       const band = intensityBand(mm);
       const duration = rainDurationHours(userForecast);
       const lines = [`${band.adv}, ${formatMm(mm)} mm/óra`];
@@ -969,7 +980,7 @@ async function run(userLoc, { silent = false } = {}) {
       const rainByIndex = new Map(grid
         .map((_, idx) => idx)
         .filter(idx => isRainingNow(forecasts[idx]))
-        .map(idx => [idx, forecasts[idx].current.precipitation]));
+        .map(idx => [idx, currentPrecipRate(forecasts[idx])]));
       raining = sortRaining(grid, forecasts);
       if (raining.length > 0) lookup = startLookup(userLoc, raining[0]);
       await radarRevealTier(rainByIndex, { instant: silent });
@@ -1019,7 +1030,7 @@ async function refineNearest(userLoc, hit) {
   const rain = new Map(points
     .map((_, i) => i)
     .filter(i => isRainingNow(forecasts[i]))
-    .map(i => [i, forecasts[i].current.precipitation]));
+    .map(i => [i, currentPrecipRate(forecasts[i])]));
   const closest = sortRaining(points, forecasts)[0];
   return {
     points,
