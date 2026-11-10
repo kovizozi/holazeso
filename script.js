@@ -4,15 +4,22 @@
 // országban egyformán pontos, nem csak Magyarországon vagy egy előre
 // kiválasztott városlistán.
 //
-// Ha az első adagban (150 km-ig) nem találunk esőt, egyre távolabbi
+// Ha az első adagban (60 km-ig) nem találunk esőt, egyre távolabbi
 // gyűrűket próbálunk, amíg nem találunk, vagy amíg el nem fogynak.
 //
-// Az adagok szűken indulnak és onnan tágulnak: az első csak 150 km-ig néz,
+// Az adagok szűken indulnak és onnan tágulnak: az első csak 60 km-ig néz,
 // a következők 150 km-enként lépnek kijjebb (300, 450), és csak utána
 // gyorsul a lépés (900, 2500), hogy távoli eső esetén ne kelljen tucatnyi
 // kört végigvárni.
 // Így a radar induló képe a közvetlen környéket mutatja olvashatóan, nem
 // egy 600 km-es, összezsúfolt áttekintést.
+//
+// AZ ELSŐ ADAG (SEARCH_RINGS[0]) nemcsak az első API-hívás kötege, hanem ez
+// dönti el az "Esik-e X környékén?" Igen/Nem válaszát is (lásd run()). Ezt
+// korábban az egész 150 km-es tartomány adta, de egy 100-150 km-es találat
+// senkinek nem érződik "a környéknek" - ezért az Igen/Nem most csak 60 km-ig
+// terjed, és egy 100-150 km-es találatot már a 2. fázis ("de hol esik
+// pontosan?") mutat meg, nem az 1. kérdés válasza.
 //
 // Minden adag CSAK az új gyűrűt méri fel: a belső területet az előző adagok
 // már lefedték, a radaron pedig azok zoomolnak összébb az új adag alá.
@@ -42,7 +49,8 @@
 // ritkítottuk. A legrosszabb eset így 294 pont: két teljes keresés is
 // belefér egy percbe, ami korábban 429-et adott volna.
 const SEARCH_RINGS = [
-  [[30, 6], [60, 10], [100, 14], [150, 18]],
+  [[30, 6], [60, 10]],
+  [[100, 14], [150, 18]],
   [[200, 16], [250, 18], [300, 20]],
   [[350, 20], [400, 22], [450, 24]],
   [[550, 20], [700, 22], [900, 24]],
@@ -989,7 +997,7 @@ async function run(userLoc, { silent = false } = {}) {
 
     // === 1. FÁZIS: esik-e a környéken? ===
     // Csak ezt keressük: a saját hely részletes előrejelzését és a legelső,
-    // 150 km-es gyűrűt (ez a "környék"). A radar kört a hívás ELŐTT rajzoljuk
+    // 60 km-es gyűrűt (ez a "környék"). A radar kört a hívás ELŐTT rajzoljuk
     // fel üresen, hogy a pásztázó vonal a várakozás alatt is fusson, és a
     // válasz megérkezésekor legyen mit felfestenie.
     const firstBatch = SEARCH_RINGS[0];
