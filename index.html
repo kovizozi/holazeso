@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 
@@ -78,6 +78,45 @@
         <p class="question" id="q2-question"></p>
         <div id="q2-answer"></div>
       </div>
+
+      <!-- A fő Igen/Nem választ ne terhelje meg: ez a sor csak kinyitva
+           tölti be és mutatja a kiegészítő statisztikákat (lásd script.js
+           "stats-panel" szakasza). A fázisoktól függetlenül mindig látható,
+           amint van kiválasztott helyszín, mert a #result-nak a gyermeke,
+           és annak hidden állapota automatikusan elrejti/megmutatja. -->
+      <details id="stats-panel" class="about-details stats-details">
+        <summary>részletek és statisztika</summary>
+        <div id="stats-body" class="stats-body">
+          <p id="stats-status" class="context">töltés…</p>
+
+          <section class="stats-group" id="stats-precip">
+            <h3 class="stats-heading">Csapadék</h3>
+            <p class="stats-line" id="stats-precip-event"></p>
+            <p class="stats-line" id="stats-precip-24h"></p>
+            <p class="stats-line" id="stats-precip-7d"></p>
+            <p class="stats-line" id="stats-precip-30d"></p>
+            <svg id="stats-precip-chart" class="stats-bars" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
+          </section>
+
+          <section class="stats-group" id="stats-forecast">
+            <h3 class="stats-heading">Előrejelzés</h3>
+            <ul class="stats-days" id="stats-forecast-days"></ul>
+          </section>
+
+          <section class="stats-group" id="stats-temp">
+            <h3 class="stats-heading">Hőmérséklet</h3>
+            <p class="stats-line" id="stats-temp-now"></p>
+            <p class="stats-line" id="stats-temp-minmax"></p>
+            <p class="stats-line" id="stats-temp-frost"></p>
+          </section>
+
+          <section class="stats-group" id="stats-water">
+            <h3 class="stats-heading">Víz</h3>
+            <p class="stats-line" id="stats-water-soil"></p>
+            <p class="stats-line" id="stats-water-river" hidden></p>
+          </section>
+        </div>
+      </details>
 
     </section>
 
@@ -124,7 +163,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=41"></script>
+  <script src="script.js?v=42"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

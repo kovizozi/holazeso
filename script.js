@@ -102,6 +102,23 @@ function formatMm(mm) {
   return mm.toFixed(1).replace(".", ",");
 }
 
+function formatC(celsius) {
+  return celsius.toFixed(1).replace(".", ",");
+}
+
+// A talajnedvesség (soil_moisture_0_to_1cm, m³/m³) talajtípustól függ, nincs
+// egyetlen "helyes" skála - ez egy durva, laikusnak szóló közelítés, nem
+// kalibrált érték.
+const SOIL_MOISTURE_BANDS = [
+  { max: 0.15, label: "száraz" },
+  { max: 0.35, label: "nedves" },
+  { max: Infinity, label: "vizes" },
+];
+
+function soilMoistureLabel(value) {
+  return SOIL_MOISTURE_BANDS.find(b => value <= b.max).label;
+}
+
 // ---- Segédfüggvények ----
 
 // Adott koordinátától egy irányszög (fok) és távolság (km) alapján kiszámolja
@@ -281,6 +298,65 @@ async function fetchUserForecast(point) {
   );
 }
 
+// A "részletek és statisztika" panelhez EGYETLEN pontra (a felhasználó
+// helyére) kérünk bővített adatot: múltbeli napi/órás csapadékot, pár napos
+// előrejelzést, hőmérsékletet és talajnedvességet. Ez külön függvény a
+// fetchUserForecast-tól, mert azt az 5 percenkénti automatikus frissítés is
+// lefuttatja - oda nem kell ez a jóval nehezebb lekérdezés. Egyetlen pontra
+// a grid-kvóta aggálya (lásd SEARCH_RINGS fenti kommentje) nem vonatkozik.
+async function fetchUserStats(point) {
+  return openMeteo(
+    `${API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}` +
+    `&past_days=31&forecast_days=4` +
+    `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min,snowfall_sum` +
+    `&hourly=precipitation,precipitation_probability,soil_moisture_0_to_1cm` +
+    `&current=temperature_2m,precipitation,snowfall&timezone=auto`
+  );
+}
+
+// "Szokásos" csapadék-bázis: az előző néhány év ugyanarra a mai napra
+// végződő 30 napos ablakára lekért, VALÓDI mért napi összeg (nem modell-
+// előrejelzés). Ez nem egy hivatalos, sokéves klimatológiai normál, csak az
+// elmúlt néhány év átlaga - ezért a megjelenő szöveg is így fogalmaz.
+const USUAL_PRECIP_YEARS_BACK = 3;
+const ARCHIVE_API_BASE = "https://archive-api.open-meteo.com/v1/archive";
+
+async function fetchUsualPrecipitation(point) {
+  const today = new Date();
+  const years = Array.from({ length: USUAL_PRECIP_YEARS_BACK }, (_, i) => i + 1);
+  const windows = await Promise.all(years.map(async yearsBack => {
+    const end = new Date(today);
+    end.setFullYear(end.getFullYear() - yearsBack);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 29);
+    const toIso = d => d.toISOString().slice(0, 10);
+    const data = await openMeteo(
+      `${ARCHIVE_API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}` +
+      `&start_date=${toIso(start)}&end_date=${toIso(end)}&daily=precipitation_sum&timezone=auto`
+    );
+    return data.daily.precipitation_sum;
+  }));
+  const sum = arr => arr.reduce((a, b) => a + b, 0);
+  const avg = arr => arr.reduce((a, b) => a + sum(b), 0) / arr.length;
+  return {
+    usual7d: avg(windows.map(w => w.slice(-7))),
+    usual30d: avg(windows),
+  };
+}
+
+// Folyó-vízhozam (m³/s) a felhasználó helyéhez legközelebbi modellezett
+// folyószakaszra. A flood-api rácsa ritka: kisebb patakoknál a legközelebbi
+// pont messze lehet, vagy zajszintű (nulla közeli) értéket ad. Ezért a hívó
+// félnek külön ellenőriznie kell a visszaadott rács-pont távolságát és a
+// vízhozam nagyságát, mielőtt megjelenítené - lásd buildStatsPanel.
+const FLOOD_API_BASE = "https://flood-api.open-meteo.com/v1/flood";
+
+async function fetchRiverDischarge(point) {
+  return openMeteo(
+    `${FLOOD_API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}&daily=river_discharge&forecast_days=2`
+  );
+}
+
 // Az esős pontokat adja vissza egy pont- és előrejelzés-listából, távolság
 // szerint növekvő sorrendben.
 // A csapadék mennyiségét is rátesszük a pontra: enélkül a hívó már nem tudná
@@ -385,6 +461,19 @@ function rainDurationHours(forecast) {
     }
   }
   return null;
+}
+
+// Hány órája tart a MOST zajló esőzés: a rainDurationHours tükörképe,
+// visszafelé pásztázva az első száraz óráig. Null, ha az órás tömb nem ér
+// el addig (pl. past_days nem fedte le), vagy az aktuális óra maga sem esős.
+function rainEventStartIndex(forecast) {
+  const idx = currentHourIndex(forecast);
+  if (idx === -1 || forecast.hourly.precipitation[idx] < RAIN_THRESHOLD_MM) return null;
+  let start = idx;
+  while (start > 0 && forecast.hourly.precipitation[start - 1] >= RAIN_THRESHOLD_MM) {
+    start--;
+  }
+  return start;
 }
 
 // ---- Radar vizualizáció ----
@@ -1115,6 +1204,203 @@ function hideQ2() {
   document.getElementById("q2-answer").innerHTML = "";
 }
 
+// ---- "Részletek és statisztika" panel ----
+// Ez a panel csak kinyitva tölt be (lásd a #stats-panel "toggle" figyelőt
+// lent) - nem fut bele az 5 percenkénti automatikus frissítésbe, mert jóval
+// nehezebb lekérdezés (31+ napos história, több évnyi archív összehasonlítás),
+// mint amire a fő keresés épül. Minden nyitásnál újra lekér, nincs cache:
+// egyetlen pontra vonatkozó hívásokról van szó, ez megengedhető egyszerűsítés.
+let statsLoading = false;
+
+async function buildStatsPanel(point) {
+  if (statsLoading) return;
+  statsLoading = true;
+  const statusEl = document.getElementById("stats-status");
+  statusEl.hidden = false;
+  statusEl.textContent = "töltés…";
+  try {
+    const [stats, usual, flood] = await Promise.all([
+      fetchUserStats(point),
+      fetchUsualPrecipitation(point).catch(err => { console.error(err); return null; }),
+      fetchRiverDischarge(point).catch(err => { console.error(err); return null; }),
+    ]);
+    const todayIdx = stats.daily.time.indexOf(stats.current.time.slice(0, 10));
+    fillPrecipStats(stats, usual, todayIdx);
+    fillForecastStats(stats, todayIdx);
+    fillTempStats(stats, todayIdx);
+    fillWaterStats(stats, flood, point);
+    statusEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Nem sikerült lekérni a statisztikát. Próbáld újra kicsit később.";
+  } finally {
+    statsLoading = false;
+  }
+}
+
+// A "szokásos"-hoz képesti eltérés csak akkor értelmes, ha a bázis-érték nem
+// elhanyagolhatóan kicsi - egy majdnem száraz időszakhoz képest 1 mm is
+// "+300%" lenne, ami félrevezető, nem informatív.
+function formatUsualDiff(actual, usual) {
+  if (!(usual > 0.5)) return null;
+  const diff = Math.round(((actual - usual) / usual) * 100);
+  if (diff === 0) return "kb. annyi, mint szokott";
+  return `${Math.abs(diff)}%-kal ${diff > 0 ? "több" : "kevesebb"}, mint szokott`;
+}
+
+function fillPrecipStats(stats, usual, todayIdx) {
+  const idx = currentHourIndex(stats);
+  const hourly = stats.hourly.precipitation;
+
+  const eventEl = document.getElementById("stats-precip-event");
+  const eventStart = idx === -1 ? null : rainEventStartIndex(stats);
+  if (eventStart === null) {
+    eventEl.hidden = true;
+  } else {
+    const eventSum = hourly.slice(eventStart, idx + 1).reduce((a, b) => a + b, 0);
+    const hours = idx - eventStart + 1;
+    eventEl.hidden = false;
+    eventEl.textContent = `Ez alatt az esőzés alatt (${hours} órája tart): ${formatMm(eventSum)} mm`;
+  }
+
+  const sum24h = idx === -1 ? null : hourly.slice(Math.max(0, idx - 23), idx + 1).reduce((a, b) => a + b, 0);
+  document.getElementById("stats-precip-24h").textContent =
+    sum24h === null ? "" : `Elmúlt 24 órában: ${formatMm(sum24h)} mm`;
+
+  const daily = stats.daily.precipitation_sum;
+  const sum7d = daily.slice(Math.max(0, todayIdx - 6), todayIdx + 1).reduce((a, b) => a + b, 0);
+  const sum30d = daily.slice(Math.max(0, todayIdx - 29), todayIdx + 1).reduce((a, b) => a + b, 0);
+  const diff7 = usual && formatUsualDiff(sum7d, usual.usual7d);
+  const diff30 = usual && formatUsualDiff(sum30d, usual.usual30d);
+
+  document.getElementById("stats-precip-7d").textContent =
+    `Elmúlt 7 napban: ${formatMm(sum7d)} mm${diff7 ? ` (${diff7})` : ""}`;
+  document.getElementById("stats-precip-30d").textContent =
+    `Elmúlt 30 napban: ${formatMm(sum30d)} mm${diff30 ? ` (${diff30}, az elmúlt ${USUAL_PRECIP_YEARS_BACK} év ilyenkor átlagához képest)` : ""}`;
+
+  renderSparkline(
+    document.getElementById("stats-precip-chart"),
+    daily.slice(Math.max(0, todayIdx - 29), todayIdx + 1)
+  );
+}
+
+// Kézzel épített, monokróm mini oszlopdiagram a radar-rajzoláshoz hasonló
+// stílusban (createElementNS, külön könyvtár nélkül). A száraz napok is
+// kapnak egy halvány alapvonalat, hogy a diagram üresen ne tűnjön hibásnak.
+function renderSparkline(svgEl, values) {
+  while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+  const svgNS = "http://www.w3.org/2000/svg";
+  const max = Math.max(...values, 1);
+  const barWidth = 300 / values.length;
+  values.forEach((v, i) => {
+    const h = Math.max((v / max) * 40, 1);
+    const rect = document.createElementNS(svgNS, "rect");
+    rect.setAttribute("x", i * barWidth + barWidth * 0.15);
+    rect.setAttribute("y", 40 - h);
+    rect.setAttribute("width", Math.max(barWidth * 0.7, 1));
+    rect.setAttribute("height", h);
+    rect.setAttribute("fill", "var(--fg)");
+    rect.setAttribute("opacity", v > 0 ? 0.85 : 0.15);
+    svgEl.appendChild(rect);
+  });
+}
+
+const FORECAST_DAY_LABELS = ["Holnap", "Holnapután"];
+const HU_WEEKDAYS = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
+
+function fillForecastStats(stats, todayIdx) {
+  const list = document.getElementById("stats-forecast-days");
+  list.innerHTML = "";
+  for (let offset = 1; offset <= 3; offset++) {
+    const dayIdx = todayIdx + offset;
+    if (dayIdx >= stats.daily.time.length) break;
+    const label = FORECAST_DAY_LABELS[offset - 1] ||
+      HU_WEEKDAYS[new Date(stats.daily.time[dayIdx]).getUTCDay()];
+    const prob = stats.daily.precipitation_probability_max[dayIdx];
+    const sum = stats.daily.precipitation_sum[dayIdx];
+    const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel, ` : "";
+    const li = document.createElement("li");
+    li.textContent = `${label}: ${probText}kb. ${formatMm(sum)} mm`;
+    list.appendChild(li);
+  }
+}
+
+function fillTempStats(stats, todayIdx) {
+  document.getElementById("stats-temp-now").textContent =
+    `Most: ${formatC(stats.current.temperature_2m)} °C`;
+
+  const todayMin = stats.daily.temperature_2m_min[todayIdx];
+  const todayMax = stats.daily.temperature_2m_max[todayIdx];
+  const tomorrowIdx = todayIdx + 1;
+  const tomorrowMin = stats.daily.temperature_2m_min[tomorrowIdx];
+  const tomorrowMax = stats.daily.temperature_2m_max[tomorrowIdx];
+  const tomorrowText = tomorrowMax === undefined
+    ? ""
+    : `, holnap: ${formatC(tomorrowMin)}–${formatC(tomorrowMax)} °C`;
+  document.getElementById("stats-temp-minmax").textContent =
+    `Ma: ${formatC(todayMin)}–${formatC(todayMax)} °C${tomorrowText}`;
+
+  const frostToday = todayMin <= 0;
+  const frostTomorrow = tomorrowMin !== undefined && tomorrowMin <= 0;
+  const snowingNow = stats.current.snowfall > 0;
+  const snowSoon = (stats.daily.snowfall_sum[todayIdx] > 0) ||
+    (stats.daily.snowfall_sum[tomorrowIdx] > 0);
+
+  const frostEl = document.getElementById("stats-temp-frost");
+  const notes = [];
+  if (snowingNow) notes.push("most havazik");
+  else if (snowSoon) notes.push("havazás várható");
+  if (frostToday && frostTomorrow) notes.push("fagyveszély ma és holnap éjjel is");
+  else if (frostToday) notes.push("fagyveszély ma éjjel");
+  else if (frostTomorrow) notes.push("fagyveszély holnap éjjel");
+  frostEl.hidden = notes.length === 0;
+  frostEl.textContent = notes.join(", ");
+}
+
+// A folyó-vízhozamot csak akkor mutatjuk, ha a flood-api által visszaadott
+// legközelebbi modellezett folyószakasz valóban közel van ÉS a vízhozam nem
+// zajszintű - lásd a fetchRiverDischarge komment je fenti, és a PROGRESS/terv
+// dokumentált mérései (Budapest/Szeged ad értelmes számot, több kisváros nem).
+const RIVER_MAX_DISTANCE_KM = 15;
+const RIVER_MIN_DISCHARGE = 2;
+
+function fillWaterStats(stats, flood, point) {
+  const idx = currentHourIndex(stats);
+  const soil = idx === -1 ? undefined : stats.hourly.soil_moisture_0_to_1cm[idx];
+  const soilEl = document.getElementById("stats-water-soil");
+  if (typeof soil !== "number") {
+    soilEl.hidden = true;
+  } else {
+    const prevSoil = idx >= 24 ? stats.hourly.soil_moisture_0_to_1cm[idx - 24] : null;
+    let trend = "";
+    if (typeof prevSoil === "number") {
+      const delta = soil - prevSoil;
+      trend = delta > 0.02 ? ", nő" : delta < -0.02 ? ", csökken" : ", stabil";
+    }
+    soilEl.hidden = false;
+    soilEl.textContent = `A talaj felső rétege most ${soilMoistureLabel(soil)}${trend}`;
+  }
+
+  const riverEl = document.getElementById("stats-water-river");
+  if (!flood || !flood.daily || !flood.daily.river_discharge) {
+    riverEl.hidden = true;
+    return;
+  }
+  const dist = distanceKm(point.lat, point.lon, flood.latitude, flood.longitude);
+  const [todayDischarge, tomorrowDischarge] = flood.daily.river_discharge;
+  if (dist > RIVER_MAX_DISTANCE_KM || !(todayDischarge >= RIVER_MIN_DISCHARGE)) {
+    riverEl.hidden = true;
+    return;
+  }
+  let trend = "stabil";
+  if (typeof tomorrowDischarge === "number") {
+    const relChange = (tomorrowDischarge - todayDischarge) / todayDischarge;
+    trend = relChange > 0.05 ? "emelkedő" : relChange < -0.05 ? "csökkenő" : "stabil";
+  }
+  riverEl.hidden = false;
+  riverEl.textContent = `A legközelebbi folyó vízhozama: ${Math.round(todayDischarge)} m³/s, ${trend}`;
+}
+
 // ---- UI-vezérlés ----
 
 // Telepített (standalone) módban nincs böngésző-frissítés gomb, ezért amíg az
@@ -1440,6 +1726,10 @@ document.getElementById("notify-toggle").addEventListener("click", async () => {
 
 document.getElementById("change-location").addEventListener("click", () => {
   showPicker();
+});
+
+document.getElementById("stats-panel").addEventListener("toggle", (event) => {
+  if (event.target.open && currentLoc) buildStatsPanel(currentLoc);
 });
 
 document.getElementById("retry-geo").addEventListener("click", () => {

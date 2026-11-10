@@ -405,3 +405,62 @@ noscript .about {
 .credits {
   margin: 0;
 }
+
+/* A "részletek és statisztika" panel az .about-details mintáját követi
+   (ugyanaz az osztály), de a #result-on belül, egy elválasztó felső
+   szegéllyel - mint a .detail-block -, mert itt nem a lábláb aljára, hanem
+   egy új tartalmi szakasz elejére kerül. */
+.stats-details {
+  text-align: center;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+/* A kinyitott tartalom balra zárt, mint a lábláb .about szövege: sok, rövid
+   tényadat sorban, nem középre igazított mondat. */
+.stats-body {
+  text-align: left;
+  margin-top: var(--sp-3);
+}
+
+.stats-group {
+  margin-top: var(--sp-3);
+}
+
+.stats-group:first-of-type {
+  margin-top: 0;
+}
+
+.stats-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 var(--sp-1);
+}
+
+.stats-line {
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.6;
+  margin: 0.2em 0;
+}
+
+.stats-days {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.stats-days li {
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+.stats-bars {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: var(--sp-1);
+}
