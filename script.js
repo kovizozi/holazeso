@@ -1278,17 +1278,25 @@ function fillPrecipStats(stats, usual, todayIdx) {
   document.getElementById("stats-precip-30d").textContent =
     `Elmúlt 30 napban: ${formatMm(sum30d)} mm${diff30 ? ` (${diff30}, az elmúlt ${USUAL_PRECIP_YEARS_BACK} év ilyenkor átlagához képest)` : ""}`;
 
+  const from = Math.max(0, todayIdx - 29);
   renderSparkline(
     document.getElementById("stats-precip-chart"),
-    daily.slice(Math.max(0, todayIdx - 29), todayIdx + 1)
+    stats.daily.time.slice(from, todayIdx + 1),
+    daily.slice(from, todayIdx + 1)
   );
 }
 
 // Kézzel épített, monokróm mini oszlopdiagram a radar-rajzoláshoz hasonló
 // stílusban (createElementNS, külön könyvtár nélkül). A száraz napok is
 // kapnak egy halvány alapvonalat, hogy a diagram üresen ne tűnjön hibásnak.
-function renderSparkline(svgEl, values) {
+// Minden oszlop kattintható/koppintható (touch screenen is - a "click"
+// esemény mindkettőre lefut): megnyitja a buborékot az adott nap dátumával
+// és csapadékával. A látható sáv keskeny (0,7*barWidth), ezért egy átlátszó,
+// szélesebb körvonal adja a tényleges koppintási célterületet - ugyanaz a
+// trükk, mint a radar-pöttyök "stroke: transparent; stroke-width" megoldása.
+function renderSparkline(svgEl, dates, values) {
   while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+  hideSparklineTooltip();
   const svgNS = "http://www.w3.org/2000/svg";
   const max = Math.max(...values, 1);
   const barWidth = 300 / values.length;
@@ -1301,9 +1309,45 @@ function renderSparkline(svgEl, values) {
     rect.setAttribute("height", h);
     rect.setAttribute("fill", "var(--fg)");
     rect.setAttribute("opacity", v > 0 ? 0.85 : 0.15);
+    rect.classList.add("stats-bar");
+    rect.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleSparklineTooltip(i, dates[i], v, values.length);
+    });
     svgEl.appendChild(rect);
   });
 }
+
+function formatStatsDate(dateIso) {
+  return new Date(dateIso + "T00:00:00").toLocaleDateString("hu-HU", { month: "short", day: "numeric" });
+}
+
+let openTooltipBarIndex = null;
+
+function toggleSparklineTooltip(index, dateIso, mm, barCount) {
+  if (openTooltipBarIndex === index) {
+    hideSparklineTooltip();
+    return;
+  }
+  openTooltipBarIndex = index;
+  const tooltip = document.getElementById("stats-precip-tooltip");
+  const wrap = document.getElementById("stats-precip-chart").parentElement;
+  const leftPercent = ((index + 0.5) / barCount) * 100;
+  tooltip.textContent = `${formatStatsDate(dateIso)}: ${formatMm(mm)} mm`;
+  tooltip.style.left = `${leftPercent}%`;
+  tooltip.hidden = false;
+}
+
+function hideSparklineTooltip() {
+  openTooltipBarIndex = null;
+  const tooltip = document.getElementById("stats-precip-tooltip");
+  if (tooltip) tooltip.hidden = true;
+}
+
+// Bárhova máshova kattintva (nem egy oszlopra) a buborék eltűnik - az
+// oszlopok saját click-figyelője stopPropagation-nel előzi meg, hogy rögtön
+// visszazáródjon, amikor épp megnyitjuk.
+document.addEventListener("click", hideSparklineTooltip);
 
 const FORECAST_DAY_LABELS = ["Holnap", "Holnapután"];
 const HU_WEEKDAYS = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
@@ -1476,6 +1520,17 @@ function cancelReveal() {
   }
 }
 
+// A statisztika-panel az előző keresés eredményéhez tartozott: új keresés
+// (új helyszín, vagy ugyanannak újraindítása) kezdetén el kell rejteni és be
+// kell csukni, különben a radar alatt egy másik hely elavult adatai
+// lógnának, amíg az új válasz meg nem érkezik.
+function resetStatsPanel() {
+  const panel = document.getElementById("stats-panel");
+  panel.hidden = true;
+  panel.open = false;
+  hideSparklineTooltip();
+}
+
 function beginSearchUI() {
   cancelReveal();
   const loading = document.getElementById("loading");
@@ -1487,6 +1542,7 @@ function beginSearchUI() {
   svg.style.transition = "";
   svg.style.transform = "";
   bordersVisible = false; // keresés közben tiszta radar, csak a pontokkal
+  resetStatsPanel();
   radarReset();
   radarRestartSweep();
   document.getElementById("radar-image").removeAttribute("href");
@@ -1516,6 +1572,9 @@ function revealPhase(phase, delayMs) {
         bordersVisible = true;
         radarDrawBorders();
         drawRadarImage().catch(err => console.error(err));
+        // A statisztika-panel is csak most, hogy a radar véglegesen betöltött:
+        // zárva marad (a felhasználó nyitja ki), csak a láthatósága nyílik meg.
+        document.getElementById("stats-panel").hidden = false;
       }
       resolve();
     }, delayMs);
@@ -1571,6 +1630,7 @@ function hideLoadingImmediately() {
   const loading = document.getElementById("loading");
   loading.hidden = true;
   loading.classList.remove("settled", "locating");
+  resetStatsPanel();
 }
 
 function showError(msg) {

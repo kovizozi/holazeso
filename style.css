@@ -458,9 +458,39 @@ noscript .about {
   line-height: 1.6;
 }
 
+.stats-chart-wrap {
+  position: relative;
+  margin-top: var(--sp-1);
+}
+
 .stats-bars {
   display: block;
   width: 100%;
   height: 40px;
-  margin-top: var(--sp-1);
+}
+
+/* A látható oszlop (rect, kézzel építve a script.js renderSparkline-ban)
+   keskeny; a koppintási célterület a transparent körvonallal szélesebb,
+   ugyanaz a trükk, mint a .radar-dot-nál. */
+.stats-bar {
+  cursor: pointer;
+  stroke: transparent;
+  stroke-width: 3;
+}
+
+/* Kis buborék a koppintott oszlop fölött: fordított (fg/bg) szín, mint egy
+   klasszikus tooltip, ettől még monokróm marad. A pointer-events: none azért
+   kell, hogy ne ő fogja el a dokumentum-szintű bezáró kattintást. */
+.stats-tooltip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
 }
