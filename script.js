@@ -1551,6 +1551,7 @@ function beginSearchUI() {
   svg.style.transform = "";
   bordersVisible = false; // keresés közben tiszta radar, csak a pontokkal
   resetStatsPanel();
+  resetWaterPanel();
   radarReset();
   radarRestartSweep();
   document.getElementById("radar-image").removeAttribute("href");
@@ -1639,6 +1640,7 @@ function hideLoadingImmediately() {
   loading.hidden = true;
   loading.classList.remove("settled", "locating");
   resetStatsPanel();
+  resetWaterPanel();
 }
 
 function showError(msg) {
@@ -1800,10 +1802,609 @@ document.getElementById("stats-panel").addEventListener("toggle", (event) => {
   if (event.target.open && currentLoc) buildStatsPanel(currentLoc);
 });
 
+document.getElementById("water-panel").addEventListener("toggle", (event) => {
+  if (event.target.open && currentLoc) buildWaterPanel(currentLoc);
+});
+
 document.getElementById("retry-geo").addEventListener("click", () => {
   document.getElementById("location-error").hidden = true;
   tryAutoLocate();
 });
+
+// ============================================================================
+// Vízadatok: talaj, folyók, tavak, vízmérleg
+//
+// Három, otthoni gépen (soil-moisture-mapper, külön repó) óránként frissített
+// pillanatkép a push-worker KV-jéből: GET /soil-snapshot, /rivers-snapshot,
+// /lakes-snapshot (ugyanaz a PUSH_WORKER_URL, ami a push-értesítésekhez is
+// kell, ld. fentebb). A panel csak megnyitáskor tölt, és minden megnyitáskor
+// újra - mint a #stats-panel (lásd a toggle-wiringot a fájl végén).
+// ============================================================================
+
+const BALATON_LITERS = 1.9e12; // ~1,9 km³, több forrásból is megerősített érték
+const WATER_DEPTH_BANDS = [[0, 1, 0.01], [1, 3, 0.02], [3, 9, 0.06], [9, 27, 0.18], [27, 81, 0.54]];
+
+// A Balaton körvonala (Natural Earth-ből, korábban egy design-canvasban
+// kinyerve), egy 640 széles rajzterületen. A rétegezett (talajvíz) és a
+// feltöltéses (tavak) ábra is ugyanezt a path-ot használja.
+const BALATON_PATH = "M216.6 230.6 L209.8 231.6 L202.6 234.2 L196.8 237.6 L194.5 241.2 L187.1 242.4 L171.1 239.5 L155.7 239.7 L150 249.7 L150 335.1 L154 338.9 L160.4 339.3 L173.6 337 L190.1 337.2 L219.8 340 L236.2 339.1 L242.3 337.6 L258 331.9 L263.7 328.5 L270 326 L377.5 302.9 L386.7 298.6 L398 295.3 L403.6 291 L405.6 289.8 L410.4 290.4 L413 290.2 L466 281 L481.4 276.5 L487.9 273.1 L495.2 265 L500.7 260.3 L500.7 174.9 L500.4 171.7 L494.1 167.9 L485.7 164.6 L478.8 162.5 L462.2 159.5 L454 158.8 L450.4 159.8 L448.9 164.2 L444.9 168.7 L439.6 172.7 L434.5 175.7 L422.6 180.4 L384.9 191 L384.9 192.9 L384.9 201.8 L376.9 198.3 L374.5 197.6 L368.2 201.4 L320.4 211 L315.4 211.4 L311.3 212.7 L306.5 215.7 L299.1 221.6 L294.6 222.9 L274.7 224.4 L263.8 227.2 L244.3 234.5 L237.9 232.3 L231 231.2Z";
+const BALATON_BBOX = { x: 150, y: 153.8, width: 350.7, height: 186.6 };
+
+// Kis, azonos-léptékű körvonalak (ugyanabból a design-canvasból) a "többi
+// nagy tó" összevető ábrájához: Balaton, Fertő, Tisza-tó, egy 400x140-es
+// rajzterületen.
+const LAKE_COMPARE_PATHS = {
+  balaton: { d: "M142 65.2 L136.5 70.4 L72 98.1 L68.2 101.2 L64.8 105.2 L55.4 112.1 L51.7 113.9 L41.9 114.9 L24.1 111.5 L14.2 111.3 L6.2 114 L2.4 113.6 L0 109.1 L3.4 97.1 L12.6 96.9 L22.2 100.3 L26.7 98.9 L28.1 94.5 L31.6 90.5 L35.9 87.4 L40 86.2 L48.6 86.9 L52.8 88.3 L56.6 90.9 L68.3 82.1 L74.8 78.7 L86.8 76.9 L89.4 75.4 L93.9 68.4 L96.8 64.6 L99.3 63.2 L102.2 62.7 L130.9 51.2 L134.7 46.6 L136.2 47.5 L143.9 54.2 L147.2 54.7 L149.3 50.9 L147.8 46.5 L144.5 42.8 L140.9 40.9 L140.9 38.7 L163.6 25.9 L170.7 20.3 L173.8 16.7 L176.9 11.9 L179.4 6.5 L180.2 1.2 L182.4 0 L187.3 0.9 L197.3 4.5 L201.4 6.9 L206.4 10.9 L210.2 15.5 L210.4 19.3 L207.1 24.9 L202.8 34.7 L198.9 38.7 L189.6 44.1 L157.8 55.2 L156.2 55.4 L153.4 54.7 L152.1 56.1 L148.8 61.3 L142 65.2Z", transform: "" },
+  ferto: { d: "M24.6 31.9 L17.6 43.9 L13.9 51.7 L12.5 55.4 L10.5 65.6 L11.4 74.7 L16 74.5 L20.5 72.5 L24.8 77.1 L26 82.4 L24.7 85.7 L23.2 87.2 L20.2 84.5 L17.3 83.8 L12.1 81.7 L8.8 73.4 L6.1 65.8 L3.3 64.6 L3.7 70.3 L2.4 74.2 L0 70.2 L1 64.1 L3.8 61.9 L4.6 59.6 L2.8 57.2 L2.6 49.1 L5.2 39.5 L7.6 33.2 L8.6 23.3 L9.7 17.5 L12.7 11.4 L18.4 4.8 L26.2 1.6 L32.9 0 L36 2.4 L35.7 9.6 L33.4 18.6 L29.9 25.1 L27.9 27.9 L24.6 31.9Z", transform: "translate(250,10)" },
+  tiszato: { d: "M0 25.5 L3.9 13.1 L7.6 5.2 L10.2 2.9 L14.7 0.1 L19.6 0 L20.6 4.1 L20.7 7.1 L18 11.4 L14.7 15.7 L11.9 20.8 L8.6 25 L2.1 27.4 L0 25.5Z", transform: "translate(330,70)" },
+};
+
+function waterNum(n, maxDecimals = 1) {
+  return n.toLocaleString("hu-HU", { maximumFractionDigits: maxDecimals });
+}
+
+function waterBalatonCount(liters, decimals = 1) {
+  return waterNum(liters / BALATON_LITERS, decimals);
+}
+
+// Vonalkázás-sűrűség = "mennyire nedves": minél kisebb a mintaegység, annál
+// sűrűbb a vonal. 5 fokozat, a már meglévő SOIL_MOISTURE_BANDS szellemében,
+// csak finomabb bontásban (ez egy ábrához kell, nem egy szöveges címkéhez).
+const WATER_HATCH_TILE_PX = [12, 8, 6, 4.5, 3.5];
+
+function waterHatchIndex(fraction0to1) {
+  const pct = fraction0to1 * 100;
+  if (pct < 15) return 0;
+  if (pct < 25) return 1;
+  if (pct < 32) return 2;
+  if (pct < 40) return 3;
+  return 4;
+}
+
+function waterHatchDefs() {
+  return WATER_HATCH_TILE_PX.map((tile, i) => `
+    <pattern id="wh${i}" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="${tile}" height="${tile}" fill="var(--bg)"></rect>
+      <line x1="${tile / 2}" y1="0" x2="${tile / 2}" y2="${tile}" stroke="var(--fg)" stroke-width="1.2"></line>
+    </pattern>`).join("");
+}
+
+// ---- 1. Talajvíz: Balaton-alakú rétegek ----
+//
+// Minden mélységi sáv egy VÍZSZINTES CSÍKJA a Balaton körvonalának, a sáv
+// liter-arányos magasságú (clipPath-tel vágva, nem a path újrarajzolásával -
+// ez garantálja, hogy minden csík pontosan a megfelelő, torzítatlan darabja
+// a tó alakjának). A legmélyebb sáv alul, a legfelső (0-1cm) felül, mint egy
+// talajszelvény.
+function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth) {
+  const counts = litersByDepth.map(l => l / BALATON_LITERS);
+  const dataSum = counts.reduce((a, b) => a + b, 0) || 1;
+  const MIN_FRACTION = 0.06; // a legkisebb sáv is látszódjon
+  const floorSum = MIN_FRACTION * counts.length;
+  const remaining = Math.max(0, 1 - floorSum);
+  const fractions = counts.map(c => MIN_FRACTION + remaining * (c / dataSum));
+  const fracSum = fractions.reduce((a, b) => a + b, 0) || 1;
+  const normFractions = fractions.map(f => f / fracSum);
+
+  const order = [4, 3, 2, 1, 0]; // legmélyebb alul .. legfelső (0-1cm) felül
+  const bottom = BALATON_BBOX.y + BALATON_BBOX.height;
+  let cursorY = bottom;
+  const rows = {};
+  for (const i of order) {
+    const h = normFractions[i] * BALATON_BBOX.height;
+    rows[i] = { top: cursorY - h, height: h, mid: cursorY - h / 2 };
+    cursorY -= h;
+  }
+
+  let defs = `<defs>${waterHatchDefs()}<clipPath id="wbstack-outline"><path d="${BALATON_PATH}"></path></clipPath>`;
+  for (const i of order) {
+    defs += `<clipPath id="wbstack-slice-${i}"><rect x="0" y="${rows[i].top.toFixed(1)}" width="640" height="${(rows[i].height + 0.5).toFixed(1)}"></rect></clipPath>`;
+  }
+  defs += "</defs>";
+
+  const bands = order.map(i => {
+    const hatch = waterHatchIndex(moistureByDepth[i]);
+    return `<g clip-path="url(#wbstack-slice-${i})"><path d="${BALATON_PATH}" fill="url(#wh${hatch})" stroke="var(--fg)" stroke-width="1" stroke-linejoin="round" clip-path="url(#wbstack-outline)"></path></g>`;
+  }).join("");
+
+  const labels = order.map(i => {
+    const [lo, hi] = depthBandsCm[i];
+    const pct = Math.round(moistureByDepth[i] * 100);
+    return `<g font-size="13" text-anchor="start">
+      <text x="520" y="${(rows[i].mid - 4).toFixed(1)}" fill="var(--fg)" font-weight="600">${lo}–${hi} cm</text>
+      <text x="520" y="${(rows[i].mid + 11).toFixed(1)}" fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</text>
+    </g>`;
+  }).join("");
+
+  svgEl.innerHTML = defs + bands + labels;
+}
+
+// ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
+//
+// Izometrikus kocka-rács: minden Magyarországon belüli talaj-cella egy
+// kocka, a magassága a cella liter-összegéből. A folyó- és tó-mérőállomások
+// UGYANAZZAL a lat/lon -> rács -> képernyő vetítéssel kerülnek a térképre,
+// tehát pontosan a megfelelő helyre esnek. A puffer/szomszéd-pontok (ld.
+// soil-moisture-mapper in_hungary=false) NEM jelennek meg ezen a térképen -
+// túlzsúfolt lenne, és a jóváhagyott design sem különbözteti meg őket.
+const WATER_CELL_W = 20;
+const WATER_SKEW_X = 10;
+const WATER_SKEW_Y = 14;
+const WATER_MAX_CUBE_H = 100;
+const WATER_MIN_CUBE_H = 10;
+
+function waterProjectRowCol(row, col, originX, originY) {
+  return { x: originX + col * WATER_CELL_W - row * WATER_SKEW_X, y: originY + row * WATER_SKEW_Y };
+}
+
+function waterIsoCube(x, yBase, h, tierIndex) {
+  const w = WATER_CELL_W, skx = WATER_SKEW_X, sky = WATER_SKEW_Y;
+  const yTop = yBase - h;
+  const topOpacity = [0.1, 0.22, 0.36, 0.52, 0.7][tierIndex];
+  return (
+    `<path d="M${x.toFixed(1)} ${yBase.toFixed(1)}h${w}v${-h.toFixed(1)}h${-w}z" fill="var(--fg)" fill-opacity="0.78" stroke="var(--bg)" stroke-width="0.5"></path>` +
+    `<path d="M${(x + w).toFixed(1)} ${yBase.toFixed(1)}l${skx} ${-sky}v${-h.toFixed(1)}l${-skx} ${sky}z" fill="var(--fg)" fill-opacity="0.56" stroke="var(--bg)" stroke-width="0.5"></path>` +
+    `<path d="M${x.toFixed(1)} ${yTop.toFixed(1)}h${w}l${skx} ${-sky}h${-w}z" fill="var(--fg)" fill-opacity="${topOpacity}" stroke="var(--bg)" stroke-width="0.5"></path>`
+  );
+}
+
+function waterMarker(x, y, label, sublabel) {
+  return `<g>
+    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle>
+    <text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="11" text-anchor="middle" fill="var(--fg)" stroke="var(--bg)" stroke-width="3" paint-order="stroke" font-weight="600">${label}</text>
+    <text x="${x.toFixed(1)}" y="${(y + 13).toFixed(1)}" font-size="10" text-anchor="middle" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${sublabel}</text>
+  </g>`;
+}
+
+function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStations, highlightLoc) {
+  const cells = soilSnapshot.points.filter(p => p.in_hungary);
+  if (!cells.length) {
+    svgEl.innerHTML = "";
+    legendEl.textContent = "a dombormű-adat jelenleg nem érhető el";
+    return;
+  }
+
+  const step = soilSnapshot.grid_step_deg;
+  const lats = cells.map(p => p.lat), lons = cells.map(p => p.lon);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLon = Math.min(...lons);
+  const toRowCol = (lat, lon) => ({ row: (maxLat - lat) / step, col: (lon - minLon) / step });
+
+  const litersValues = cells.map(p => p.liters_total);
+  const minL = Math.min(...litersValues), maxL = Math.max(...litersValues);
+  const tierFor = liters => {
+    if (maxL <= minL) return 2;
+    return Math.min(4, Math.floor(((liters - minL) / (maxL - minL)) * 5));
+  };
+  const heightFor = liters => {
+    if (maxL <= minL) return (WATER_MAX_CUBE_H + WATER_MIN_CUBE_H) / 2;
+    return WATER_MIN_CUBE_H + ((liters - minL) / (maxL - minL)) * (WATER_MAX_CUBE_H - WATER_MIN_CUBE_H);
+  };
+
+  // A rács befoglaló méretéből skálát és origót számolunk, hogy a teljes
+  // dombormű (kockák + a legmagasabb kocka magassága) beleférjen a
+  // viewBox-ba, a tetején elég hellyel a folyó-/tó-feliratoknak.
+  const rowsAll = cells.map(p => toRowCol(p.lat, p.lon).row);
+  const colsAll = cells.map(p => toRowCol(p.lat, p.lon).col);
+  const maxRow = Math.max(...rowsAll), maxCol = Math.max(...colsAll);
+  const gridPixelWidth = (maxCol + 1) * WATER_CELL_W + maxRow * WATER_SKEW_X;
+  const originX = Math.max(20, (640 - gridPixelWidth) / 2 + maxRow * WATER_SKEW_X);
+  const originY = 70;
+
+  let cubesMarkup = "";
+  let maxCell = cells[0], minCell = cells[0];
+  for (const cell of cells) {
+    if (cell.liters_total > maxCell.liters_total) maxCell = cell;
+    if (cell.liters_total < minCell.liters_total) minCell = cell;
+    const { row, col } = toRowCol(cell.lat, cell.lon);
+    const { x, y } = waterProjectRowCol(Math.round(row), Math.round(col), originX, originY);
+    cubesMarkup += waterIsoCube(x, y, heightFor(cell.liters_total), tierFor(cell.liters_total));
+  }
+
+  const projectLatLon = (lat, lon) => {
+    const { row, col } = toRowCol(lat, lon);
+    return waterProjectRowCol(row, col, originX, originY);
+  };
+
+  let markersMarkup = "";
+  for (const station of riverStations) {
+    const { x, y } = projectLatLon(station.lat, station.lon);
+    markersMarkup += waterMarker(x, y, station.name, `${waterNum(station.level_cm, 0)} cm`);
+  }
+  for (const station of lakeStations) {
+    if (station.station === "Balaton average") continue; // a 3 mérce elég, az átlag külön szekcióban van
+    const { x, y } = projectLatLon(station.lat, station.lon);
+    markersMarkup += waterMarker(x, y, station.station, `${waterNum(station.level_cm, 0)} cm`);
+  }
+
+  if (highlightLoc) {
+    const { x, y } = projectLatLon(highlightLoc.lat, highlightLoc.lon);
+    markersMarkup += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle>`;
+  }
+
+  svgEl.innerHTML = `<defs></defs>${cubesMarkup}${markersMarkup}`;
+
+  legendEl.innerHTML = `Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta. Nem domborzat: a magasság a víz. A pontok a folyók és a tavak mai vízállását mutatják, centiméterben.`;
+}
+
+// ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
+//
+// Mélység-arányos (nem liter-arányos) talajminta-ábra: a sávok tényleges
+// vastagsága (0-1, 1-3, 3-9, 9-27, 27-81 cm) adja a magasságot, a
+// vonalkázás-sűrűség a víz%-ot. Nincs liter-összeg kiírva (az területhez
+// kötött, egy tetszőleges ponthoz nincs értelmes "cella-terület"), csak a
+// víztartalom-arány és egy országos átlaghoz mért összevetés.
+async function fetchUserSoilProfile(point) {
+  const vars = "soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm,soil_moisture_27_to_81cm";
+  const data = await openMeteo(
+    `${API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}&hourly=${vars}&forecast_days=1&timezone=UTC`
+  );
+  const times = data.hourly.time;
+  const now = Date.now();
+  let bestIdx = 0, bestDiff = Infinity;
+  times.forEach((t, i) => {
+    const diff = Math.abs(new Date(`${t}:00Z`).getTime() - now);
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+  });
+  return WATER_DEPTH_BANDS.map(([lo, hi], i) => {
+    const key = `soil_moisture_${lo}_to_${hi}cm`;
+    return data.hourly[key][bestIdx];
+  });
+}
+
+function waterCountryAvgMoisture(soilSnapshot) {
+  const areaM2 = soilSnapshot.country_area_km2 * 1e6;
+  return soilSnapshot.country_total_by_depth.map((liters, i) => {
+    const thicknessM = WATER_DEPTH_BANDS[i][2];
+    return liters / (areaM2 * thicknessM * 1000);
+  });
+}
+
+function waterWeightedAvg(moistureByDepth) {
+  const thicknesses = WATER_DEPTH_BANDS.map(b => b[2]);
+  const totalThickness = thicknesses.reduce((a, b) => a + b, 0);
+  const weighted = moistureByDepth.reduce((sum, m, i) => sum + m * thicknesses[i], 0);
+  return weighted / totalThickness;
+}
+
+function renderSoilCoreProfile(svgEl, moistureByDepth) {
+  const totalDepth = 81;
+  const plotTop = 16, plotHeight = 324;
+  let y = plotTop;
+  const boxes = WATER_DEPTH_BANDS.map(([lo, hi]) => {
+    const h = ((hi - lo) / totalDepth) * plotHeight;
+    const box = { lo, hi, y, h };
+    y += h;
+    return box;
+  });
+
+  const rects = boxes.map((box, i) => {
+    const hatch = waterHatchIndex(moistureByDepth[i]);
+    return `<rect x="60" y="${box.y.toFixed(1)}" width="55" height="${box.h.toFixed(1)}" fill="url(#wh${hatch})" stroke="var(--fg)" stroke-width="1"></rect>`;
+  }).join("");
+
+  const ticks = [0, 9, 27, 81].map(cm => {
+    const yy = plotTop + (cm / totalDepth) * plotHeight;
+    return `<line x1="52" y1="${yy.toFixed(1)}" x2="58" y2="${yy.toFixed(1)}" stroke="var(--muted)" stroke-width="1"></line>
+      <text x="48" y="${(yy + 4).toFixed(1)}" font-size="13" fill="var(--muted)" text-anchor="end">${cm} cm</text>`;
+  }).join("");
+
+  const labels = boxes.map((box, i) => {
+    const mid = box.y + box.h / 2;
+    const pct = Math.round(moistureByDepth[i] * 100);
+    return `<line x1="130" y1="${mid.toFixed(1)}" x2="150" y2="${mid.toFixed(1)}" stroke="var(--fg)" stroke-width="0.75"></line>
+      <text x="156" y="${(mid - 3).toFixed(1)}" font-size="14" fill="var(--fg)" font-weight="600">${box.lo}–${box.hi} cm</text>
+      <text x="156" y="${(mid + 14).toFixed(1)}" font-size="14" fill="var(--muted)">${pct}% víz</text>`;
+  }).join("");
+
+  svgEl.innerHTML = `<defs>${waterHatchDefs()}</defs>${rects}${ticks}${labels}`;
+}
+
+// ---- 4. Vízmérleg (sokéves átlag) + "hány Balaton" ----
+//
+// A fő összegek ellenőrzött, sokéves országos átlagok (MEK, ICPDR, Vízügyi
+// Közlemények - ld. a honlap "honnan vannak a számok?" szövegét), NEM napi
+// adat - ez statikus marad, csak a "talajban most" szám él.
+const WATER_SANKEY_SVG = `
+  <defs>
+    <pattern id="wsk-air" width="4.5" height="4.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="4.5" height="4.5" fill="var(--bg)"></rect>
+      <line x1="2.25" y1="0" x2="2.25" y2="4.5" stroke="var(--fg)" stroke-width="1.2" stroke-opacity="0.45"></line>
+    </pattern>
+  </defs>
+  <g fill="var(--fg)" fill-opacity="0.24">
+    <path d="M154 20C208 20 208 72.5 262 72.5V194.5C208 194.5 208 142 154 142Z"></path>
+    <path d="M154 208.8C208 208.8 208 235.4 262 235.4V248.1C208 248.1 208 221.6 154 221.6Z"></path>
+    <path d="M154 247.7C208 247.7 208 255.5 262 255.5V262.5C208 262.5 208 254.7 154 254.7Z"></path>
+    <path d="M154 284.2C208 284.2 208 268.6 262 268.6V274.7C208 274.7 208 290.2 154 290.2Z"></path>
+    <path d="M154 320.7C208 320.7 208 284.2 262 284.2V289.1C208 289.1 208 325.7 154 325.7Z"></path>
+    <path d="M378 72.5C432 72.5 432 48.5 486 48.5V181.5C432 181.5 432 205.5 378 205.5Z"></path>
+    <path d="M378 259.7C432 259.7 432 267.7 486 267.7V308.5C432 308.5 432 300.5 378 300.5Z"></path>
+  </g>
+  <g fill="var(--fg)" fill-opacity="0.14">
+    <path d="M154 154C208 154 208 194.5 262 194.5V235.4C208 235.4 208 194.8 154 194.8Z"></path>
+    <path d="M154 229.5C208 229.5 208 248.1 262 248.1V255.5C208 255.5 208 236.9 154 236.9Z"></path>
+    <path d="M154 266.2C208 266.2 208 262.5 262 262.5V268.6C208 268.6 208 272.2 154 272.2Z"></path>
+    <path d="M154 300.4C208 300.4 208 274.7 262 274.7V284.2C208 284.2 208 309.9 154 309.9Z"></path>
+    <path d="M378 205.5C432 205.5 432 197.5 486 197.5V251.7C432 251.7 432 259.7 378 259.7Z"></path>
+  </g>
+  <path d="M154 341.7C208 341.7 208 289.1 262 289.1V399.3C208 399.3 208 451.9 154 451.9Z" fill="url(#wsk-air)"></path>
+  <path d="M378 300.5C432 300.5 432 324.5 486 324.5V423.3C432 423.3 432 399.3 378 399.3Z" fill="url(#wsk-air)"></path>
+  <g fill="var(--fg)">
+    <rect x="148" y="20" width="6" height="122"></rect>
+    <rect x="148" y="154" width="6" height="40.9"></rect>
+    <rect x="148" y="208.8" width="6" height="12.7"></rect>
+    <rect x="148" y="229.5" width="6" height="7.4"></rect>
+    <rect x="148" y="247.7" width="6" height="7"></rect>
+    <rect x="148" y="266.2" width="6" height="6.1"></rect>
+    <rect x="148" y="284.2" width="6" height="6.1"></rect>
+    <rect x="148" y="300.4" width="6" height="9.5"></rect>
+    <rect x="148" y="320.7" width="6" height="4.9"></rect>
+    <rect x="486" y="48.5" width="6" height="133"></rect>
+    <rect x="486" y="197.5" width="6" height="54.1"></rect>
+    <rect x="486" y="267.7" width="6" height="40.9"></rect>
+  </g>
+  <g stroke="var(--fg)" stroke-width="1">
+    <rect x="148.5" y="342.2" width="5" height="109.2" fill="url(#wsk-air)"></rect>
+    <rect x="486.5" y="325" width="5" height="97.8" fill="url(#wsk-air)"></rect>
+  </g>
+  <rect x="262" y="72.5" width="116" height="326.8" rx="4" fill="var(--bg)" stroke="var(--fg)" stroke-width="1"></rect>
+  <g text-anchor="middle">
+    <text x="320" y="200" font-size="13" fill="var(--muted)">Magyarország</text>
+    <text x="320" y="224" font-size="20" font-weight="700" fill="var(--fg)">172 km³</text>
+    <text x="320" y="242" font-size="13" fill="var(--muted)">egy év alatt</text>
+    <text x="320" y="278" font-size="12" fill="var(--muted)">a talajban most</text>
+    <text x="320" y="294" font-size="13" font-weight="600" fill="var(--fg)" id="water-sankey-soil-now">…</text>
+  </g>
+  <g font-size="13" text-anchor="end">
+    <text x="140" y="77" fill="var(--fg)" font-weight="600">64,2 km³</text>
+    <text x="140" y="93" fill="var(--muted)">Duna</text>
+    <text x="140" y="171" fill="var(--fg)" font-weight="600">21,5 km³</text>
+    <text x="140" y="187" fill="var(--muted)">Dráva, a Murával</text>
+    <text x="140" y="219" fill="var(--muted)">Tisza, Tiszabecs · 6,7</text>
+    <text x="140" y="237" fill="var(--muted)">Szamos · 3,9</text>
+    <text x="140" y="255" fill="var(--muted)">Bodrog · 3,7</text>
+    <text x="140" y="273" fill="var(--muted)">Sajó és Hernád · 3,2</text>
+    <text x="140" y="291" fill="var(--muted)">Körösök · 3,2</text>
+    <text x="140" y="309" fill="var(--muted)">Maros · 5,0</text>
+    <text x="140" y="327" fill="var(--muted)">többi folyó · 2,6</text>
+    <text x="140" y="393" fill="var(--fg)" font-weight="600">58,0 km³</text>
+    <text x="140" y="409" fill="var(--muted)">eső és hó</text>
+  </g>
+  <g font-size="13">
+    <text x="500" y="111" fill="var(--fg)" font-weight="600">70,0 km³</text>
+    <text x="500" y="127" fill="var(--muted)">Duna, Mohácsnál</text>
+    <text x="500" y="221" fill="var(--fg)" font-weight="600">28,5 km³</text>
+    <text x="500" y="237" fill="var(--muted)">Tisza, Szegednél</text>
+    <text x="500" y="284" fill="var(--fg)" font-weight="600">21,5 km³</text>
+    <text x="500" y="300" fill="var(--muted)">Dráva, a határon</text>
+    <text x="500" y="370" fill="var(--fg)" font-weight="600">52,0 km³</text>
+    <text x="500" y="386" fill="var(--muted)">párolgás</text>
+    <text x="500" y="402" fill="var(--muted)">talaj, növények, tavak</text>
+  </g>
+  <g font-size="12" fill="var(--muted)">
+    <text x="148" y="466">be: 172 km³</text>
+    <text x="492" y="466" text-anchor="end">ki: 172 km³</text>
+  </g>`;
+
+function waterBalatonTilesSvg(count) {
+  const tileW = 40, tileH = 24, rowCount = 600 / tileW; // 15 csempe/sor
+  const fullRows = Math.floor(count / rowCount);
+  const remainder = count - fullRows * rowCount;
+  const fullHeight = fullRows * tileH;
+  const remWidth = remainder * tileW;
+  let markup = `<defs><pattern id="wbal-tile" width="${tileW}" height="${tileH}" patternUnits="userSpaceOnUse"><path transform="translate(2.5,2.5) scale(0.5)" fill="var(--fg)" d="M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 35.1 L18.5 37.4 L17.2 38 L14 38.3 L8 37.2 L4.7 37.1 L2.1 38 L0.8 37.9 L0 36.4 L1.1 32.4 L4.2 32.3 L7.4 33.4 L8.9 33 L9.4 31.5 L10.5 30.2 L12 29.1 L13.3 28.7 L16.2 29 L17.6 29.4 L18.9 30.3 L22.8 27.4 L24.9 26.2 L28.9 25.6 L29.8 25.1 L31.3 22.8 L32.3 21.5 L33.1 21.1 L34.1 20.9 L43.6 17.1 L44.9 15.5 L45.4 15.8 L48 18.1 L49.1 18.2 L49.8 17 L49.3 15.5 L48.2 14.3 L47 13.6 L47 12.9 L54.5 8.6 L56.9 6.8 L57.9 5.6 L59 4 L59.8 2.2 L60.1 0.4 L60.8 0 L62.4 0.3 L65.8 1.5 L67.1 2.3 L68.8 3.6 L70.1 5.2 L70.1 6.4 L69 8.3 L67.6 11.6 L66.3 12.9 L63.2 14.7 L52.6 18.4 L52.1 18.5 L51.1 18.2 L50.7 18.7 L49.6 20.4 L47.3 21.7Z"></path></pattern></defs>`;
+  markup += `<rect x="0" y="0" width="600" height="${fullHeight}" fill="url(#wbal-tile)"></rect>`;
+  if (remWidth > 0) markup += `<rect x="0" y="${fullHeight}" width="${remWidth.toFixed(1)}" height="${tileH}" fill="url(#wbal-tile)"></rect>`;
+  return markup;
+}
+
+// ---- 5. Tavak részletesen ----
+
+function renderBalatonFill(svgEl, levelCm) {
+  const yFor0cm = 330, pxPerCm = (330 - 186) / 120; // a design vízmércéjének skálája
+  const fillTopY = yFor0cm - levelCm * pxPerCm;
+  const summerLimitY = yFor0cm - 120 * pxPerCm;
+  const winterLimitY = yFor0cm - 110 * pxPerCm;
+  svgEl.innerHTML = `
+    <defs><clipPath id="wbfill-outline"><path d="${BALATON_PATH}"></path></clipPath></defs>
+    <path d="${BALATON_PATH}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" stroke-linejoin="round"></path>
+    <g clip-path="url(#wbfill-outline)">
+      <rect x="0" y="${fillTopY.toFixed(1)}" width="640" height="400" fill="var(--fg)"></rect>
+    </g>
+    <line x1="${BALATON_BBOX.x}" y1="${summerLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${summerLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
+    <line x1="${BALATON_BBOX.x}" y1="${winterLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${winterLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="1 3"></line>
+    <g stroke="var(--fg)" stroke-width="1">
+      <line x1="566" y1="330" x2="566" y2="186"></line>
+      <line x1="562" y1="330" x2="570" y2="330"></line>
+      <line x1="562" y1="282" x2="570" y2="282"></line>
+      <line x1="562" y1="234" x2="570" y2="234"></line>
+      <line x1="562" y1="198" x2="570" y2="198"></line>
+      <line x1="562" y1="186" x2="570" y2="186"></line>
+    </g>
+    <g font-size="12" fill="var(--muted)">
+      <text x="576" y="334">0</text>
+      <text x="576" y="286">40</text>
+      <text x="576" y="190">120 nyár</text>
+      <text x="576" y="208">110 tél</text>
+    </g>
+    <text x="576" y="${(fillTopY + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
+}
+
+const WATER_LAKE_BANDS = {
+  "Velencei-tó": { lowCm: 140, highCm: 170, axisMin: 0, axisMax: 200 },
+  "Tisza-tó": { lowCm: 730, highCm: 740, axisMin: 700, axisMax: 760 },
+  "Fertő": { lowCm: null, highCm: null, axisMin: -50, axisMax: 50 },
+};
+
+function renderLakeGauge(container, name, levelCm, noteExtra) {
+  const band = WATER_LAKE_BANDS[name];
+  const wrap = document.createElement("div");
+  const valueText = levelCm === null ? "[nincs adat]" : `${waterNum(levelCm, 0)} cm`;
+  let gaugeSvg = "";
+  if (band.lowCm !== null && levelCm !== null) {
+    const span = band.axisMax - band.axisMin;
+    const toX = cm => ((cm - band.axisMin) / span) * 400;
+    const bandX = toX(band.lowCm), bandW = toX(band.highCm) - bandX;
+    const fillW = Math.max(0, Math.min(400, toX(levelCm)));
+    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${name}: ${valueText}">
+      <rect x="${bandX.toFixed(1)}" y="4" width="${bandW.toFixed(1)}" height="16" fill="var(--bg)" stroke="var(--fg)" stroke-width="0.75" stroke-dasharray="2 2"></rect>
+      <rect x="0" y="8" width="${fillW.toFixed(1)}" height="8" fill="var(--fg)"></rect>
+      <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1"></line>
+      <g font-size="12" fill="var(--muted)">
+        <text x="0" y="38">${band.axisMin}</text>
+        <text x="${bandX.toFixed(1)}" y="38" text-anchor="middle">${band.lowCm}</text>
+        <text x="${(bandX + bandW).toFixed(1)}" y="38" text-anchor="middle">${band.highCm}</text>
+      </g>
+    </svg>`;
+  }
+  wrap.innerHTML = `
+    <p class="water-lake-gauge-label">${name}</p>
+    <p class="water-lake-gauge-value">${valueText}</p>
+    ${gaugeSvg}
+    <p class="water-lake-gauge-note">${noteExtra}</p>`;
+  container.appendChild(wrap);
+}
+
+// ---- Fő összerakó: lekéri a három snapshotot, feltölti a szekciókat ----
+
+async function fetchWaterSnapshot(name) {
+  const res = await fetch(`${PUSH_WORKER_URL}/${name}`);
+  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+  return res.json();
+}
+
+function findRiverStation(stations, river, name) {
+  return stations.find(s => s.river === river && s.name === name);
+}
+
+function findLakeStation(stations, lake, station) {
+  return stations.find(s => s.lake === lake && s.station === station);
+}
+
+async function buildWaterPanel(point) {
+  const statusEl = document.getElementById("water-status");
+  statusEl.hidden = false;
+  statusEl.textContent = "töltés…";
+
+  try {
+    const [soil, rivers, lakes] = await Promise.all([
+      fetchWaterSnapshot("soil-snapshot"),
+      fetchWaterSnapshot("rivers-snapshot"),
+      fetchWaterSnapshot("lakes-snapshot"),
+    ]);
+
+    // 1. Talajvíz: országos
+    const totalCount = waterBalatonCount(soil.country_total_liters, 1);
+    document.getElementById("water-soil-balaton-count").textContent = totalCount;
+    document.getElementById("water-soil-balaton-label").textContent = "Balatonnyi, 81 cm mélységig";
+    document.getElementById("water-soil-exact").textContent =
+      `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter`;
+    const avgMoisture = waterCountryAvgMoisture(soil);
+    renderBalatonStack(
+      document.getElementById("water-balaton-stack"),
+      soil.depth_bands_cm,
+      soil.country_total_by_depth,
+      avgMoisture
+    );
+    document.getElementById("water-soil-section").hidden = false;
+
+    // 2. Országtérkép
+    const hungaryCells = soil.points.filter(p => p.in_hungary);
+    const maxCell = hungaryCells.reduce((a, b) => (b.liters_total > a.liters_total ? b : a), hungaryCells[0]);
+    const minCell = hungaryCells.reduce((a, b) => (b.liters_total < a.liters_total ? b : a), hungaryCells[0]);
+    document.getElementById("water-map-headline").textContent =
+      `legtöbb víz: ${waterNum(maxCell.liters_total / 1e9, 0)} milliárd liter egy cellában`;
+    document.getElementById("water-map-detail").textContent =
+      `legkevesebb: ${waterNum(minCell.liters_total / 1e9, 0)} milliárd liter`;
+    buildReliefMap(
+      document.getElementById("water-relief-map"),
+      document.getElementById("water-map-legend"),
+      soil,
+      rivers.stations,
+      lakes.stations,
+      point
+    );
+    document.getElementById("water-map-section").hidden = false;
+
+    // 3. Személyes
+    document.getElementById("water-local-question").textContent = `és ${point.name || "a keresett helyszín"} környékén?`;
+    try {
+      const localMoisture = await fetchUserSoilProfile(point);
+      const localAvgPct = Math.round(waterWeightedAvg(localMoisture) * 100);
+      const countryAvgPct = Math.round(waterWeightedAvg(avgMoisture) * 100);
+      document.getElementById("water-local-total").textContent = `${localAvgPct}% átlagos víztartalom`;
+      document.getElementById("water-local-compare").textContent =
+        localAvgPct >= countryAvgPct
+          ? `az országos átlag (${countryAvgPct}%) felett`
+          : `az országos átlag (${countryAvgPct}%) alatt`;
+      const surfacePct = Math.round(localMoisture[0] * 100);
+      const deepPct = Math.round(localMoisture[4] * 100);
+      document.getElementById("water-local-profile-text").textContent =
+        surfacePct > deepPct
+          ? "felül nedvesebb, mélyebben alig van víz"
+          : surfacePct < deepPct
+            ? "mélyebben van több víz, mint felül"
+            : "a mélység mentén egyenletes a víztartalom";
+      renderSoilCoreProfile(document.getElementById("water-soil-core"), localMoisture);
+      document.getElementById("water-local-section").hidden = false;
+    } catch (err) {
+      console.error(err);
+      document.getElementById("water-local-section").hidden = true;
+    }
+
+    // 4. Vízmérleg
+    document.getElementById("water-sankey").innerHTML = WATER_SANKEY_SVG;
+    document.getElementById("water-sankey-soil-now").textContent =
+      `${waterNum(soil.country_total_liters / 1e12, 2)} km³`;
+    const balanceBalatonCount = 172e9 / (BALATON_LITERS / 1e3); // 172 km³ = 172e9 m³
+    const balanceWhole = Math.floor(balanceBalatonCount);
+    const balanceFraction = balanceBalatonCount - balanceWhole;
+    document.getElementById("water-balance-balaton-count").textContent =
+      balanceFraction >= 0.4 && balanceFraction < 0.6
+        ? `${balanceWhole} és fél`
+        : waterNum(balanceBalatonCount, 1);
+    document.getElementById("water-balaton-tiles").innerHTML = waterBalatonTilesSvg(balanceBalatonCount);
+    document.getElementById("water-balance-section").hidden = false;
+
+    // 5. Tavak
+    const balatonAvg = findLakeStation(lakes.stations, "Balaton", "Balaton average");
+    if (balatonAvg) {
+      document.getElementById("water-balaton-level").textContent = `${waterNum(balatonAvg.level_cm, 0)} cm`;
+      document.getElementById("water-balaton-detail").textContent = "a siófoki mércén mért országos átlag";
+      renderBalatonFill(document.getElementById("water-balaton-fill"), balatonAvg.level_cm);
+    }
+    document.getElementById("water-lake-compare").innerHTML =
+      `<g fill="var(--fg)">` +
+      Object.values(LAKE_COMPARE_PATHS).map(p => `<path${p.transform ? ` transform="${p.transform}"` : ""} d="${p.d}"></path>`).join("") +
+      `</g><g font-size="12" fill="var(--muted)" text-anchor="middle">` +
+      `<text x="105" y="134">Balaton</text><text x="268" y="134">Fertő</text><text x="340" y="114">Tisza-tó</text></g>`;
+
+    const gaugesEl = document.getElementById("water-lake-gauges");
+    gaugesEl.innerHTML = "";
+    const velencei = findLakeStation(lakes.stations, "Velencei-tó", "Agárd");
+    renderLakeGauge(gaugesEl, "Velencei-tó", velencei ? velencei.level_cm : null, "ideális legalább 140 cm, felső határ 170 cm");
+    const tiszato = findRiverStation(rivers.stations, "Tisza", "Kisköre alsó");
+    renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null, "a Kisköre alsó mérce adata, nem feltétlenül a tó üzemvízszintjével egyező skálán");
+    const ferto = findLakeStation(lakes.stations, "Fertő", "Fertőrákos");
+    renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása");
+    document.getElementById("water-lakes-section").hidden = false;
+
+    statusEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "a vízadatok most nem érhetők el";
+  }
+}
+
+function resetWaterPanel() {
+  const panel = document.getElementById("water-panel");
+  panel.open = false;
+  for (const id of ["water-soil-section", "water-map-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
+    document.getElementById(id).hidden = true;
+  }
+  document.getElementById("water-status").hidden = false;
+  document.getElementById("water-status").textContent = "töltés…";
+}
 
 // ---- Indítás ----
 

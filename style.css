@@ -494,3 +494,95 @@ noscript .about {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* A "mennyi víz van összesen" panel: ugyanaz a .about-details nyitógomb-
+   mintázat, a #stats-panel/.stats-details mellé, lusta betöltéssel
+   (script.js buildWaterPanel, a toggle eseményre, mint a stats-panel). */
+.water-details {
+  text-align: center;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+.water-body {
+  margin-top: var(--sp-3);
+}
+
+.water-section + .water-section {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+.water-figure {
+  margin: var(--sp-4) 0 0;
+}
+
+.water-figure-narrow svg {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.water-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.water-figure figcaption {
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+  margin: var(--sp-2) 0 0;
+  line-height: 1.6;
+}
+
+.water-methodology-text {
+  text-align: left;
+  margin-top: var(--sp-3);
+}
+
+.water-methodology-text .about {
+  margin: 0.2em 0;
+}
+
+/* A dombormű-rács és a folyó/tó-jelölők kattinthatók/koppinthatók, ugyanaz
+   a "láthatatlan szélesebb körvonal" trükk, mint a .radar-dot-nál és a
+   .stats-bar-nál: a vizuális méret kicsi marad, a célterület nem. */
+.water-cell, .water-marker {
+  cursor: pointer;
+}
+
+.water-cell-touch, .water-marker-touch {
+  stroke: transparent;
+  stroke-width: 10;
+  fill: transparent;
+}
+
+.water-lake-gauges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.water-lake-gauge-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 var(--sp-1);
+}
+
+.water-lake-gauge-value {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.water-lake-gauge-note {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: var(--sp-1) 0 0;
+}
