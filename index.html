@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
 
@@ -147,14 +147,16 @@
       </div>
     </details>
 
-    <!-- Vízadatok: talaj, folyók, tavak, vízmérleg. Ugyanúgy lenyíló és
-         lusta betöltésű, mint a #stats-panel: csak megnyitáskor tölt, és
-         minden megnyitáskor újra (lásd script.js buildWaterPanel). A
+    <!-- Vízadatok: talaj, folyók, tavak, vízmérleg. Nem lenyíló: a radar
+         után rögtön megjelenik, nyitva (lásd script.js revealPhase,
+         PHASE_DONE) - a felhasználó szerint ez az oldal folytatása, nem egy
+         elrejtendő mellékes részlet. Megnyitáskor, illetve minden új
+         kereséskor újra épül (lásd script.js buildWaterPanel). A
          talajnedvesség-dombormű, a folyó-/tó-jelölők rajta, a Balaton-alakú
          rétegek és a vízmérce-ábrák mind script.js-ben generált SVG-k, nem
          statikus markup - ld. a fájl végi "Vízadatok" szekciót. -->
-    <details id="water-panel" class="about-details water-details">
-      <summary>mennyi víz van összesen az országban?</summary>
+    <section id="water-panel" class="water-details" hidden>
+      <p class="question">mennyi víz van összesen az országban?</p>
       <div id="water-body" class="water-body">
         <p id="water-status" class="context">töltés…</p>
 
@@ -179,6 +181,15 @@
             <svg id="water-relief-map" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet"></svg>
             <figcaption id="water-map-legend"></figcaption>
           </figure>
+        </section>
+
+        <!-- 2b. Folyók: önálló szekció, kattintható állomások (az
+             előrejelzés és a múltbeli vízállás grafikonon jelenik meg) -->
+        <section class="water-section" id="water-rivers-section" hidden>
+          <p class="question">és a folyók?</p>
+          <p class="answer" id="water-rivers-headline"></p>
+          <p class="context" id="water-rivers-detail"></p>
+          <div id="water-river-list" class="water-river-list"></div>
         </section>
 
         <!-- 3. Személyes: a keresett helyszín talajminta-profilja -->
@@ -237,7 +248,7 @@
           </div>
         </details>
       </div>
-    </details>
+    </section>
 
   </main>
 
@@ -262,7 +273,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=45"></script>
+  <script src="script.js?v=46"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

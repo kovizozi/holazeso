@@ -57,6 +57,15 @@ const SEARCH_RINGS = [
   [[1200, 18], [1700, 20], [2500, 22]],
 ];
 
+// A 60 km-es "környék"-határ (SEARCH_RINGS[0] vége) az Igen/Nem válasz
+// szemantikáját adja, de NEM azt, amennyit a radaron látni akarunk: ha a
+// találat 60 km-en belül van, a radar vizuálisan ennél messzebb kell
+// mutasson, különben az országhatár (ami csak a settled fázisban rajzolódik
+// ki, ld. revealPhase) sosem fér bele látható méretbe egy ilyen kis körben.
+// Lásd a run() "Igen" ágát: ott, ha szükséges, egy tisztán vizuális,
+// újrakeresés nélküli radarAddTier hívással kijjebb húzzuk a kört.
+const RADAR_MIN_VISUAL_RADIUS_KM = 150;
+
 function ringBearings(count) {
   return Array.from({ length: count }, (_, i) => (i * 360) / count);
 }
@@ -1060,6 +1069,14 @@ async function run(userLoc, { silent = false } = {}) {
     showQ2("de hol esik pontosan?");
     if (unchanged) return;
 
+    // Lásd RADAR_MIN_VISUAL_RADIUS_KM: ha a találat a 60 km-es "környék"-en
+    // belül volt, a radart vizuálisan kijjebb húzzuk (nem keresünk újra, a
+    // meglévő pontokat skálázzuk át), hogy a majd megjelenő országhatár ne
+    // egy túl kis körbe szoruljon.
+    if (!silent && answer === "Igen" && firstMaxRadius < RADAR_MIN_VISUAL_RADIUS_KM) {
+      radarAddTier(firstGrid, RADAR_MIN_VISUAL_RADIUS_KM, userLoc);
+    }
+
     // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
     // következő kérdés, és a keresés alatta folytatódik. Itt nincs külön
     // várakozás, mert a pontok felfestése már kitöltött egy teljes fordulatot.
@@ -1584,6 +1601,11 @@ function revealPhase(phase, delayMs) {
         // A statisztika-panel is csak most, hogy a radar véglegesen betöltött:
         // zárva marad (a felhasználó nyitja ki), csak a láthatósága nyílik meg.
         document.getElementById("stats-panel").hidden = false;
+        // A vízadat-panel viszont NEM gombra nyílik: a radar után rögtön
+        // megjelenik, nyitva, mert a felhasználó szerint ez folytatja az
+        // oldalt, nem egy elrejtendő mellékes részlet.
+        document.getElementById("water-panel").hidden = false;
+        if (currentLoc) buildWaterPanel(currentLoc);
       }
       resolve();
     }, delayMs);
@@ -1801,10 +1823,8 @@ document.getElementById("change-location").addEventListener("click", () => {
 document.getElementById("stats-panel").addEventListener("toggle", (event) => {
   if (event.target.open && currentLoc) buildStatsPanel(currentLoc);
 });
-
-document.getElementById("water-panel").addEventListener("toggle", (event) => {
-  if (event.target.open && currentLoc) buildWaterPanel(currentLoc);
-});
+// A water-panel már nem <details>, nincs toggle esemény: megjelenését és
+// feltöltését a revealPhase(PHASE_DONE) ág intézi.
 
 document.getElementById("retry-geo").addEventListener("click", () => {
   document.getElementById("location-error").hidden = true;
@@ -1930,8 +1950,14 @@ function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth)
 const WATER_CELL_W = 20;
 const WATER_SKEW_X = 10;
 const WATER_SKEW_Y = 14;
-const WATER_MAX_CUBE_H = 100;
-const WATER_MIN_CUBE_H = 10;
+// Lapos: a korábbi 100/10 px-es magasság-tartomány a cellák közti 14 px-es
+// sor-eltolódáshoz képest annyira magas volt, hogy a kockák egymásra
+// tornyosulva elnyelték az ország alakját (a felhasználó szerint "nem
+// látszik a forma"). Alacsonyabb magasság-tartomány mellett a rács
+// FÖLDRAJZI körvonala (ahol egyáltalán van/nincs kocka) marad a fő
+// olvasat, a magasság csak finom kiegészítő jelzés.
+const WATER_MAX_CUBE_H = 26;
+const WATER_MIN_CUBE_H = 4;
 
 function waterProjectRowCol(row, col, originX, originY) {
   return { x: originX + col * WATER_CELL_W - row * WATER_SKEW_X, y: originY + row * WATER_SKEW_Y };
@@ -2024,6 +2050,84 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   svgEl.innerHTML = `<defs></defs>${cubesMarkup}${markersMarkup}`;
 
   legendEl.innerHTML = `Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta. Nem domborzat: a magasság a víz. A pontok a folyók és a tavak mai vízállását mutatják, centiméterben.`;
+}
+
+// ---- 2b. Folyók: önálló lista, kattintható állomások ----
+//
+// Minden sor koppintásra nyit/csuk, és csak ELSŐ nyitáskor rajzolja fel a
+// grafikonját (nem mindegyiket előre, ha a felhasználó sosem nyitja ki).
+// A grafikon a hydroinfo.hu 6 napos előrejelzését (ingyen jön a már
+// amúgy is lekért táblából) és a soil-moisture-mapper saját historikus
+// naplójából visszaolvasott korábbi vízállást (history.jsonl, ld. a
+// rivers-snapshot station.history mezőjét) köti össze egy közös
+// grafikonon, "most" elválasztóval.
+function buildRiverList(container, stations) {
+  container.innerHTML = "";
+  for (const station of stations) {
+    const row = document.createElement("div");
+    row.className = "water-river-row";
+    const head = document.createElement("div");
+    head.className = "water-river-row-head";
+    head.innerHTML =
+      `<span class="water-river-name">${station.river} · ${station.name}</span>` +
+      `<span class="water-river-level">${waterNum(station.level_cm, 0)} cm</span>`;
+    const chartWrap = document.createElement("div");
+    chartWrap.className = "water-river-chart-wrap";
+    const chartSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chartSvg.setAttribute("viewBox", "0 0 400 110");
+    chartSvg.setAttribute("preserveAspectRatio", "none");
+    chartWrap.appendChild(chartSvg);
+
+    let built = false;
+    head.addEventListener("click", () => {
+      row.classList.toggle("open");
+      if (row.classList.contains("open") && !built) {
+        renderRiverChart(chartSvg, station);
+        built = true;
+      }
+    });
+
+    row.appendChild(head);
+    row.appendChild(chartWrap);
+    container.appendChild(row);
+  }
+}
+
+function renderRiverChart(svgEl, station) {
+  const historyVals = (station.history || []).map(h => h.level_cm);
+  const forecastVals = station.forecast_cm || [];
+  const series = [...historyVals, station.level_cm, ...forecastVals];
+  const todayIdx = historyVals.length;
+
+  if (series.length < 2) {
+    svgEl.innerHTML = `<text x="10" y="55" font-size="12" fill="var(--muted)">még nincs elég adat a grafikonhoz</text>`;
+    return;
+  }
+
+  const minV = Math.min(...series), maxV = Math.max(...series);
+  const span = Math.max(maxV - minV, 1);
+  const padX = 8, padY = 14, w = 400 - padX * 2, h = 110 - padY * 2 - 12;
+  const xFor = i => padX + (i / (series.length - 1)) * w;
+  const yFor = v => padY + h - ((v - minV) / span) * h;
+
+  const pastPoints = series.slice(0, todayIdx + 1).map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const futurePoints = series.slice(todayIdx).map((v, i) => `${xFor(todayIdx + i).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const todayX = xFor(todayIdx).toFixed(1);
+
+  let dots = "";
+  for (let i = 0; i < series.length; i++) {
+    dots += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(series[i]).toFixed(1)}" r="1.5" fill="var(--muted)"></circle>`;
+  }
+
+  svgEl.innerHTML = `
+    <line x1="${todayX}" y1="${padY}" x2="${todayX}" y2="${(padY + h).toFixed(1)}" stroke="var(--border)" stroke-width="1"></line>
+    <text x="${todayX}" y="${(padY - 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="middle">most</text>
+    <polyline points="${pastPoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5"></polyline>
+    <polyline points="${futurePoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-dasharray="3 3"></polyline>
+    ${dots}
+    <circle cx="${todayX}" cy="${yFor(station.level_cm).toFixed(1)}" r="2.5" fill="var(--fg)"></circle>
+    <text x="${padX}" y="${(padY + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)">${historyVals.length > 0 ? "múlt" : ""}</text>
+    <text x="${(padX + w).toFixed(1)}" y="${(padY + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">6 napos előrejelzés</text>`;
 }
 
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
@@ -2326,6 +2430,16 @@ async function buildWaterPanel(point) {
     );
     document.getElementById("water-map-section").hidden = false;
 
+    // 2b. Folyók: önálló lista, kattintható állomások
+    const riverCount = rivers.stations.length;
+    const riverNames = [...new Set(rivers.stations.map(s => s.river))];
+    document.getElementById("water-rivers-headline").textContent =
+      `${riverCount} mérőállomás, ${riverNames.length} nagyobb folyón`;
+    document.getElementById("water-rivers-detail").textContent =
+      "koppints egy folyóra az előrejelzéshez és a korábbi vízálláshoz";
+    buildRiverList(document.getElementById("water-river-list"), rivers.stations);
+    document.getElementById("water-rivers-section").hidden = false;
+
     // 3. Személyes
     document.getElementById("water-local-question").textContent = `és ${point.name || "a keresett helyszín"} környékén?`;
     try {
@@ -2398,8 +2512,8 @@ async function buildWaterPanel(point) {
 
 function resetWaterPanel() {
   const panel = document.getElementById("water-panel");
-  panel.open = false;
-  for (const id of ["water-soil-section", "water-map-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
+  panel.hidden = true;
+  for (const id of ["water-soil-section", "water-map-section", "water-rivers-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
     document.getElementById(id).hidden = true;
   }
   document.getElementById("water-status").hidden = false;

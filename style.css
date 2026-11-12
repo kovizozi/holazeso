@@ -586,3 +586,55 @@ noscript .about {
   line-height: 1.6;
   margin: var(--sp-1) 0 0;
 }
+
+/* Folyó-lista: kattintható sorok, soronként egy lenyitható grafikonnal
+   (script.js renderRiverChart). A lista maga nem <details> (sok kis sor
+   egyedi nyitása kell, nem egy közös nyitógomb), ezért a nyitott-állapotot
+   egy osztály jelzi, nem a natív disclosure-marker. */
+.water-river-list {
+  text-align: left;
+  margin-top: var(--sp-3);
+}
+
+.water-river-row {
+  border-top: 1px solid var(--border);
+  padding: var(--sp-1) 0;
+}
+
+.water-river-row:first-child {
+  border-top: none;
+}
+
+.water-river-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.water-river-name {
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.water-river-level {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.water-river-chart-wrap {
+  display: none;
+  margin-top: var(--sp-1);
+}
+
+.water-river-row.open .water-river-chart-wrap {
+  display: block;
+}
+
+.water-river-chart-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
