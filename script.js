@@ -1847,6 +1847,12 @@ const WATER_DEPTH_BANDS = [[0, 1, 0.01], [1, 3, 0.02], [3, 9, 0.06], [9, 27, 0.1
 // A Balaton körvonala (Natural Earth-ből, korábban egy design-canvasban
 // kinyerve), egy 640 széles rajzterületen. A rétegezett (talajvíz) és a
 // feltöltéses (tavak) ábra is ugyanezt a path-ot használja.
+// Apró Balaton-ikon (a nagy, pontos BALATON_PATH-tól külön, az egyszerűbb
+// path jobban olvasható csempeként kis méretben) - a waterBalatonTilesSvg
+// (vízmérleg "hány Balaton") és a renderBalatonStack (talajvíz-rétegek)
+// ugyanazt az ikont használja, csak más csempe-méretre skálázva.
+const BALATON_TILE_ICON_PATH = "M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 35.1 L18.5 37.4 L17.2 38 L14 38.3 L8 37.2 L4.7 37.1 L2.1 38 L0.8 37.9 L0 36.4 L1.1 32.4 L4.2 32.3 L7.4 33.4 L8.9 33 L9.4 31.5 L10.5 30.2 L12 29.1 L13.3 28.7 L16.2 29 L17.6 29.4 L18.9 30.3 L22.8 27.4 L24.9 26.2 L28.9 25.6 L29.8 25.1 L31.3 22.8 L32.3 21.5 L33.1 21.1 L34.1 20.9 L43.6 17.1 L44.9 15.5 L45.4 15.8 L48 18.1 L49.1 18.2 L49.8 17 L49.3 15.5 L48.2 14.3 L47 13.6 L47 12.9 L54.5 8.6 L56.9 6.8 L57.9 5.6 L59 4 L59.8 2.2 L60.1 0.4 L60.8 0 L62.4 0.3 L65.8 1.5 L67.1 2.3 L68.8 3.6 L70.1 5.2 L70.1 6.4 L69 8.3 L67.6 11.6 L66.3 12.9 L63.2 14.7 L52.6 18.4 L52.1 18.5 L51.1 18.2 L50.7 18.7 L49.6 20.4 L47.3 21.7Z";
+
 const BALATON_PATH = "M216.6 230.6 L209.8 231.6 L202.6 234.2 L196.8 237.6 L194.5 241.2 L187.1 242.4 L171.1 239.5 L155.7 239.7 L150 249.7 L150 335.1 L154 338.9 L160.4 339.3 L173.6 337 L190.1 337.2 L219.8 340 L236.2 339.1 L242.3 337.6 L258 331.9 L263.7 328.5 L270 326 L377.5 302.9 L386.7 298.6 L398 295.3 L403.6 291 L405.6 289.8 L410.4 290.4 L413 290.2 L466 281 L481.4 276.5 L487.9 273.1 L495.2 265 L500.7 260.3 L500.7 174.9 L500.4 171.7 L494.1 167.9 L485.7 164.6 L478.8 162.5 L462.2 159.5 L454 158.8 L450.4 159.8 L448.9 164.2 L444.9 168.7 L439.6 172.7 L434.5 175.7 L422.6 180.4 L384.9 191 L384.9 192.9 L384.9 201.8 L376.9 198.3 L374.5 197.6 L368.2 201.4 L320.4 211 L315.4 211.4 L311.3 212.7 L306.5 215.7 L299.1 221.6 L294.6 222.9 L274.7 224.4 L263.8 227.2 L244.3 234.5 L237.9 232.3 L231 231.2Z";
 const BALATON_BBOX = { x: 150, y: 153.8, width: 350.7, height: 186.6 };
 
@@ -1896,52 +1902,44 @@ function waterHatchDefs() {
 // ez garantálja, hogy minden csík pontosan a megfelelő, torzítatlan darabja
 // a tó alakjának). A legmélyebb sáv alul, a legfelső (0-1cm) felül, mint egy
 // talajszelvény.
-function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth) {
+// A korábbi "egy közös Balaton-körvonal, vízszintesen clipPath-elt sávokra
+// osztva" próbálkozás élőben (Playwright-tesztelve, mobil és asztali nézetben
+// is) vagy levágta a feliratot a jobb szélen, vagy a két legkisebb sáv
+// felirata egymásra csúszott - a pontos koordináta-matek bármekkora
+// minimum-magasság mellett törékeny maradt. Az azóta frissített terv-canvas
+// megoldása ezt elkerüli: NINCS pozicionált SVG-szöveg. Minden sáv egy
+// SIMA HTML sor (böngésző intézi a sorközt, nem mi), alatta egy kis,
+// apró Balaton-ikonokkal mintázott sáv, aminek a SZÉLESSÉGE arányos a
+// liter-mennyiséggel - ugyanaz a minta-csempe trükk, mint a vízmérleg
+// "hány Balaton" ábráján (ld. waterBalatonTilesSvg).
+function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureByDepth) {
   const counts = litersByDepth.map(l => l / BALATON_LITERS);
-  const dataSum = counts.reduce((a, b) => a + b, 0) || 1;
-  // 0.1 élőben még mindig kevésnek bizonyult: a szomszédos sávok középpontja
-  // (ahova a felirat kerül) (h_i + h_{i+1})/2 távolságra van egymástól, és
-  // két minimum-magasságú sáv esetén ez pont a minimum-magasság, ami egy
-  // 11 px-es sornak még mindig szűk. 0,15-tel (öt sáv -> fix rész 0,75,
-  // csak 0,25 marad adatarányos szórásra - kevesebb vizuális különbség a
-  // sávok közt, de a felirat olvashatósága fontosabb) a legszűkebb pár is
-  // kényelmesen elfér.
-  const MIN_FRACTION = 0.15;
-  const floorSum = MIN_FRACTION * counts.length;
-  const remaining = Math.max(0, 1 - floorSum);
-  const fractions = counts.map(c => MIN_FRACTION + remaining * (c / dataSum));
-  const fracSum = fractions.reduce((a, b) => a + b, 0) || 1;
-  const normFractions = fractions.map(f => f / fracSum);
+  const maxCount = Math.max(...counts, 0.01);
+  const BAR_UNITS_PER_BALATON = 46; // ~ a design mintájából (327.5 egység / 7.1 Balaton)
 
-  const order = [4, 3, 2, 1, 0]; // legmélyebb alul .. legfelső (0-1cm) felül
-  const bottom = BALATON_BBOX.y + BALATON_BBOX.height;
-  let cursorY = bottom;
-  const rows = {};
-  for (const i of order) {
-    const h = normFractions[i] * BALATON_BBOX.height;
-    rows[i] = { top: cursorY - h, height: h, mid: cursorY - h / 2 };
-    cursorY -= h;
-  }
+  containerEl.innerHTML = "";
+  const list = document.createElement("div");
+  list.className = "water-balaton-stack-list";
 
-  let defs = `<defs>${waterHatchDefs()}<clipPath id="wbstack-outline"><path d="${BALATON_PATH}"></path></clipPath>`;
-  for (const i of order) {
-    defs += `<clipPath id="wbstack-slice-${i}"><rect x="0" y="${rows[i].top.toFixed(1)}" width="640" height="${(rows[i].height + 0.5).toFixed(1)}"></rect></clipPath>`;
-  }
-  defs += "</defs>";
-
-  const bands = order.map(i => {
-    const hatch = waterHatchIndex(moistureByDepth[i]);
-    return `<g clip-path="url(#wbstack-slice-${i})"><path d="${BALATON_PATH}" fill="url(#wh${hatch})" stroke="var(--fg)" stroke-width="1" stroke-linejoin="round" clip-path="url(#wbstack-outline)"></path></g>`;
-  }).join("");
-
-  const labels = order.map(i => {
+  for (let i = 0; i < depthBandsCm.length; i++) {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
-    return `<text x="440" y="${(rows[i].mid + 3).toFixed(1)}" font-size="10" fill="var(--fg)">` +
-      `<tspan font-weight="600">${lo}–${hi} cm</tspan> <tspan fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</tspan></text>`;
-  }).join("");
-
-  svgEl.innerHTML = defs + bands + labels;
+    const widthUnits = Math.max(2, counts[i] * BAR_UNITS_PER_BALATON);
+    const row = document.createElement("div");
+    row.innerHTML = `
+      <div class="water-balaton-stack-row-head">
+        <span style="font-weight: 600;">${lo}–${hi} cm</span>
+        <span style="color: var(--muted);">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</span>
+      </div>
+      <svg viewBox="0 0 400 26" class="water-balaton-stack-bar" aria-hidden="true">
+        <defs><pattern id="mbal-${i}" width="46" height="26" patternUnits="userSpaceOnUse">
+          <path transform="translate(1.5,1.5) scale(0.6)" fill="var(--fg)" d="${BALATON_TILE_ICON_PATH}"></path>
+        </pattern></defs>
+        <rect x="0" y="0" width="${widthUnits.toFixed(1)}" height="26" fill="url(#mbal-${i})"></rect>
+      </svg>`;
+    list.appendChild(row);
+  }
+  containerEl.appendChild(list);
 }
 
 // ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
@@ -2308,7 +2306,7 @@ function waterBalatonTilesSvg(count) {
   const remainder = count - fullRows * rowCount;
   const fullHeight = fullRows * tileH;
   const remWidth = remainder * tileW;
-  let markup = `<defs><pattern id="wbal-tile" width="${tileW}" height="${tileH}" patternUnits="userSpaceOnUse"><path transform="translate(2.5,2.5) scale(0.5)" fill="var(--fg)" d="M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 35.1 L18.5 37.4 L17.2 38 L14 38.3 L8 37.2 L4.7 37.1 L2.1 38 L0.8 37.9 L0 36.4 L1.1 32.4 L4.2 32.3 L7.4 33.4 L8.9 33 L9.4 31.5 L10.5 30.2 L12 29.1 L13.3 28.7 L16.2 29 L17.6 29.4 L18.9 30.3 L22.8 27.4 L24.9 26.2 L28.9 25.6 L29.8 25.1 L31.3 22.8 L32.3 21.5 L33.1 21.1 L34.1 20.9 L43.6 17.1 L44.9 15.5 L45.4 15.8 L48 18.1 L49.1 18.2 L49.8 17 L49.3 15.5 L48.2 14.3 L47 13.6 L47 12.9 L54.5 8.6 L56.9 6.8 L57.9 5.6 L59 4 L59.8 2.2 L60.1 0.4 L60.8 0 L62.4 0.3 L65.8 1.5 L67.1 2.3 L68.8 3.6 L70.1 5.2 L70.1 6.4 L69 8.3 L67.6 11.6 L66.3 12.9 L63.2 14.7 L52.6 18.4 L52.1 18.5 L51.1 18.2 L50.7 18.7 L49.6 20.4 L47.3 21.7Z"></path></pattern></defs>`;
+  let markup = `<defs><pattern id="wbal-tile" width="${tileW}" height="${tileH}" patternUnits="userSpaceOnUse"><path transform="translate(2.5,2.5) scale(0.5)" fill="var(--fg)" d="${BALATON_TILE_ICON_PATH}"></path></pattern></defs>`;
   markup += `<rect x="0" y="0" width="600" height="${fullHeight}" fill="url(#wbal-tile)"></rect>`;
   if (remWidth > 0) markup += `<rect x="0" y="${fullHeight}" width="${remWidth.toFixed(1)}" height="${tileH}" fill="url(#wbal-tile)"></rect>`;
   return markup;
