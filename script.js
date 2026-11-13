@@ -1899,10 +1899,14 @@ function waterHatchDefs() {
 function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth) {
   const counts = litersByDepth.map(l => l / BALATON_LITERS);
   const dataSum = counts.reduce((a, b) => a + b, 0) || 1;
-  // 0.1: élőben kipróbálva a korábbi 0.06-nál a két legkisebb sáv (0-1cm,
-  // 1-3cm) felirata egymásra csúszott - egysoros felirat (lent) mellett
-  // ennyi már elég hely egy 11 px-es sornak.
-  const MIN_FRACTION = 0.1;
+  // 0.1 élőben még mindig kevésnek bizonyult: a szomszédos sávok középpontja
+  // (ahova a felirat kerül) (h_i + h_{i+1})/2 távolságra van egymástól, és
+  // két minimum-magasságú sáv esetén ez pont a minimum-magasság, ami egy
+  // 11 px-es sornak még mindig szűk. 0,15-tel (öt sáv -> fix rész 0,75,
+  // csak 0,25 marad adatarányos szórásra - kevesebb vizuális különbség a
+  // sávok közt, de a felirat olvashatósága fontosabb) a legszűkebb pár is
+  // kényelmesen elfér.
+  const MIN_FRACTION = 0.15;
   const floorSum = MIN_FRACTION * counts.length;
   const remaining = Math.max(0, 1 - floorSum);
   const fractions = counts.map(c => MIN_FRACTION + remaining * (c / dataSum));
@@ -1933,7 +1937,7 @@ function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth)
   const labels = order.map(i => {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
-    return `<text x="440" y="${(rows[i].mid + 4).toFixed(1)}" font-size="11" fill="var(--fg)">` +
+    return `<text x="440" y="${(rows[i].mid + 3).toFixed(1)}" font-size="10" fill="var(--fg)">` +
       `<tspan font-weight="600">${lo}–${hi} cm</tspan> <tspan fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</tspan></text>`;
   }).join("");
 
