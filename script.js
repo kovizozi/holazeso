@@ -1933,7 +1933,7 @@ function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth)
   const labels = order.map(i => {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
-    return `<text x="520" y="${(rows[i].mid + 4).toFixed(1)}" font-size="12" fill="var(--fg)">` +
+    return `<text x="440" y="${(rows[i].mid + 4).toFixed(1)}" font-size="11" fill="var(--fg)">` +
       `<tspan font-weight="600">${lo}–${hi} cm</tspan> <tspan fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</tspan></text>`;
   }).join("");
 
