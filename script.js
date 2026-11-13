@@ -1861,6 +1861,15 @@ const BALATON_TILE_ICON_PATH = "M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 
 // ugyanezt tesszük itt, csak a mi 640-es rajzterületünkre igazítva.
 const BALATON_FILL_TRANSFORM = "translate(130,150) scale(5.1)";
 const BALATON_BBOX = { x: 130, y: 150, width: 357.5, height: 195.3 };
+// A tó hossztengelye átlósan dől (DNy-ÉK), nem vízszintes - egy sima
+// vízszintes vágás ezért a tó ÉK-i végét MINDIG üresen hagyná, bármekkora
+// a vízszint (élő screenshoton ellenőrizve: "Balaton vízszintje furcsán
+// néz ki"). A feltöltő téglalapot ezért a tó dőlésszögével forgatjuk el,
+// hogy a vízszint-vonal a hossztengelyre MERŐLEGESEN haladjon végig a
+// tavon, a DNy-i végtől (Keszthely) az ÉK-i végig (Siófok/Balatonkenese).
+const BALATON_TILT_DEG = 66;
+const BALATON_TILT_PIVOT = { x: 308.8, y: 256.1 };
+const BALATON_TILT_HALF_SPAN = 196;
 
 // Kis, azonos-léptékű körvonalak (ugyanabból a design-canvasból) a "többi
 // nagy tó" összevető ábrájához: Balaton, Fertő, Tisza-tó, egy 400x140-es
@@ -2345,24 +2354,36 @@ function waterBalatonTilesSvg(count) {
 // ---- 5. Tavak részletesen ----
 
 function renderBalatonFill(svgEl, levelCm) {
-  // yFor0cm/pxPerCm: a BALATON_BBOX alsó/felső éle adja a 0 és 120 cm
-  // vízmérce-pontokat, hogy a feltöltés mindig a tó-alak tényleges
-  // magasságán belül maradjon, bármekkorára skálázzuk a BALATON_FILL_TRANSFORM-ot.
-  const yFor0cm = BALATON_BBOX.y + BALATON_BBOX.height;
-  const pxPerCm = BALATON_BBOX.height / 120;
-  const fillTopY = yFor0cm - levelCm * pxPerCm;
-  const summerLimitY = yFor0cm - 120 * pxPerCm;
-  const winterLimitY = yFor0cm - 110 * pxPerCm;
+  // A feltöltő téglalap a BALATON_TILT_DEG szöggel elforgatva, a tó
+  // tengelye mentén tölt fel (ld. a BALATON_TILT_* konstansok fenti
+  // kommentjét) - 0 cm-nél a DNy-i végén kívül, 120 cm-nél a teljes tavat
+  // lefedi. A jobb oldali olvasó-skála viszont EGYENES marad (nem forog),
+  // az a sima cm-tengely, nem a tó alakja.
+  const fillSpanCm = BALATON_TILT_HALF_SPAN * 2;
+  const pxPerCmTilted = fillSpanCm / 120;
+  const zeroYTilted = BALATON_TILT_PIVOT.y + BALATON_TILT_HALF_SPAN;
+  const fillTopY = zeroYTilted - levelCm * pxPerCmTilted;
+  const summerLimitY = zeroYTilted - 120 * pxPerCmTilted;
+  const winterLimitY = zeroYTilted - 110 * pxPerCmTilted;
+  const rotate = `rotate(${BALATON_TILT_DEG} ${BALATON_TILT_PIVOT.x} ${BALATON_TILT_PIVOT.y})`;
+
   const axisX = BALATON_BBOX.x + BALATON_BBOX.width + 75;
-  const tickY = cm => (yFor0cm - cm * pxPerCm).toFixed(1);
+  const axisYFor0cm = BALATON_BBOX.y + BALATON_BBOX.height;
+  const axisPxPerCm = BALATON_BBOX.height / 120;
+  const tickY = cm => (axisYFor0cm - cm * axisPxPerCm).toFixed(1);
+
   svgEl.innerHTML = `
     <defs><clipPath id="wbfill-outline"><path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}"></path></clipPath></defs>
     <path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}" fill="none" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 3" stroke-linejoin="round"></path>
     <g clip-path="url(#wbfill-outline)">
-      <rect x="0" y="${fillTopY.toFixed(1)}" width="640" height="400" fill="var(--fg)"></rect>
+      <g transform="${rotate}">
+        <rect x="${(BALATON_TILT_PIVOT.x - 1000).toFixed(1)}" y="${fillTopY.toFixed(1)}" width="2000" height="2000" fill="var(--fg)"></rect>
+      </g>
     </g>
-    <line x1="${BALATON_BBOX.x}" y1="${summerLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${summerLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
-    <line x1="${BALATON_BBOX.x}" y1="${winterLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${winterLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="1 3"></line>
+    <g transform="${rotate}" stroke="var(--muted)" stroke-width="1">
+      <line x1="${(BALATON_TILT_PIVOT.x - 250).toFixed(1)}" y1="${summerLimitY.toFixed(1)}" x2="${(BALATON_TILT_PIVOT.x + 250).toFixed(1)}" y2="${summerLimitY.toFixed(1)}" stroke-dasharray="3 3"></line>
+      <line x1="${(BALATON_TILT_PIVOT.x - 250).toFixed(1)}" y1="${winterLimitY.toFixed(1)}" x2="${(BALATON_TILT_PIVOT.x + 250).toFixed(1)}" y2="${winterLimitY.toFixed(1)}" stroke-dasharray="1 3"></line>
+    </g>
     <g stroke="var(--fg)" stroke-width="1">
       <line x1="${axisX}" y1="${tickY(0)}" x2="${axisX}" y2="${tickY(120)}"></line>
       <line x1="${axisX - 4}" y1="${tickY(0)}" x2="${axisX + 4}" y2="${tickY(0)}"></line>
@@ -2376,7 +2397,7 @@ function renderBalatonFill(svgEl, levelCm) {
       <text x="${axisX + 10}" y="${(+tickY(120) + 4).toFixed(1)}">120 nyár</text>
       <text x="${axisX + 10}" y="${(+tickY(110) + 4).toFixed(1)}">110 tél</text>
     </g>
-    <text x="${axisX + 10}" y="${(fillTopY + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
+    <text x="${axisX + 10}" y="${(+tickY(levelCm) + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
 }
 
 // A Tisza-tónak NINCS itt sávja: a "Kisköre alsó" folyó-mérce (amiből a
