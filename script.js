@@ -2202,15 +2202,36 @@ function renderSoilCoreProfile(svgEl, moistureByDepth) {
       <text x="48" y="${(yy + 4).toFixed(1)}" font-size="13" fill="var(--muted)" text-anchor="end">${cm} cm</text>`;
   }).join("");
 
-  const labels = boxes.map((box, i) => {
-    const mid = box.y + box.h / 2;
-    const pct = Math.round(moistureByDepth[i] * 100);
-    return `<line x1="130" y1="${mid.toFixed(1)}" x2="150" y2="${mid.toFixed(1)}" stroke="var(--fg)" stroke-width="0.75"></line>
-      <text x="156" y="${(mid - 3).toFixed(1)}" font-size="14" fill="var(--fg)" font-weight="600">${box.lo}–${box.hi} cm</text>
-      <text x="156" y="${(mid + 14).toFixed(1)}" font-size="14" fill="var(--muted)">${pct}% víz</text>`;
+  // A felső rétegek (0-1, 1-3 cm) olyan vékonyak a valódi mélységarányos
+  // rajzon, hogy a középpontjukhoz igazított két soros felirat (cím + %)
+  // átlapolná egymást. A dobozok y-pozíciója marad valódi arányos, de a
+  // feliratoké lentről-fentről eltolható, legalább MIN_LABEL_GAP távolságra
+  // egymástól, vezetővonallal kötve vissza a doboz tényleges közepéhez.
+  const MIN_LABEL_GAP = 36;
+  let prevLabelY = -Infinity;
+  const labelYs = boxes.map(box => {
+    const trueMid = box.y + box.h / 2;
+    const y = Math.max(trueMid, prevLabelY + MIN_LABEL_GAP);
+    prevLabelY = y;
+    return y;
+  });
+
+  const leaders = boxes.map((box, i) => {
+    const trueMid = box.y + box.h / 2;
+    const labelY = labelYs[i];
+    return Math.abs(labelY - trueMid) < 0.5
+      ? `<polyline points="130,${trueMid.toFixed(1)} 150,${trueMid.toFixed(1)}"></polyline>`
+      : `<polyline points="130,${trueMid.toFixed(1)} 138,${trueMid.toFixed(1)} 150,${labelY.toFixed(1)}"></polyline>`;
   }).join("");
 
-  svgEl.innerHTML = `<defs>${waterHatchDefs()}</defs>${rects}${ticks}${labels}`;
+  const labels = boxes.map((box, i) => {
+    const labelY = labelYs[i];
+    const pct = Math.round(moistureByDepth[i] * 100);
+    return `<text x="156" y="${(labelY - 3).toFixed(1)}" font-size="14" fill="var(--fg)" font-weight="600">${box.lo}–${box.hi} cm</text>
+      <text x="156" y="${(labelY + 14).toFixed(1)}" font-size="14" fill="var(--muted)">${pct}% víz</text>`;
+  }).join("");
+
+  svgEl.innerHTML = `<defs>${waterHatchDefs()}</defs>${rects}${ticks}<g stroke="var(--fg)" stroke-width="0.75" fill="none">${leaders}</g>${labels}`;
 }
 
 // ---- 4. Vízmérleg (sokéves átlag) + "hány Balaton" ----
@@ -2376,6 +2397,10 @@ function renderLakeGauge(container, name, levelCm, noteExtra) {
         <text x="${(bandX + bandW).toFixed(1)}" y="38" text-anchor="middle">${band.highCm}</text>
       </g>
     </svg>`;
+  } else {
+    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${name}: nincs megadva szabályozási sáv">
+      <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
+    </svg>`;
   }
   const valueClass = levelCm === null ? "water-lake-gauge-value water-lake-gauge-value-missing" : "water-lake-gauge-value";
   wrap.innerHTML = `
@@ -2522,7 +2547,7 @@ async function buildWaterPanel(point) {
     const tiszato = findRiverStation(rivers.stations, "Tisza", "Kisköre alsó");
     renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null, "a Kisköre alsó mérce adata, nem feltétlenül a tó üzemvízszintjével egyező skálán");
     const ferto = findLakeStation(lakes.stations, "Fertő", "Fertőrákos");
-    renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása");
+    renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása, szabályozási sáv még nincs megadva");
     document.getElementById("water-lakes-section").hidden = false;
 
     statusEl.hidden = true;
