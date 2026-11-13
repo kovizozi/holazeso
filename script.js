@@ -2059,7 +2059,26 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
 
   svgEl.innerHTML = `<defs></defs>${cubesMarkup}${markersMarkup}`;
 
-  legendEl.innerHTML = `Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta. Nem domborzat: a magasság a víz. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.`;
+  // Az 5 kocka-tető átlátszóság egyben 5 sáv is: a legenda ugyanazokkal
+  // az opacitásokkal rajzolja a jelmagyarázat-négyzeteket, amiket a kockák
+  // teteje használ, így a két nézet (térkép és legenda) garantáltan
+  // összhangban marad, nem két külön színskála.
+  const TOP_OPACITIES = [0.1, 0.22, 0.36, 0.52, 0.7];
+  const tierBoundaries = [0, 1, 2, 3, 4, 5].map(k => minL + (k / 5) * (maxL - minL));
+  const tierLabel = i => {
+    const lo = Math.round(tierBoundaries[i] / 1e9);
+    const hi = Math.round(tierBoundaries[i + 1] / 1e9);
+    if (i === 0) return `${hi} alatt`;
+    if (i === 4) return `${lo} felett`;
+    return `${lo}–${hi}`;
+  };
+  const legendSwatches = TOP_OPACITIES.map((op, i) =>
+    `<span style="display:flex;align-items:center;gap:6px;"><svg width="13" height="13" aria-hidden="true"><rect width="13" height="13" fill="var(--fg)" fill-opacity="${op}" stroke="var(--fg)" stroke-width="0.75"></rect></svg>${tierLabel(i)}</span>`
+  ).join("");
+
+  legendEl.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;color:var(--muted);">${legendSwatches}</div>
+    <p style="margin: var(--sp-2) 0 0;">Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta (milliárd liter). Nem domborzat: a magasság a víz. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
 }
 
 // ---- 2b. Folyók: önálló lista, kattintható állomások ----
@@ -2548,6 +2567,35 @@ async function buildWaterPanel(point) {
     renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null, "a Kisköre alsó mérce adata, nem feltétlenül a tó üzemvízszintjével egyező skálán");
     const ferto = findLakeStation(lakes.stations, "Fertő", "Fertőrákos");
     renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása, szabályozási sáv még nincs megadva");
+
+    // "legrosszabbul álló tó": csak azok közül választunk, amiknek van
+    // megbízható szabályozási sávja (most csak a Velencei-tó) - enélkül a
+    // "legrosszabbul" állítás megtévesztő lenne, mint a Tisza-tónál.
+    const worstLakeCandidates = [
+      { name: "Velencei-tó", levelCm: velencei ? velencei.level_cm : null },
+      { name: "Fertő", levelCm: ferto ? ferto.level_cm : null },
+    ]
+      .map(c => {
+        const band = WATER_LAKE_BANDS[c.name];
+        return band && band.lowCm !== null && c.levelCm !== null
+          ? { ...c, deficit: band.lowCm - c.levelCm }
+          : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.deficit - a.deficit);
+    const worstLake = worstLakeCandidates[0];
+    if (worstLake) {
+      document.getElementById("water-lake-worst-headline").textContent =
+        worstLake.deficit > 0 ? `${worstLake.name} áll a legrosszabbul` : `${worstLake.name} a legjobb állapotban`;
+      document.getElementById("water-lake-worst-detail").textContent =
+        worstLake.deficit > 0
+          ? `${waterNum(worstLake.deficit, 0)} cm-rel az ideális szint alatt`
+          : `${waterNum(-worstLake.deficit, 0)} cm-rel az ideális szint felett`;
+    } else {
+      document.getElementById("water-lake-worst-headline").textContent = "nincs elég adat az összevetéshez";
+      document.getElementById("water-lake-worst-detail").textContent = "";
+    }
+
     document.getElementById("water-lakes-section").hidden = false;
 
     statusEl.hidden = true;
