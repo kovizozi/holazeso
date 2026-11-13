@@ -1899,7 +1899,10 @@ function waterHatchDefs() {
 function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth) {
   const counts = litersByDepth.map(l => l / BALATON_LITERS);
   const dataSum = counts.reduce((a, b) => a + b, 0) || 1;
-  const MIN_FRACTION = 0.06; // a legkisebb sáv is látszódjon
+  // 0.1: élőben kipróbálva a korábbi 0.06-nál a két legkisebb sáv (0-1cm,
+  // 1-3cm) felirata egymásra csúszott - egysoros felirat (lent) mellett
+  // ennyi már elég hely egy 11 px-es sornak.
+  const MIN_FRACTION = 0.1;
   const floorSum = MIN_FRACTION * counts.length;
   const remaining = Math.max(0, 1 - floorSum);
   const fractions = counts.map(c => MIN_FRACTION + remaining * (c / dataSum));
@@ -1930,10 +1933,8 @@ function renderBalatonStack(svgEl, depthBandsCm, litersByDepth, moistureByDepth)
   const labels = order.map(i => {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
-    return `<g font-size="13" text-anchor="start">
-      <text x="520" y="${(rows[i].mid - 4).toFixed(1)}" fill="var(--fg)" font-weight="600">${lo}–${hi} cm</text>
-      <text x="520" y="${(rows[i].mid + 11).toFixed(1)}" fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</text>
-    </g>`;
+    return `<text x="520" y="${(rows[i].mid + 4).toFixed(1)}" font-size="12" fill="var(--fg)">` +
+      `<tspan font-weight="600">${lo}–${hi} cm</tspan> <tspan fill="var(--muted)">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</tspan></text>`;
   }).join("");
 
   svgEl.innerHTML = defs + bands + labels;
@@ -1974,12 +1975,19 @@ function waterIsoCube(x, yBase, h, tierIndex) {
   );
 }
 
-function waterMarker(x, y, label, sublabel) {
-  return `<g>
-    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle>
-    <text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="11" text-anchor="middle" fill="var(--fg)" stroke="var(--bg)" stroke-width="3" paint-order="stroke" font-weight="600">${label}</text>
-    <text x="${x.toFixed(1)}" y="${(y + 13).toFixed(1)}" font-size="10" text-anchor="middle" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${sublabel}</text>
-  </g>`;
+// Csak jelölők, FELIRAT NÉLKÜL: egy sűrű rácson (akár 12 folyó-állomás +
+// 5 tó-mérce) a mindegyikhez kiírt név+érték élőben kipróbálva olvashatatlan
+// tömeggé állt össze (egymást fedő feliratok). A név/érték a külön "és a
+// folyók?" listában és a tavak szekcióban már úgyis megvan - a térképen csak
+// a HELY számít. Folyó = üres gyűrű, tó = teli gyémánt alak - a kettő forma
+// szerint megkülönböztethető szín/felirat nélkül is.
+function waterRiverMarker(x, y) {
+  return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle>`;
+}
+
+function waterLakeMarker(x, y) {
+  const r = 3.2;
+  return `<path d="M${x.toFixed(1)} ${(y - r).toFixed(1)} L${(x + r).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + r).toFixed(1)} L${(x - r).toFixed(1)} ${y.toFixed(1)} Z" fill="var(--fg)"></path>`;
 }
 
 function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStations, highlightLoc) {
@@ -2034,12 +2042,12 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   let markersMarkup = "";
   for (const station of riverStations) {
     const { x, y } = projectLatLon(station.lat, station.lon);
-    markersMarkup += waterMarker(x, y, station.name, `${waterNum(station.level_cm, 0)} cm`);
+    markersMarkup += waterRiverMarker(x, y);
   }
   for (const station of lakeStations) {
     if (station.station === "Balaton average") continue; // a 3 mérce elég, az átlag külön szekcióban van
     const { x, y } = projectLatLon(station.lat, station.lon);
-    markersMarkup += waterMarker(x, y, station.station, `${waterNum(station.level_cm, 0)} cm`);
+    markersMarkup += waterLakeMarker(x, y);
   }
 
   if (highlightLoc) {
@@ -2049,7 +2057,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
 
   svgEl.innerHTML = `<defs></defs>${cubesMarkup}${markersMarkup}`;
 
-  legendEl.innerHTML = `Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta. Nem domborzat: a magasság a víz. A pontok a folyók és a tavak mai vízállását mutatják, centiméterben.`;
+  legendEl.innerHTML = `Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta. Nem domborzat: a magasság a víz. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.`;
 }
 
 // ---- 2b. Folyók: önálló lista, kattintható állomások ----
@@ -2334,16 +2342,22 @@ function renderBalatonFill(svgEl, levelCm) {
     <text x="576" y="${(fillTopY + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
 }
 
+// A Tisza-tónak NINCS itt sávja: a "Kisköre alsó" folyó-mérce (amiből a
+// vízállása jön) saját, a hivatalos 735±5 cm-es üzemvízszint-skálától
+// FÜGGETLEN 0-ponttal rendelkezik - élőben látott érték: -352 cm, miközben
+// a tényleges tározó közel volt az üzemvízszinthez. A két skálát egy
+// sávban mutatni félrevezető lenne, ezért csak a nyers mérceadat + egy
+// erre figyelmeztető szöveg marad (ld. a hívás noteExtra paramétere).
 const WATER_LAKE_BANDS = {
   "Velencei-tó": { lowCm: 140, highCm: 170, axisMin: 0, axisMax: 200 },
-  "Tisza-tó": { lowCm: 730, highCm: 740, axisMin: 700, axisMax: 760 },
+  "Tisza-tó": { lowCm: null, highCm: null, axisMin: 0, axisMax: 0 },
   "Fertő": { lowCm: null, highCm: null, axisMin: -50, axisMax: 50 },
 };
 
 function renderLakeGauge(container, name, levelCm, noteExtra) {
   const band = WATER_LAKE_BANDS[name];
   const wrap = document.createElement("div");
-  const valueText = levelCm === null ? "[nincs adat]" : `${waterNum(levelCm, 0)} cm`;
+  const valueText = levelCm === null ? "jelenleg nem elérhető" : `${waterNum(levelCm, 0)} cm`;
   let gaugeSvg = "";
   if (band.lowCm !== null && levelCm !== null) {
     const span = band.axisMax - band.axisMin;
@@ -2361,9 +2375,10 @@ function renderLakeGauge(container, name, levelCm, noteExtra) {
       </g>
     </svg>`;
   }
+  const valueClass = levelCm === null ? "water-lake-gauge-value water-lake-gauge-value-missing" : "water-lake-gauge-value";
   wrap.innerHTML = `
     <p class="water-lake-gauge-label">${name}</p>
-    <p class="water-lake-gauge-value">${valueText}</p>
+    <p class="${valueClass}">${valueText}</p>
     ${gaugeSvg}
     <p class="water-lake-gauge-note">${noteExtra}</p>`;
   container.appendChild(wrap);
@@ -2484,8 +2499,13 @@ async function buildWaterPanel(point) {
     const balatonAvg = findLakeStation(lakes.stations, "Balaton", "Balaton average");
     if (balatonAvg) {
       document.getElementById("water-balaton-level").textContent = `${waterNum(balatonAvg.level_cm, 0)} cm`;
-      document.getElementById("water-balaton-detail").textContent = "a siófoki mércén mért országos átlag";
+      document.getElementById("water-balaton-detail").textContent =
+        balatonAvg.stale ? "a siófoki mércén mért országos átlag (tegnapi adat)" : "a siófoki mércén mért országos átlag";
       renderBalatonFill(document.getElementById("water-balaton-fill"), balatonAvg.level_cm);
+    } else {
+      document.getElementById("water-balaton-level").textContent = "jelenleg nem elérhető";
+      document.getElementById("water-balaton-detail").textContent = "a siófoki vízállás most nem tölthető be";
+      document.getElementById("water-balaton-fill").innerHTML = "";
     }
     document.getElementById("water-lake-compare").innerHTML =
       `<g fill="var(--fg)">` +

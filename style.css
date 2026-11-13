@@ -581,6 +581,12 @@ noscript .about {
   margin: 0;
 }
 
+.water-lake-gauge-value-missing {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .water-lake-gauge-note {
   font-size: 14px;
   line-height: 1.6;
