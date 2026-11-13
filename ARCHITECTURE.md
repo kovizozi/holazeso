@@ -99,6 +99,37 @@ vetíti őket, mint a rácspontokat.
   peremre lapítjuk). Olcsó szélesség szerinti előszűrés előzi meg a gömbi
   számolást, különben kis sugárnál feleslegesen menne végig mind a 20 ezer
   csúcson.
+- **Minimális vizuális sugár** (`RADAR_MIN_VISUAL_RADIUS_KM`, `script.js`):
+  a tényleges keresési sugár (ahol a legközelebbi esőt találtuk) gyakran
+  kisebb, mint ami a határ felismeréséhez kellene. Magyarország
+  legeldugottabb pontja (a határtól legtávolabb eső hely) kb. 112 km-re van
+  bármelyik határtól, ezért 220 km-es alsó korlát biztosítja, hogy a radar
+  MINDIG mutasson legalább egy darab határt, bárhol állunk az országban.
+  `radarEnsureMinRadius()` ezt minden keresés legvégén érvényesíti, egy
+  tisztán vizuális `radarAddTier` hívással (nem keres újra).
+
+### Folyók és a Balaton a radaron (`water-geo.json`)
+
+Ugyanazzal az azimutális vetítéssel és lusta betöltési mintával, mint a
+határok (`loadWaterGeo`/`radarDrawWaterGeo`, lásd a közös
+`radarProjectRingsToPath` segédfüggvényt), csak más forrásfájlból.
+
+- **Forrás**: Natural Earth 1:10m `rivers_lake_centerlines` (Duna, Tisza,
+  Dráva) és `lakes` (Balaton). A Tisza középső szakasza az NE-adatban nem
+  kapott nevet (`rivernum: 330`, `name: null`), ezért a 3 folyót
+  `rivernum` alapján válogattuk ki (25/363+330/303), nem a `name` mezővel.
+  A Fertő-tó és a Velencei-tó NINCS ebben a rétegben: 10m felbontáson a
+  Natural Earth lakes-adata nem tartja nyilván őket külön tóként (a
+  dedikált Tavak-szakasz saját, kézzel rajzolt ábrája ettől függetlenül
+  mindháromat mutatja).
+- **Előállítás**: ugyanaz a Douglas-Peucker + delta-kódolás, mint a
+  határoknál (0,015 fok tűrés a folyóknál, 0,01 a Balatonnál, mert az
+  kisebb és közelről néznénk). A fájl ~1,8 KB (12 folyó-szakasz, 1 tó-
+  gyűrű) - nem kellett a határokéhoz hasonló méretoptimalizálás.
+- **Rajzolás**: a folyók NYITOTT vonalként (nem gyűrűként), a Balaton ZÁRT
+  gyűrűként, de mindkettő csak körvonalként (nincs kitöltés, a projekt
+  monokróm/sík-design szabálya miatt) - a Balatont a folyóktól és a
+  határtól egy szaggatott mintázat különbözteti meg, nem szín.
 
 ## A válasz két szakaszban (`run`)
 

@@ -57,14 +57,20 @@ const SEARCH_RINGS = [
   [[1200, 18], [1700, 20], [2500, 22]],
 ];
 
-// A 60 km-es "környék"-határ (SEARCH_RINGS[0] vége) az Igen/Nem válasz
-// szemantikáját adja, de NEM azt, amennyit a radaron látni akarunk: ha a
-// találat 60 km-en belül van, a radar vizuálisan ennél messzebb kell
-// mutasson, különben az országhatár (ami csak a settled fázisban rajzolódik
-// ki, ld. revealPhase) sosem fér bele látható méretbe egy ilyen kis körben.
-// Lásd a run() "Igen" ágát: ott, ha szükséges, egy tisztán vizuális,
-// újrakeresés nélküli radarAddTier hívással kijjebb húzzuk a kört.
-const RADAR_MIN_VISUAL_RADIUS_KM = 150;
+// A keresési sugár (SEARCH_RINGS) azt dönti el, mennyire kell távol keresni
+// esőt, de NEM azt, amennyit a radaron látni akarunk: ha a találat közel van
+// (akár a 60 km-es "környék"-en, akár csak a 100-150 km-es gyűrűn belül), a
+// radar vizuálisan ennél messzebb kell mutasson, különben az országhatár (és
+// most már a folyók/Balaton, ld. radarDrawWaterGeo) sosem fér bele látható
+// méretbe egy ilyen kis körben - a felhasználó nem látja, az ország melyik
+// részén áll. Magyarország legeldugottabb pontja (a határtól legtávolabb eső
+// hely, kb. Szolnok térségében) kb. 112 km-re van bármelyik határtól, ezért a
+// 220 km-es alsó korlát bőséges ráhagyással mindenhonnan mutat határt.
+// Ezt a radarEnsureMinRadius() érvényesíti, MINDEN keresés végén (ld.
+// revealPhase PHASE_DONE ága), nem csak egy adott fázisban: nem keresünk
+// újra, csak egy tisztán vizuális, radarAddTier hívással kijjebb húzzuk a
+// kört.
+const RADAR_MIN_VISUAL_RADIUS_KM = 220;
 
 function ringBearings(count) {
   return Array.from({ length: count }, (_, i) => (i * 360) / count);
@@ -545,28 +551,34 @@ let borderRings = null;
 let bordersLoading = null;
 let radarOrigin = null;
 let radarMaxRadiusKm = 0;
-// A határok csak a keresés legvégén, a végleges válasszal együtt jelennek
-// meg: keresés közben a radar maradjon tiszta, csak a pontokkal.
+// A határok (és ugyanígy a folyók/Balaton, ld. radarDrawWaterGeo) csak a
+// keresés legvégén, a végleges válasszal együtt jelennek meg: keresés közben
+// a radar maradjon tiszta, csak a pontokkal.
 let bordersVisible = false;
+
+// Delta-kódolt egészek 0,01 fokos egységekben, gyűrűnként/vonalanként
+// halmozva. Ez a felére csökkenti a fájlt a nyers koordinátalistához képest.
+// Közös a borders.json és a water-geo.json formátuma, csak a tartalmuk más.
+function decodeDeltaRings(encoded) {
+  return encoded.map(flat => {
+    const ring = [];
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i < flat.length; i += 2) {
+      x += flat[i];
+      y += flat[i + 1];
+      ring.push([x / 100, y / 100]);
+    }
+    return ring;
+  });
+}
 
 function loadBorders() {
   if (bordersLoading) return bordersLoading;
   bordersLoading = fetch(BORDERS_URL)
     .then(res => res.json())
     .then(encoded => {
-      // Delta-kódolt egészek 0,01 fokos egységekben, gyűrűnként halmozva.
-      // Ez a felére csökkenti a fájlt a nyers koordinátalistához képest.
-      borderRings = encoded.map(flat => {
-        const ring = [];
-        let x = 0;
-        let y = 0;
-        for (let i = 0; i < flat.length; i += 2) {
-          x += flat[i];
-          y += flat[i + 1];
-          ring.push([x / 100, y / 100]);
-        }
-        return ring;
-      });
+      borderRings = decodeDeltaRings(encoded);
       radarDrawBorders();
     })
     .catch(err => {
@@ -574,6 +586,36 @@ function loadBorders() {
       borderRings = [];
     });
   return bordersLoading;
+}
+
+// ---- Folyók és a Balaton a radaron (water-geo.json) ----
+// Ugyanaz az azimutális vetület és ugyanaz a lusta betöltés, mint a
+// határoknál - csak másik forrásfájl, amiben nem minden ország, hanem a 3
+// legnagyobb folyó (Duna, Tisza, Dráva) és a Balaton valódi körvonala van,
+// Natural Earth 1:50m "rivers_lake_centerlines"/"lakes" adatból. A Fertő-tó
+// és a Velencei-tó nem szerepel benne: ezen a felbontáson a Natural Earth nem
+// tartja nyilván őket külön tóként (a Tavak-szakasz saját, kézzel rajzolt
+// ábrája ettől függetlenül mutatja mindháromat).
+const WATER_GEO_URL = "water-geo.json?v=1";
+let waterGeo = null;
+let waterGeoLoading = null;
+
+function loadWaterGeo() {
+  if (waterGeoLoading) return waterGeoLoading;
+  waterGeoLoading = fetch(WATER_GEO_URL)
+    .then(res => res.json())
+    .then(encoded => {
+      waterGeo = {
+        rivers: decodeDeltaRings(encoded.rivers),
+        lakes: decodeDeltaRings(encoded.lakes),
+      };
+      radarDrawWaterGeo();
+    })
+    .catch(err => {
+      console.error(err);
+      waterGeo = { rivers: [], lakes: [] };
+    });
+  return waterGeoLoading;
 }
 
 // ---- Radarkép a radaron ----
@@ -729,18 +771,18 @@ async function drawRadarImage() {
   el.setAttribute("href", out.toDataURL());
 }
 
-function radarDrawBorders() {
-  const layer = document.getElementById("radar-borders");
-  layer.innerHTML = "";
-  if (!bordersVisible || !borderRings || !radarOrigin || !radarMaxRadiusKm) return;
-
+// Közös vetítő a határokhoz ÉS a folyókhoz/Balatonhoz: mindkettő ugyanúgy
+// lon/lat gyűrűkből (zárt vagy nyitott vonalakból) áll, és ugyanúgy kell
+// SVG path "d" attribútummá alakítani, a látható területről kilépő
+// szakaszokat megszakítva, nem a peremre lapítva.
+function radarProjectRingsToPath(rings) {
   // Olcsó előszűrés szélesség szerint: kis sugárnál a csúcsok túlnyomó része
   // eleve kiesik, így nem kell rájuk gömbi távolságot számolni. A téglalap
   // sarkai a sugárnál messzebbre látnak, ezért a sávot ki kell tágítani.
   const reachKm = radarMaxRadiusKm * RADAR_CORNER_FACTOR;
   const latSpan = (reachKm / 111) * 1.4 + 1;
   let d = "";
-  for (const ring of borderRings) {
+  for (const ring of rings) {
     let connected = false;
     for (const [lon, lat] of ring) {
       let projected = null;
@@ -762,12 +804,43 @@ function radarDrawBorders() {
       connected = true;
     }
   }
+  return d;
+}
+
+function radarDrawBorders() {
+  const layer = document.getElementById("radar-borders");
+  layer.innerHTML = "";
+  if (!bordersVisible || !borderRings || !radarOrigin || !radarMaxRadiusKm) return;
+
+  const d = radarProjectRingsToPath(borderRings);
   if (!d) return;
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", d);
   path.classList.add("radar-border");
   layer.appendChild(path);
+}
+
+function radarDrawWaterGeo() {
+  const layer = document.getElementById("radar-water");
+  layer.innerHTML = "";
+  if (!bordersVisible || !waterGeo || !radarOrigin || !radarMaxRadiusKm) return;
+
+  const riverD = radarProjectRingsToPath(waterGeo.rivers);
+  if (riverD) {
+    const riverPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    riverPath.setAttribute("d", riverD);
+    riverPath.classList.add("radar-river");
+    layer.appendChild(riverPath);
+  }
+
+  const lakeD = radarProjectRingsToPath(waterGeo.lakes);
+  if (lakeD) {
+    const lakePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    lakePath.setAttribute("d", lakeD);
+    lakePath.classList.add("radar-lake");
+    layer.appendChild(lakePath);
+  }
 }
 
 function radarReset() {
@@ -892,6 +965,7 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   radarOrigin = userLoc;
   radarMaxRadiusKm = maxRadiusKm;
   radarDrawBorders();
+  radarDrawWaterGeo();
   drawRadarImage().catch(err => console.error(err));
   radarTierGroups.forEach(tier => {
     tier.scale = tier.maxRadiusKm / maxRadiusKm;
@@ -906,6 +980,17 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   g.classList.add("radar-tier-group");
   document.getElementById("radar-tiers").appendChild(g);
   radarTierGroups.push({ el: g, maxRadiusKm, scale: 1, points });
+}
+
+// Lásd RADAR_MIN_VISUAL_RADIUS_KM: minden keresés legvégén, mielőtt az
+// országhatár/folyók/Balaton megjelenne, ezzel húzzuk ki a kört, ha a
+// találat ennél közelebb volt. Üres ponttömbbel hívja a radarAddTier-t: nem
+// keresünk újra és nem rajzolunk új esőpöttyöt, csak a léptéket (és vele a
+// korábbi köröket) igazítjuk át.
+function radarEnsureMinRadius() {
+  if (radarMaxRadiusKm > 0 && radarMaxRadiusKm < RADAR_MIN_VISUAL_RADIUS_KM) {
+    radarAddTier([], RADAR_MIN_VISUAL_RADIUS_KM, radarOrigin);
+  }
 }
 
 // Egyetlen esős pötty létrehozása. A mérete és árnyalata az intenzitás-sávot
@@ -1068,14 +1153,6 @@ async function run(userLoc, { silent = false } = {}) {
     setHero(answer, null);
     showQ2("de hol esik pontosan?");
     if (unchanged) return;
-
-    // Lásd RADAR_MIN_VISUAL_RADIUS_KM: ha a találat a 60 km-es "környék"-en
-    // belül volt, a radart vizuálisan kijjebb húzzuk (nem keresünk újra, a
-    // meglévő pontokat skálázzuk át), hogy a majd megjelenő országhatár ne
-    // egy túl kis körbe szoruljon.
-    if (!silent && answer === "Igen" && firstMaxRadius < RADAR_MIN_VISUAL_RADIUS_KM) {
-      radarAddTier(firstGrid, RADAR_MIN_VISUAL_RADIUS_KM, userLoc);
-    }
 
     // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
     // következő kérdés, és a keresés alatta folytatódik. Itt nincs külön
@@ -1573,6 +1650,7 @@ function beginSearchUI() {
   radarRestartSweep();
   document.getElementById("radar-image").removeAttribute("href");
   loadBorders();     // lusta betöltés, a választ sosem várakoztatja
+  loadWaterGeo();    // ugyanúgy lusta, ugyanúgy nem várakoztat
   // A radarkép 10 percenként frissül, ezért keresésenként újrakérjük a
   // katalógust. Ha nem jön meg, a radar egyszerűen kép nélkül működik tovább.
   radarFrameLoading = null;
@@ -1595,8 +1673,10 @@ function revealPhase(phase, delayMs) {
       if (phase === PHASE_DONE) {
         // A határok és a radarkép csak most, a végleges válasszal együtt
         // jelennek meg. A radarkép hálózatról jön, ezért nem várjuk meg.
+        radarEnsureMinRadius();
         bordersVisible = true;
         radarDrawBorders();
+        radarDrawWaterGeo();
         drawRadarImage().catch(err => console.error(err));
         // A statisztika-panel is csak most, hogy a radar véglegesen betöltött:
         // zárva marad (a felhasználó nyitja ki), csak a láthatósága nyílik meg.

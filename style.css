@@ -275,6 +275,42 @@ button[type="submit"] {
   to { opacity: 0.22; }
 }
 
+/* Folyók (Duna, Tisza, Dráva): a határnál halványabb, hogy a kettő ne
+   olvadjon össze, de még felismerhető legyen. */
+.radar-river {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.16;
+  pointer-events: none;
+  animation: river-in 0.6s ease both;
+}
+
+@keyframes river-in {
+  from { opacity: 0; }
+  to { opacity: 0.16; }
+}
+
+/* Balaton: szaggatott körvonal (nincs kitöltés, az továbbra is szín/
+   árnyék nélküli marad), hogy a saját mintázata megkülönböztesse az
+   országhatártól és a folyóktól anélkül, hogy színt kellene bevetni. */
+.radar-lake {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.3;
+  pointer-events: none;
+  animation: lake-in 0.6s ease both;
+}
+
+@keyframes lake-in {
+  from { opacity: 0; }
+  to { opacity: 0.3; }
+}
+
 /* Az időtartamot a script.js RADAR_SWEEP_MS-e is ismeri: a pontok akkor
    villannak fel, amikor a vonal az ő irányukhoz ér, ezért a kettőnek
    egyeznie kell. */
