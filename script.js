@@ -1844,17 +1844,23 @@ document.getElementById("retry-geo").addEventListener("click", () => {
 const BALATON_LITERS = 1.9e12; // ~1,9 km³, több forrásból is megerősített érték
 const WATER_DEPTH_BANDS = [[0, 1, 0.01], [1, 3, 0.02], [3, 9, 0.06], [9, 27, 0.18], [27, 81, 0.54]];
 
-// A Balaton körvonala (Natural Earth-ből, korábban egy design-canvasban
-// kinyerve), egy 640 széles rajzterületen. A rétegezett (talajvíz) és a
-// feltöltéses (tavak) ábra is ugyanezt a path-ot használja.
-// Apró Balaton-ikon (a nagy, pontos BALATON_PATH-tól külön, az egyszerűbb
-// path jobban olvasható csempeként kis méretben) - a waterBalatonTilesSvg
-// (vízmérleg "hány Balaton") és a renderBalatonStack (talajvíz-rétegek)
-// ugyanazt az ikont használja, csak más csempe-méretre skálázva.
+// Az EGYETLEN Balaton-ikon path (a design-canvasból), amit minden
+// Balaton-ábra használ: a waterBalatonTilesSvg (vízmérleg "hány Balaton"),
+// a renderBalatonStack (talajvíz-rétegek) apró csempeként, és a
+// renderBalatonFill (tavak) felskálázva, mint a nagy tó-alak.
 const BALATON_TILE_ICON_PATH = "M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 35.1 L18.5 37.4 L17.2 38 L14 38.3 L8 37.2 L4.7 37.1 L2.1 38 L0.8 37.9 L0 36.4 L1.1 32.4 L4.2 32.3 L7.4 33.4 L8.9 33 L9.4 31.5 L10.5 30.2 L12 29.1 L13.3 28.7 L16.2 29 L17.6 29.4 L18.9 30.3 L22.8 27.4 L24.9 26.2 L28.9 25.6 L29.8 25.1 L31.3 22.8 L32.3 21.5 L33.1 21.1 L34.1 20.9 L43.6 17.1 L44.9 15.5 L45.4 15.8 L48 18.1 L49.1 18.2 L49.8 17 L49.3 15.5 L48.2 14.3 L47 13.6 L47 12.9 L54.5 8.6 L56.9 6.8 L57.9 5.6 L59 4 L59.8 2.2 L60.1 0.4 L60.8 0 L62.4 0.3 L65.8 1.5 L67.1 2.3 L68.8 3.6 L70.1 5.2 L70.1 6.4 L69 8.3 L67.6 11.6 L66.3 12.9 L63.2 14.7 L52.6 18.4 L52.1 18.5 L51.1 18.2 L50.7 18.7 L49.6 20.4 L47.3 21.7Z";
 
-const BALATON_PATH = "M216.6 230.6 L209.8 231.6 L202.6 234.2 L196.8 237.6 L194.5 241.2 L187.1 242.4 L171.1 239.5 L155.7 239.7 L150 249.7 L150 335.1 L154 338.9 L160.4 339.3 L173.6 337 L190.1 337.2 L219.8 340 L236.2 339.1 L242.3 337.6 L258 331.9 L263.7 328.5 L270 326 L377.5 302.9 L386.7 298.6 L398 295.3 L403.6 291 L405.6 289.8 L410.4 290.4 L413 290.2 L466 281 L481.4 276.5 L487.9 273.1 L495.2 265 L500.7 260.3 L500.7 174.9 L500.4 171.7 L494.1 167.9 L485.7 164.6 L478.8 162.5 L462.2 159.5 L454 158.8 L450.4 159.8 L448.9 164.2 L444.9 168.7 L439.6 172.7 L434.5 175.7 L422.6 180.4 L384.9 191 L384.9 192.9 L384.9 201.8 L376.9 198.3 L374.5 197.6 L368.2 201.4 L320.4 211 L315.4 211.4 L311.3 212.7 L306.5 215.7 L299.1 221.6 L294.6 222.9 L274.7 224.4 L263.8 227.2 L244.3 234.5 L237.9 232.3 L231 231.2Z";
-const BALATON_BBOX = { x: 150, y: 153.8, width: 350.7, height: 186.6 };
+// A nagy tó-feltöltés ábra (renderBalatonFill) KORÁBBAN egy külön, részletes
+// (Natural Earth-ből vágott) körvonalat használt - ez a design-canvastól
+// eltérő, erősen átlós kontúr volt, aminek vízszintes "vízszint-vágása"
+// (clipPath) a tó jobb/északi végét teljesen üresen hagyta még magas
+// vízállásnál is ("a Balaton vízszintje furcsán néz ki" - felhasználói
+// visszajelzés, élő screenshoton ellenőrizve). A design-canvas maga a kis,
+// egyszerűsített ikon-körvonalat (BALATON_TILE_ICON_PATH) skálázza fel a
+// nagy ábrához is (translate(7,2) scale(5.5) egy 400x228-as rajzterületen) -
+// ugyanezt tesszük itt, csak a mi 640-es rajzterületünkre igazítva.
+const BALATON_FILL_TRANSFORM = "translate(130,150) scale(5.1)";
+const BALATON_BBOX = { x: 130, y: 150, width: 357.5, height: 195.3 };
 
 // Kis, azonos-léptékű körvonalak (ugyanabból a design-canvasból) a "többi
 // nagy tó" összevető ábrájához: Balaton, Fertő, Tisza-tó, egy 400x140-es
@@ -1944,37 +1950,26 @@ function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureBy
 
 // ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
 //
-// Izometrikus kocka-rács: minden Magyarországon belüli talaj-cella egy
-// kocka, a magassága a cella liter-összegéből. A folyó- és tó-mérőállomások
-// UGYANAZZAL a lat/lon -> rács -> képernyő vetítéssel kerülnek a térképre,
-// tehát pontosan a megfelelő helyre esnek. A puffer/szomszéd-pontok (ld.
-// soil-moisture-mapper in_hungary=false) NEM jelennek meg ezen a térképen -
-// túlzsúfolt lenne, és a jóváhagyott design sem különbözteti meg őket.
+// Lapos rács, a design-canvas Main.dc.html pontos mintája szerint: minden
+// Magyarországon belüli talaj-cella egy sima, tömör színű téglalap, az 5
+// fokozatú --t0..--t4 szürkeskálával (nem 3D kocka - korábban kipróbáltuk
+// izometrikus, magasság-alapú kockákkal is, de a felhasználó szerint ez
+// eltért a jóváhagyott designtól, ami lapos, színezett cellákat mutat).
+// A folyó- és tó-mérőállomások UGYANAZZAL a lat/lon -> rács -> képernyő
+// vetítéssel kerülnek a térképre, tehát pontosan a megfelelő helyre esnek.
+// A puffer/szomszéd-pontok (ld. soil-moisture-mapper in_hungary=false) NEM
+// jelennek meg ezen a térképen - túlzsúfolt lenne, és a jóváhagyott design
+// sem különbözteti meg őket.
 const WATER_CELL_W = 20;
+const WATER_CELL_H = 16;
 const WATER_SKEW_X = 10;
-const WATER_SKEW_Y = 14;
-// Lapos: a korábbi 100/10 px-es magasság-tartomány a cellák közti 14 px-es
-// sor-eltolódáshoz képest annyira magas volt, hogy a kockák egymásra
-// tornyosulva elnyelték az ország alakját (a felhasználó szerint "nem
-// látszik a forma"). Alacsonyabb magasság-tartomány mellett a rács
-// FÖLDRAJZI körvonala (ahol egyáltalán van/nincs kocka) marad a fő
-// olvasat, a magasság csak finom kiegészítő jelzés.
-const WATER_MAX_CUBE_H = 26;
-const WATER_MIN_CUBE_H = 4;
 
 function waterProjectRowCol(row, col, originX, originY) {
-  return { x: originX + col * WATER_CELL_W - row * WATER_SKEW_X, y: originY + row * WATER_SKEW_Y };
+  return { x: originX + col * WATER_CELL_W - row * WATER_SKEW_X, y: originY + row * WATER_CELL_H };
 }
 
-function waterIsoCube(x, yBase, h, tierIndex) {
-  const w = WATER_CELL_W, skx = WATER_SKEW_X, sky = WATER_SKEW_Y;
-  const yTop = yBase - h;
-  const topOpacity = [0.1, 0.22, 0.36, 0.52, 0.7][tierIndex];
-  return (
-    `<path d="M${x.toFixed(1)} ${yBase.toFixed(1)}h${w}v${-h.toFixed(1)}h${-w}z" fill="var(--fg)" fill-opacity="0.78" stroke="var(--bg)" stroke-width="0.5"></path>` +
-    `<path d="M${(x + w).toFixed(1)} ${yBase.toFixed(1)}l${skx} ${-sky}v${-h.toFixed(1)}l${-skx} ${sky}z" fill="var(--fg)" fill-opacity="0.56" stroke="var(--bg)" stroke-width="0.5"></path>` +
-    `<path d="M${x.toFixed(1)} ${yTop.toFixed(1)}h${w}l${skx} ${-sky}h${-w}z" fill="var(--fg)" fill-opacity="${topOpacity}" stroke="var(--bg)" stroke-width="0.5"></path>`
-  );
+function waterFlatCell(x, y, tierIndex) {
+  return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${WATER_CELL_W}" height="${WATER_CELL_H}" fill="var(--t${tierIndex})" stroke="var(--bg)" stroke-width="0.5"></rect>`;
 }
 
 // Csak jelölők, FELIRAT NÉLKÜL: egy sűrű rácson (akár 12 folyó-állomás +
@@ -2011,34 +2006,31 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     if (maxL <= minL) return 2;
     return Math.min(4, Math.floor(((liters - minL) / (maxL - minL)) * 5));
   };
-  const heightFor = liters => {
-    if (maxL <= minL) return (WATER_MAX_CUBE_H + WATER_MIN_CUBE_H) / 2;
-    return WATER_MIN_CUBE_H + ((liters - minL) / (maxL - minL)) * (WATER_MAX_CUBE_H - WATER_MIN_CUBE_H);
-  };
 
   // A rács befoglaló méretéből skálát és origót számolunk, hogy a teljes
-  // dombormű (kockák + a legmagasabb kocka magassága) beleférjen a
-  // viewBox-ba, a tetején elég hellyel a folyó-/tó-feliratoknak.
+  // dombormű beleférjen a viewBox-ba, a tetején elég hellyel a folyó-/
+  // tó-jelölőknek.
   const rowsAll = cells.map(p => toRowCol(p.lat, p.lon).row);
   const colsAll = cells.map(p => toRowCol(p.lat, p.lon).col);
   const maxRow = Math.max(...rowsAll), maxCol = Math.max(...colsAll);
   const gridPixelWidth = (maxCol + 1) * WATER_CELL_W + maxRow * WATER_SKEW_X;
   const originX = Math.max(20, (640 - gridPixelWidth) / 2 + maxRow * WATER_SKEW_X);
-  const originY = 70;
+  const originY = 40;
 
-  let cubesMarkup = "";
+  let cellsMarkup = "";
   let maxCell = cells[0], minCell = cells[0];
   for (const cell of cells) {
     if (cell.liters_total > maxCell.liters_total) maxCell = cell;
     if (cell.liters_total < minCell.liters_total) minCell = cell;
     const { row, col } = toRowCol(cell.lat, cell.lon);
     const { x, y } = waterProjectRowCol(Math.round(row), Math.round(col), originX, originY);
-    cubesMarkup += waterIsoCube(x, y, heightFor(cell.liters_total), tierFor(cell.liters_total));
+    cellsMarkup += waterFlatCell(x, y, tierFor(cell.liters_total));
   }
 
   const projectLatLon = (lat, lon) => {
     const { row, col } = toRowCol(lat, lon);
-    return waterProjectRowCol(row, col, originX, originY);
+    const p = waterProjectRowCol(row, col, originX, originY);
+    return { x: p.x + WATER_CELL_W / 2, y: p.y + WATER_CELL_H / 2 }; // cella közepére, nem a sarkára
   };
 
   let markersMarkup = "";
@@ -2057,13 +2049,11 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     markersMarkup += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle>`;
   }
 
-  svgEl.innerHTML = `<defs></defs>${cubesMarkup}${markersMarkup}`;
+  svgEl.innerHTML = `<defs></defs>${cellsMarkup}${markersMarkup}`;
 
-  // Az 5 kocka-tető átlátszóság egyben 5 sáv is: a legenda ugyanazokkal
-  // az opacitásokkal rajzolja a jelmagyarázat-négyzeteket, amiket a kockák
-  // teteje használ, így a két nézet (térkép és legenda) garantáltan
-  // összhangban marad, nem két külön színskála.
-  const TOP_OPACITIES = [0.1, 0.22, 0.36, 0.52, 0.7];
+  // A legenda ugyanazt az 5 fokozatú --t0..--t4 szürkeskálát rajzolja ki,
+  // amit a cellák - a két nézet (térkép és legenda) garantáltan összhangban
+  // marad, nem két külön színskála.
   const tierBoundaries = [0, 1, 2, 3, 4, 5].map(k => minL + (k / 5) * (maxL - minL));
   const tierLabel = i => {
     const lo = Math.round(tierBoundaries[i] / 1e9);
@@ -2072,13 +2062,13 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     if (i === 4) return `${lo} felett`;
     return `${lo}–${hi}`;
   };
-  const legendSwatches = TOP_OPACITIES.map((op, i) =>
-    `<span style="display:flex;align-items:center;gap:6px;"><svg width="13" height="13" aria-hidden="true"><rect width="13" height="13" fill="var(--fg)" fill-opacity="${op}" stroke="var(--fg)" stroke-width="0.75"></rect></svg>${tierLabel(i)}</span>`
+  const legendSwatches = [0, 1, 2, 3, 4].map(i =>
+    `<span style="display:flex;align-items:center;gap:6px;"><svg width="13" height="13" aria-hidden="true"><rect width="13" height="13" fill="var(--t${i})" stroke="var(--fg)" stroke-width="0.75"></rect></svg>${tierLabel(i)}</span>`
   ).join("");
 
   legendEl.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;color:var(--muted);">${legendSwatches}</div>
-    <p style="margin: var(--sp-2) 0 0;">Minden kocka egy kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es cella, olyan magas, amennyi víz van alatta (milliárd liter). Nem domborzat: a magasság a víz. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
+    <p style="margin: var(--sp-2) 0 0;">Minden cella kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km, a szín erőssége jelzi, mennyi víz van alatta (milliárd liter). Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
 }
 
 // ---- 2b. Folyók: önálló lista, kattintható állomások ----
@@ -2355,33 +2345,38 @@ function waterBalatonTilesSvg(count) {
 // ---- 5. Tavak részletesen ----
 
 function renderBalatonFill(svgEl, levelCm) {
-  const yFor0cm = 330, pxPerCm = (330 - 186) / 120; // a design vízmércéjének skálája
+  // yFor0cm/pxPerCm: a BALATON_BBOX alsó/felső éle adja a 0 és 120 cm
+  // vízmérce-pontokat, hogy a feltöltés mindig a tó-alak tényleges
+  // magasságán belül maradjon, bármekkorára skálázzuk a BALATON_FILL_TRANSFORM-ot.
+  const yFor0cm = BALATON_BBOX.y + BALATON_BBOX.height;
+  const pxPerCm = BALATON_BBOX.height / 120;
   const fillTopY = yFor0cm - levelCm * pxPerCm;
   const summerLimitY = yFor0cm - 120 * pxPerCm;
   const winterLimitY = yFor0cm - 110 * pxPerCm;
+  const axisX = BALATON_BBOX.x + BALATON_BBOX.width + 75;
+  const tickY = cm => (yFor0cm - cm * pxPerCm).toFixed(1);
   svgEl.innerHTML = `
-    <defs><clipPath id="wbfill-outline"><path d="${BALATON_PATH}"></path></clipPath></defs>
-    <path d="${BALATON_PATH}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" stroke-linejoin="round"></path>
+    <defs><clipPath id="wbfill-outline"><path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}"></path></clipPath></defs>
+    <path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}" fill="none" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 3" stroke-linejoin="round"></path>
     <g clip-path="url(#wbfill-outline)">
       <rect x="0" y="${fillTopY.toFixed(1)}" width="640" height="400" fill="var(--fg)"></rect>
     </g>
     <line x1="${BALATON_BBOX.x}" y1="${summerLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${summerLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
     <line x1="${BALATON_BBOX.x}" y1="${winterLimitY.toFixed(1)}" x2="${BALATON_BBOX.x + BALATON_BBOX.width}" y2="${winterLimitY.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="1 3"></line>
     <g stroke="var(--fg)" stroke-width="1">
-      <line x1="566" y1="330" x2="566" y2="186"></line>
-      <line x1="562" y1="330" x2="570" y2="330"></line>
-      <line x1="562" y1="282" x2="570" y2="282"></line>
-      <line x1="562" y1="234" x2="570" y2="234"></line>
-      <line x1="562" y1="198" x2="570" y2="198"></line>
-      <line x1="562" y1="186" x2="570" y2="186"></line>
+      <line x1="${axisX}" y1="${tickY(0)}" x2="${axisX}" y2="${tickY(120)}"></line>
+      <line x1="${axisX - 4}" y1="${tickY(0)}" x2="${axisX + 4}" y2="${tickY(0)}"></line>
+      <line x1="${axisX - 4}" y1="${tickY(40)}" x2="${axisX + 4}" y2="${tickY(40)}"></line>
+      <line x1="${axisX - 4}" y1="${tickY(110)}" x2="${axisX + 4}" y2="${tickY(110)}"></line>
+      <line x1="${axisX - 4}" y1="${tickY(120)}" x2="${axisX + 4}" y2="${tickY(120)}"></line>
     </g>
     <g font-size="12" fill="var(--muted)">
-      <text x="576" y="334">0</text>
-      <text x="576" y="286">40</text>
-      <text x="576" y="190">120 nyár</text>
-      <text x="576" y="208">110 tél</text>
+      <text x="${axisX + 10}" y="${(+tickY(0) + 4).toFixed(1)}">0</text>
+      <text x="${axisX + 10}" y="${(+tickY(40) + 4).toFixed(1)}">40</text>
+      <text x="${axisX + 10}" y="${(+tickY(120) + 4).toFixed(1)}">120 nyár</text>
+      <text x="${axisX + 10}" y="${(+tickY(110) + 4).toFixed(1)}">110 tél</text>
     </g>
-    <text x="576" y="${(fillTopY + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
+    <text x="${axisX + 10}" y="${(fillTopY + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
 }
 
 // A Tisza-tónak NINCS itt sávja: a "Kisköre alsó" folyó-mérce (amiből a

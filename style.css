@@ -6,6 +6,15 @@
   --error: #b3261e;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
+  /* Az országtérkép 5 fokozatú szürkeskálája (a design-canvas Main.dc.html
+     pontos értékei) - a dombormű-cellák és a hozzá tartozó jelmagyarázat
+     ugyanezeket a tokeneket használja, sötét módban megfordítva. */
+  --t0: #ececec;
+  --t1: #d9d9d9;
+  --t2: #c1c1c1;
+  --t3: #a5a5a5;
+  --t4: #838383;
+
   /* Fibonacci-skála: szoros távolság egy csoporton belül, arányosan nagyobb
      ugrás csoportváltásnál, legnagyobb a tartalomtól teljesen független
      részek (pl. lábláb) előtt. */
@@ -24,6 +33,11 @@
     --muted: #9a9a9a;
     --border: #333333;
     --error: #ff6b60;
+    --t0: #232323;
+    --t1: #353535;
+    --t2: #4c4c4c;
+    --t3: #666666;
+    --t4: #868686;
   }
 }
 
