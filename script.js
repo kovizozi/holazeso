@@ -2039,22 +2039,23 @@ function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureBy
 
 // ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
 //
-// Lapos rács, a design-canvas Main.dc.html pontos mintája szerint: minden
+// Lapos rács, EGYENES felülnézetben (nem axonometrikus/ferde - korábban
+// kipróbáltuk izometrikus kockákkal is, majd ferde-vetítésű lapos cellákkal,
+// de a felhasználó szerint ez még mindig túl "térképészeti makett"-szerű
+// volt; sima, torzítatlan felülnézet kell, mint egy valódi térkép). Minden
 // Magyarországon belüli talaj-cella egy sima, tömör színű téglalap, az 5
-// fokozatú --t0..--t4 szürkeskálával (nem 3D kocka - korábban kipróbáltuk
-// izometrikus, magasság-alapú kockákkal is, de a felhasználó szerint ez
-// eltért a jóváhagyott designtól, ami lapos, színezett cellákat mutat).
-// A folyó- és tó-mérőállomások UGYANAZZAL a lat/lon -> rács -> képernyő
-// vetítéssel kerülnek a térképre, tehát pontosan a megfelelő helyre esnek.
+// fokozatú --t0..--t4 szürkeskálával. A folyó- és tó-mérőállomások, a
+// legnagyobb folyók VALÓDI vonala (water-geo.json, ld. a radar-szakaszt) és
+// a Balaton VALÓDI körvonala UGYANAZZAL a lat/lon -> rács -> képernyő
+// vetítéssel kerül a térképre, tehát mind pontosan a megfelelő helyre esik.
 // A puffer/szomszéd-pontok (ld. soil-moisture-mapper in_hungary=false) NEM
 // jelennek meg ezen a térképen - túlzsúfolt lenne, és a jóváhagyott design
 // sem különbözteti meg őket.
 const WATER_CELL_W = 20;
 const WATER_CELL_H = 16;
-const WATER_SKEW_X = 10;
 
 function waterProjectRowCol(row, col, originX, originY) {
-  return { x: originX + col * WATER_CELL_W - row * WATER_SKEW_X, y: originY + row * WATER_CELL_H };
+  return { x: originX + col * WATER_CELL_W, y: originY + row * WATER_CELL_H };
 }
 
 function waterFlatCell(x, y, tierIndex) {
@@ -2076,7 +2077,7 @@ function waterLakeMarker(x, y) {
   return `<path d="M${x.toFixed(1)} ${(y - r).toFixed(1)} L${(x + r).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + r).toFixed(1)} L${(x - r).toFixed(1)} ${y.toFixed(1)} Z" fill="var(--fg)"></path>`;
 }
 
-function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStations, highlightLoc) {
+function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStations, highlightLoc, waterGeo) {
   const cells = soilSnapshot.points.filter(p => p.in_hungary);
   if (!cells.length) {
     svgEl.innerHTML = "";
@@ -2102,8 +2103,8 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   const rowsAll = cells.map(p => toRowCol(p.lat, p.lon).row);
   const colsAll = cells.map(p => toRowCol(p.lat, p.lon).col);
   const maxRow = Math.max(...rowsAll), maxCol = Math.max(...colsAll);
-  const gridPixelWidth = (maxCol + 1) * WATER_CELL_W + maxRow * WATER_SKEW_X;
-  const originX = Math.max(20, (640 - gridPixelWidth) / 2 + maxRow * WATER_SKEW_X);
+  const gridPixelWidth = (maxCol + 1) * WATER_CELL_W;
+  const originX = Math.max(20, (640 - gridPixelWidth) / 2);
   const originY = 40;
 
   let cellsMarkup = "";
@@ -2122,6 +2123,48 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     return { x: p.x + WATER_CELL_W / 2, y: p.y + WATER_CELL_H / 2 }; // cella közepére, nem a sarkára
   };
 
+  // A legnagyobb folyók és a Balaton VALÓDI vonala/körvonala, ugyanazzal a
+  // projectLatLon-nal, mint a mérőállomások - ugyanaz a water-geo.json,
+  // amit a radar is használ (ld. loadWaterGeo), csak most a rács fölé
+  // vetítve, nem azimutálisan. A cellák UTÁN kell rajzolni, különben a
+  // tömör cella-téglalapok eltakarnák.
+  //
+  // A water-geo.json SZÁNDÉKOSAN túlnyúlik Magyarország határán (a Duna/
+  // Tisza/Dráva külföldi szakaszai is benne vannak, a radar-vetítéshez
+  // kellenek). Itt viszont a rács egyenes, lineáris vetület - egy messze
+  // kívül eső pont (pl. a Duna romániai torkolata) egyenes szakasszal
+  // kötné össze a magyarországi résszel, ami a teljes vásznon átszelő,
+  // hamis vonalként jelenne meg. Ezért a rács-tartományon kívül eső
+  // pontoknál megszakítjuk a vonalat, nem a peremre lapítjuk.
+  const BOUNDS_MARGIN = 3;
+  const inGridBounds = (row, col) =>
+    row >= -BOUNDS_MARGIN && row <= maxRow + BOUNDS_MARGIN &&
+    col >= -BOUNDS_MARGIN && col <= maxCol + BOUNDS_MARGIN;
+  const waterGeoPath = rings => {
+    let d = "";
+    for (const ring of rings) {
+      let connected = false;
+      for (const [lon, lat] of ring) {
+        const { row, col } = toRowCol(lat, lon);
+        if (!inGridBounds(row, col)) {
+          connected = false;
+          continue;
+        }
+        const { x, y } = projectLatLon(lat, lon);
+        d += `${connected ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+        connected = true;
+      }
+    }
+    return d;
+  };
+  let geoMarkup = "";
+  if (waterGeo) {
+    const riverD = waterGeoPath(waterGeo.rivers);
+    if (riverD) geoMarkup += `<path class="water-map-river" d="${riverD}"></path>`;
+    const lakeD = waterGeoPath(waterGeo.lakes);
+    if (lakeD) geoMarkup += `<path class="water-map-lake" d="${lakeD}"></path>`;
+  }
+
   let markersMarkup = "";
   for (const station of riverStations) {
     const { x, y } = projectLatLon(station.lat, station.lon);
@@ -2138,7 +2181,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     markersMarkup += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle>`;
   }
 
-  svgEl.innerHTML = `<defs></defs>${cellsMarkup}${markersMarkup}`;
+  svgEl.innerHTML = `<defs></defs>${cellsMarkup}${geoMarkup}${markersMarkup}`;
 
   // A legenda ugyanazt az 5 fokozatú --t0..--t4 szürkeskálát rajzolja ki,
   // amit a cellák - a két nézet (térkép és legenda) garantáltan összhangban
@@ -2157,7 +2200,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
 
   legendEl.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;color:var(--muted);">${legendSwatches}</div>
-    <p style="margin: var(--sp-2) 0 0;">Minden cella kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km, a szín erőssége jelzi, mennyi víz van alatta (milliárd liter). Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
+    <p style="margin: var(--sp-2) 0 0;">Minden cella kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km, a szín erőssége jelzi, mennyi víz van alatta (milliárd liter). A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
 }
 
 // ---- 2c. Folyóhálózat: teljes vonalhálózat, vastagság = vízhozam ----
@@ -2624,6 +2667,7 @@ async function buildWaterPanel(point) {
       fetchWaterSnapshot("soil-snapshot"),
       fetchWaterSnapshot("rivers-snapshot"),
       fetchWaterSnapshot("lakes-snapshot"),
+      loadWaterGeo(), // a legnagyobb folyók/Balaton valódi vonala a dombormű-térképhez (globális `waterGeo`)
     ]);
 
     // 1. Talajvíz: országos
@@ -2655,7 +2699,8 @@ async function buildWaterPanel(point) {
       soil,
       rivers.stations,
       lakes.stations,
-      point
+      point,
+      waterGeo
     );
     document.getElementById("water-map-section").hidden = false;
 

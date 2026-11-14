@@ -674,6 +674,27 @@ noscript .about {
   fill: transparent;
 }
 
+/* A dombormű fölé vetített valódi folyó-/Balaton-vonal: a cellák UTÁN
+   rajzolva, hogy ne takarják el (ld. buildReliefMap geoMarkup). A tó
+   szaggatott, hogy a radar .radar-lake-jéhez hasonlóan szín nélkül is
+   megkülönböztethető legyen a folyóktól. */
+.water-map-river {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.water-map-lake {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
 .water-lake-gauges {
   display: flex;
   flex-direction: column;
