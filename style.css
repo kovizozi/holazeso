@@ -623,6 +623,44 @@ noscript .about {
   margin: 0.2em 0;
 }
 
+/* Folyóhálózat-szakasz átlagos vízhozam-táblázata: ugyanaz a "sor = flex
+   space-between" minta, mint a .water-river-row-head-nél, csak lista-elemen. */
+.water-river-net-table {
+  text-align: left;
+  max-width: 420px;
+  margin: var(--sp-4) auto 0;
+}
+
+.water-river-net-table h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 var(--sp-1);
+}
+
+.water-river-net-table ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.water-river-net-table li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.water-river-net-table-muted {
+  color: var(--muted);
+}
+
+.water-river-net-table .about {
+  margin-top: var(--sp-2);
+  color: var(--muted);
+}
+
 /* A dombormű-rács és a folyó/tó-jelölők kattinthatók/koppinthatók, ugyanaz
    a "láthatatlan szélesebb körvonal" trükk, mint a .radar-dot-nál és a
    .stats-bar-nál: a vizuális méret kicsi marad, a célterület nem. */

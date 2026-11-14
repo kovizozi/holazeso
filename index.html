@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
 
@@ -184,6 +184,37 @@
           </figure>
         </section>
 
+        <!-- 2c. Folyóhálózat: a dombormű fölötti jelölőktől KÜLÖN, önálló
+             szakasz - itt maga a folyók valódi futása van megrajzolva, a
+             vonalvastagság a sokéves átlagos vízhozammal arányos. Statikus
+             (nem napi adat), ld. script.js WATER_RIVER_NET_SVG. -->
+        <section class="water-section" id="water-river-net-section" hidden>
+          <p class="question">melyik folyóban folyik a legtöbb víz?</p>
+          <p class="answer">Duna</p>
+          <p class="context">kb. 2300 m³ másodpercenként</p>
+          <p class="context">két és félszer annyi, mint a Tisza</p>
+          <figure class="water-figure">
+            <svg id="water-river-net" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid meet"></svg>
+            <figcaption>A vonal vastagsága a vízhozam. Halvány vonal: a folyó határon túli szakasza.</figcaption>
+          </figure>
+          <div class="water-river-net-table">
+            <h3>Átlagos vízhozam, m³/s</h3>
+            <ul>
+              <li><span>Duna</span><span>kb. 2300</span></li>
+              <li><span>Tisza, a déli határnál</span><span>kb. 890</span></li>
+              <li><span>Dráva</span><span>kb. 600</span></li>
+              <li><span>Maros</span><span>kb. 190</span></li>
+              <li><span>Mura</span><span>kb. 170</span></li>
+              <li><span>Szamos</span><span>kb. 140</span></li>
+              <li><span>Sajó</span><span>kb. 80</span></li>
+              <li><span>Sió</span><span>kb. 40</span></li>
+              <li><span>Rába</span><span>kb. 27</span></li>
+              <li class="water-river-net-table-muted"><span>Zagyva, Hernád, Körösök, Zala, Mosoni-Duna, Ipoly</span><span>nincs pontos adat</span></li>
+            </ul>
+            <p class="about">Még hiányzik a térképről: Bodrog, Berettyó, Kraszna, Kapos, Lajta, Marcal és a kisebb patakok, csatornák. Ezekhez az OpenStreetMap vízfolyás-adatai kellenének.</p>
+          </div>
+        </section>
+
         <!-- 2b. Folyók: önálló szekció, kattintható állomások (az
              előrejelzés és a múltbeli vízállás grafikonon jelenik meg) -->
         <section class="water-section" id="water-rivers-section" hidden>
@@ -277,7 +308,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=55"></script>
+  <script src="script.js?v=56"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
