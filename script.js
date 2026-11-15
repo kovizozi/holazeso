@@ -2353,6 +2353,102 @@ function renderRiverChart(svgEl, station) {
     <text x="${(padX + w).toFixed(1)}" y="${(padY + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">6 napos előrejelzés</text>`;
 }
 
+// ---- 2d. Csatornák: önálló térkép (a felhasználó kérése szerint "külön" a
+// dombormű-/folyóhálózat-térképektől), a nevesített csatornák, belvíz-
+// elvezetők és árkok valódi futásával. A geometria a soil-moisture-mapper
+// otthoni gépen futó app/channels.py-ból jön (ld. onnan a docstringet):
+// Geofabrik OSM-kivonat, csak NEVESÍTETT vízfolyások (minden vízfolyás
+// ~190KB gzipelve lenne egy háttér-rajzolathoz, a nevesítettek ~32KB) -
+// a fejsoron és a hossz-táblán viszont a VALÓDI, minddel számolt
+// darabszám/hossz szerepel, nem csak a berajzolt rész. Nem élő adat: a
+// hálózat geometriája ritkán változik, a home-job alkalmanként, kézzel
+// frissíti, nem az óránkénti ciklus része (ellentétben a talaj-/folyó-/
+// tó-pillanatképekkel) - ezért ennek a lekérése is a többitől FÜGGETLEN
+// try/catch-ben történik lent, hogy egy még hiányzó csatorna-pillanatkép
+// ne dönthesse el a már működő szakaszokat.
+function channelsProject(lon, lat, bounds, width, height) {
+  return {
+    x: ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * width,
+    y: ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * height,
+  };
+}
+
+function channelsRingsToPath(rings, bounds, width, height) {
+  let d = "";
+  for (const ring of rings) {
+    ring.forEach(([lon, lat], i) => {
+      const { x, y } = channelsProject(lon, lat, bounds, width, height);
+      d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+  }
+  return d;
+}
+
+// borderRings tartalmazza a VILÁG összes országhatárát (a radar azimutális
+// vetítése ezt sugár-korlátozva, magától "levágja" - ld. radarMaxRadiusKm),
+// ezért itt, lapos vetítésnél, csak a bounds-on (+margó) BELÜLI pontokat
+// vesszük figyelembe, és egy határon kívüli pontnál új "M"-mel kezdünk új
+// darabot (ugyanaz a trükk, mint buildReliefMap waterGeoPath-jában) -
+// különben egy másik ország határvonala az egész vásznat behálózná.
+function channelsBorderPath(rings, bounds, width, height, marginDeg) {
+  const inBounds = (lon, lat) =>
+    lon >= bounds.minLon - marginDeg && lon <= bounds.maxLon + marginDeg &&
+    lat >= bounds.minLat - marginDeg && lat <= bounds.maxLat + marginDeg;
+  let d = "";
+  for (const ring of rings) {
+    let connected = false;
+    for (const [lon, lat] of ring) {
+      if (!inBounds(lon, lat)) { connected = false; continue; }
+      const { x, y } = channelsProject(lon, lat, bounds, width, height);
+      d += `${connected ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+      connected = true;
+    }
+  }
+  return d;
+}
+
+function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
+  const WIDTH = 400;
+  const HEIGHT = 250;
+  const PAD_DEG = 0.15;
+
+  const canalRings = decodeDeltaRings(channelsSnapshot.geo.canal || []);
+  const drainRings = decodeDeltaRings(channelsSnapshot.geo.drain || []);
+  const ditchRings = decodeDeltaRings(channelsSnapshot.geo.ditch || []);
+
+  // A méretarány-doboz MINDIG a csatornák saját kiterjedéséből jön (azok
+  // garantáltan Magyarországon belül vannak) - a világ-körvonalakból
+  // (borderRings) sosem, mert azok kiterjedése az egész Föld.
+  const geoPoints = [...canalRings, ...drainRings, ...ditchRings].flat();
+  if (!geoPoints.length) {
+    svgEl.innerHTML = "";
+    legendEl.textContent = "";
+    return;
+  }
+  const lons = geoPoints.map(p => p[0]);
+  const lats = geoPoints.map(p => p[1]);
+  const bounds = {
+    minLon: Math.min(...lons) - PAD_DEG,
+    maxLon: Math.max(...lons) + PAD_DEG,
+    minLat: Math.min(...lats) - PAD_DEG,
+    maxLat: Math.max(...lats) + PAD_DEG,
+  };
+
+  let markup = "";
+  if (borderRings && borderRings.length) {
+    const borderD = channelsBorderPath(borderRings, bounds, WIDTH, HEIGHT, PAD_DEG);
+    if (borderD) markup += `<path class="water-channel-border" d="${borderD}"></path>`;
+  }
+  // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna, hogy a
+  // ritkább, de "fontosabb" vízfolyások ne tűnjenek el a sűrű árokrajzban.
+  if (ditchRings.length) markup += `<path class="water-channel-ditch" d="${channelsRingsToPath(ditchRings, bounds, WIDTH, HEIGHT)}"></path>`;
+  if (drainRings.length) markup += `<path class="water-channel-drain" d="${channelsRingsToPath(drainRings, bounds, WIDTH, HEIGHT)}"></path>`;
+  if (canalRings.length) markup += `<path class="water-channel-canal" d="${channelsRingsToPath(canalRings, bounds, WIDTH, HEIGHT)}"></path>`;
+
+  svgEl.innerHTML = markup;
+  legendEl.textContent = "Tömör vonal: csatorna. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Csak a nevesített vízfolyások.";
+}
+
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
 //
 // Mélység-arányos (nem liter-arányos) talajminta-ábra: a sávok tényleges
@@ -2718,6 +2814,35 @@ async function buildWaterPanel(point) {
     buildRiverList(document.getElementById("water-river-list"), rivers.stations);
     document.getElementById("water-rivers-section").hidden = false;
 
+    // 2d. Csatornák: lásd a buildChannelsMap fölötti kommentet - külön
+    // lekérés, külön try/catch, mert ez a pillanatkép nem az óránkénti
+    // ciklus része, tehát hiányozhat anélkül, hogy az a fenti, már
+    // működő szakaszokat is eldöntené.
+    try {
+      const channels = await fetchWaterSnapshot("channels-snapshot");
+      await loadBorders();
+      buildChannelsMap(
+        document.getElementById("water-channels-map"),
+        document.getElementById("water-channels-legend"),
+        channels
+      );
+      const stats = channels.stats;
+      document.getElementById("water-channels-headline").textContent =
+        `${waterNum(stats.total_ways, 0)} csatorna, belvízelvezető és árok`;
+      document.getElementById("water-channels-detail").textContent =
+        `összesen kb. ${waterNum(stats.total_km, 0)} km`;
+      document.getElementById("water-channels-longest").innerHTML = stats.longest
+        .slice(0, 8)
+        .map(c => `<li><span>${c.name}</span><span>${waterNum(c.km, 1)} km</span></li>`)
+        .join("");
+      document.getElementById("water-channels-caveat").textContent =
+        "A térkép csak a nevesített vízfolyásokat rajzolja ki, a fenti darabszám és hossz viszont mindegyikkel számol - a legtöbb kisebb árok nincs elnevezve.";
+      document.getElementById("water-channels-section").hidden = false;
+    } catch (err) {
+      console.error(err);
+      document.getElementById("water-channels-section").hidden = true;
+    }
+
     // 3. Személyes
     document.getElementById("water-local-question").textContent = `és ${point.name || "a keresett helyszín"} környékén?`;
     try {
@@ -2825,7 +2950,7 @@ async function buildWaterPanel(point) {
 function resetWaterPanel() {
   const panel = document.getElementById("water-panel");
   panel.hidden = true;
-  for (const id of ["water-soil-section", "water-map-section", "water-rivers-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
+  for (const id of ["water-soil-section", "water-map-section", "water-rivers-section", "water-channels-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
     document.getElementById(id).hidden = true;
   }
   document.getElementById("water-status").hidden = false;

@@ -695,6 +695,42 @@ noscript .about {
   pointer-events: none;
 }
 
+/* Csatorna-térkép (ld. script.js buildChannelsMap): három vízfolyás-típus,
+   szín nélkül, vonalvastagsággal/szaggatással megkülönböztetve, a radar
+   .radar-river/.radar-lake mintájához hasonlóan. */
+.water-channel-border {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.water-channel-canal {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.water-channel-drain {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.water-channel-ditch {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 0.4;
+  stroke-dasharray: 1 1.5;
+  pointer-events: none;
+}
+
 .water-lake-gauges {
   display: flex;
   flex-direction: column;

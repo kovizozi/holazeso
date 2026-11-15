@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=35">
+<link rel="stylesheet" href="style.css?v=36">
 </head>
 <body>
 
@@ -224,6 +224,27 @@
           <div id="water-river-list" class="water-river-list"></div>
         </section>
 
+        <!-- 2d. Csatornák: a felhasználó kérésére ÖNÁLLÓ térkép, nem a
+             dombormű fölötti jelölők vagy a folyóhálózat része. A nevesített
+             csatornák/belvízelvezetők/árkok valódi futása, a soil-moisture-
+             mapper otthoni gépén futó app/channels.py adataiból - ld. ott a
+             docstringet. Nem élő adat, alkalmanként, kézzel frissül, ezért
+             script.js külön try/catch-ben kéri le (ld. buildWaterPanel). -->
+        <section class="water-section" id="water-channels-section" hidden>
+          <p class="question">és a csatornák, árkok?</p>
+          <p class="place-line" id="water-channels-headline"></p>
+          <p class="context" id="water-channels-detail"></p>
+          <figure class="water-figure">
+            <svg id="water-channels-map" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid meet"></svg>
+            <figcaption id="water-channels-legend"></figcaption>
+          </figure>
+          <div class="water-river-net-table">
+            <h3>A leghosszabb nevesített vízfolyások</h3>
+            <ul id="water-channels-longest"></ul>
+            <p class="about" id="water-channels-caveat"></p>
+          </div>
+        </section>
+
         <!-- 3. Személyes: a keresett helyszín talajminta-profilja -->
         <section class="water-section" id="water-local-section" hidden>
           <p class="question" id="water-local-question"></p>
@@ -308,7 +329,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=57"></script>
+  <script src="script.js?v=58"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
