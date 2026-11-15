@@ -2042,24 +2042,125 @@ function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureBy
 // Lapos rács, EGYENES felülnézetben (nem axonometrikus/ferde - korábban
 // kipróbáltuk izometrikus kockákkal is, majd ferde-vetítésű lapos cellákkal,
 // de a felhasználó szerint ez még mindig túl "térképészeti makett"-szerű
-// volt; sima, torzítatlan felülnézet kell, mint egy valódi térkép). Minden
-// Magyarországon belüli talaj-cella egy sima, tömör színű téglalap, az 5
-// fokozatú --t0..--t4 szürkeskálával. A folyó- és tó-mérőállomások, a
-// legnagyobb folyók VALÓDI vonala (water-geo.json, ld. a radar-szakaszt) és
-// a Balaton VALÓDI körvonala UGYANAZZAL a lat/lon -> rács -> képernyő
-// vetítéssel kerül a térképre, tehát mind pontosan a megfelelő helyre esik.
-// A puffer/szomszéd-pontok (ld. soil-moisture-mapper in_hungary=false) NEM
-// jelennek meg ezen a térképen - túlzsúfolt lenne, és a jóváhagyott design
-// sem különbözteti meg őket.
-const WATER_CELL_W = 20;
-const WATER_CELL_H = 16;
-
-function waterProjectRowCol(row, col, originX, originY) {
-  return { x: originX + col * WATER_CELL_W, y: originY + row * WATER_CELL_H };
+// volt; sima, torzítatlan felülnézet kell, mint egy valódi térkép).
+//
+// A torzítás korábban onnan jött, hogy a cella szélessége és magassága KÖZÖS,
+// tetszőlegesen választott képpont-méretet kapott, holott Magyarország
+// szélességén egy hosszúsági fok valódi távolsága kb. cos(47 fok) ~ 0,68-
+// szorosa egy szélességi foknak - a rács emiatt vízszintesen széthúzva,
+// függőlegesen összenyomva jelent meg. A cella szélessége ezért lent mindig
+// a magasság cos(középső szélesség)-szerese (ld. lonFactor), nem önálló
+// konstans.
+//
+// A talajnedvesség maga nem különálló téglalapokként jelenik meg, hanem egy
+// folytonos szürke-fokozatú raszterként - ugyanaz a csempe-kompozitálási
+// technika, mint a radar saját raszterénél (ld. drawRadarImage): a ritka
+// mintarácsot kétlineárisan (bilineárisan) interpolálva kapunk sima
+// átmenetet, nem éles téglalap-határokat. A raszter a VALÓDI országhatárra
+// van vágva (ld. borderRings), nem a mintarács durva, lépcsős szélére.
+function cssVarRgb(name) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const hex = /^#([0-9a-f]{6})$/i.exec(value);
+  if (!hex) return [128, 128, 128];
+  const n = parseInt(hex[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function waterFlatCell(x, y, tierIndex) {
-  return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${WATER_CELL_W}" height="${WATER_CELL_H}" fill="var(--t${tierIndex})" stroke="var(--bg)" stroke-width="0.5"></rect>`;
+function tierGradientRgb(frac, stops) {
+  const t = Math.min(Math.max(frac, 0), 1) * (stops.length - 1);
+  const i0 = Math.floor(t), i1 = Math.min(i0 + 1, stops.length - 1), f = t - i0;
+  const a = stops[i0], b = stops[i1];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+}
+
+// Szabványos pont-a-sokszögben teszt (ray casting) - ld. selectCountryBorderRing.
+function pointInRing(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [loni, lati] = ring[i];
+    const [lonj, latj] = ring[j];
+    if ((lati > lat) !== (latj > lat) &&
+        lon < (lonj - loni) * (lat - lati) / (latj - lati) + loni) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Gyűrű területe (shoelace-formula, fok²-ben - csak összehasonlításra kell,
+// nem valódi km²-re).
+function ringArea(ring) {
+  let area = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    area += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return Math.abs(area) / 2;
+}
+
+// Egyetlen, pontos országhatár-gyűrű kiválasztása a borderRings tömbből (ami
+// a VILÁG összes országát tartalmazza egy lapos tömbben, gyűrűnként - ld.
+// loadBorders). NEM a "bounds-on kívül megszakítjuk" trükköt használjuk (az
+// csak látható VONAL-rajzolásra biztonságos - egy megszakított, több
+// darabból álló path kitöltéskor/záráskor minden darabot KÜLÖN automatikusan
+// visszazár egy egyenes szakasszal, ami hamis, átlós vágásvonalakat okoz),
+// és NEM a bounds befoglaló téglalapjának átfedését nézzük (ez kis, bezoomolt
+// bounds-nál - ld. buildChannelsMap - téves eredményt ad: egy nagy szomszédos
+// ország befoglalója is könnyen lefedi egy apró kivágás egész területét,
+// miközben a valódi alakja egyáltalán nem ott van). Helyette azt a gyűrűt
+// választjuk, amelyik TÉNYLEGESEN TARTALMAZZA a bounds középpontját (pont-a-
+// sokszögben teszt); ha több egymásba ágyazott gyűrű is tartalmazza (sziget/
+// enklávé), a legkisebb területűt - az illik legszorosabban a ponthoz. Minden
+// flat (nem azimutális) országtérkép ezt a függvényt használja, hogy a határ
+// mindenhol, minden nagyításban ugyanolyan pontos legyen (ld. buildReliefMap,
+// buildChannelsMap).
+function selectCountryBorderRing(minLon, maxLon, minLat, maxLat) {
+  if (!borderRings || !borderRings.length) return null;
+  const midLon = (minLon + maxLon) / 2, midLat = (minLat + maxLat) / 2;
+  const containing = borderRings.filter(ring => pointInRing(midLon, midLat, ring));
+  if (containing.length) {
+    return containing.reduce((a, b) => (ringArea(a) < ringArea(b) ? a : b));
+  }
+  // Fallback, ha a középpont épp nem esik bele semelyik gyűrűbe sem (pl. a
+  // bounds középpontja egy folyó/tó miatt kiesik): a legjobban fedő
+  // befoglaló téglalap, ahogy korábban.
+  let best = null, bestOverlap = -1;
+  for (const ring of borderRings) {
+    let rMinLon = Infinity, rMaxLon = -Infinity, rMinLat = Infinity, rMaxLat = -Infinity;
+    for (const [lon, lat] of ring) {
+      if (lon < rMinLon) rMinLon = lon;
+      if (lon > rMaxLon) rMaxLon = lon;
+      if (lat < rMinLat) rMinLat = lat;
+      if (lat > rMaxLat) rMaxLat = lat;
+    }
+    const ox = Math.max(0, Math.min(rMaxLon, maxLon) - Math.max(rMinLon, minLon));
+    const oy = Math.max(0, Math.min(rMaxLat, maxLat) - Math.max(rMinLat, minLat));
+    const overlap = ox * oy;
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap;
+      best = ring;
+    }
+  }
+  return best;
+}
+
+// Lat/lon -> képernyő-vetítés, a hosszúsági fok cos(szélesség)-torzítás-
+// korrekciójával (egy fok hosszúság a mi szélességünkön kevesebb valódi
+// távolság, mint egy fok szélesség - ld. buildReliefMap fejkomment). A
+// bounds-ot a kisebbik irány-skála szerint, torzítás nélkül, középre
+// illesztve helyezzük a width x height dobozba. MINDEN flat országtérkép
+// ezt használja (dombormű, csatornák), hogy az ország alakja mindenhol
+// ugyanolyan arányos legyen.
+function fitFlatProjection(minLon, maxLon, minLat, maxLat, width, height) {
+  const lonFactor = Math.cos((minLat + maxLat) / 2 * Math.PI / 180);
+  const lonSpan = (maxLon - minLon) * lonFactor;
+  const latSpan = maxLat - minLat;
+  const scale = Math.min(width / lonSpan, height / latSpan);
+  const originX = (width - lonSpan * scale) / 2;
+  const originY = (height - latSpan * scale) / 2;
+  return (lat, lon) => ({
+    x: originX + (lon - minLon) * lonFactor * scale,
+    y: originY + (maxLat - lat) * scale,
+  });
 }
 
 // Csak jelölők, FELIRAT NÉLKÜL: egy sűrű rácson (akár 12 folyó-állomás +
@@ -2092,55 +2193,47 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
 
   const litersValues = cells.map(p => p.liters_total);
   const minL = Math.min(...litersValues), maxL = Math.max(...litersValues);
-  const tierFor = liters => {
-    if (maxL <= minL) return 2;
-    return Math.min(4, Math.floor(((liters - minL) / (maxL - minL)) * 5));
-  };
+  const fracFor = liters => (maxL <= minL ? 0.5 : (liters - minL) / (maxL - minL));
 
-  // A rács befoglaló méretéből skálát és origót számolunk, hogy a teljes
-  // dombormű beleférjen a viewBox-ba, a tetején elég hellyel a folyó-/
-  // tó-jelölőknek.
   const rowsAll = cells.map(p => toRowCol(p.lat, p.lon).row);
   const colsAll = cells.map(p => toRowCol(p.lat, p.lon).col);
   const maxRow = Math.max(...rowsAll), maxCol = Math.max(...colsAll);
-  const gridPixelWidth = (maxCol + 1) * WATER_CELL_W;
-  const originX = Math.max(20, (640 - gridPixelWidth) / 2);
-  const originY = 40;
 
-  let cellsMarkup = "";
-  let maxCell = cells[0], minCell = cells[0];
-  for (const cell of cells) {
-    if (cell.liters_total > maxCell.liters_total) maxCell = cell;
-    if (cell.liters_total < minCell.liters_total) minCell = cell;
-    const { row, col } = toRowCol(cell.lat, cell.lon);
-    const { x, y } = waterProjectRowCol(Math.round(row), Math.round(col), originX, originY);
-    cellsMarkup += waterFlatCell(x, y, tierFor(cell.liters_total));
-  }
+  // lonFactor: egy hosszúsági fok valódi távolsága a szélességi fokhoz
+  // képest, a rács középső szélességi fokán (cos) - ld. a szakasz-fejkomment.
+  // A kisebbik irány-skála nyer, hogy a teljes rács beleférjen a viewBox-ba
+  // torzítás nélkül; a másik irányban üres margó marad, nem nyúlik szét.
+  const midLatRad = (minLat + maxLat) / 2 * Math.PI / 180;
+  const lonFactor = Math.cos(midLatRad);
+  const MARGIN_X = 20, MARGIN_TOP = 40, MARGIN_BOTTOM = 20;
+  const availableW = 640 - 2 * MARGIN_X;
+  const availableH = 400 - MARGIN_TOP - MARGIN_BOTTOM;
+  const cellH = Math.min(availableH / (maxRow + 1), availableW / ((maxCol + 1) * lonFactor));
+  const cellW = cellH * lonFactor;
+  const gridPixelWidth = (maxCol + 1) * cellW;
+  const gridPixelHeight = (maxRow + 1) * cellH;
+  const originX = Math.max(MARGIN_X, (640 - gridPixelWidth) / 2);
+  const originY = MARGIN_TOP;
 
+  const projectRowCol = (row, col) => ({ x: originX + col * cellW, y: originY + row * cellH });
   const projectLatLon = (lat, lon) => {
     const { row, col } = toRowCol(lat, lon);
-    const p = waterProjectRowCol(row, col, originX, originY);
-    return { x: p.x + WATER_CELL_W / 2, y: p.y + WATER_CELL_H / 2 }; // cella közepére, nem a sarkára
+    const p = projectRowCol(row, col);
+    return { x: p.x + cellW / 2, y: p.y + cellH / 2 }; // cella közepére, nem a sarkára
   };
 
-  // A legnagyobb folyók és a Balaton VALÓDI vonala/körvonala, ugyanazzal a
-  // projectLatLon-nal, mint a mérőállomások - ugyanaz a water-geo.json,
-  // amit a radar is használ (ld. loadWaterGeo), csak most a rács fölé
-  // vetítve, nem azimutálisan. A cellák UTÁN kell rajzolni, különben a
-  // tömör cella-téglalapok eltakarnák.
-  //
-  // A water-geo.json SZÁNDÉKOSAN túlnyúlik Magyarország határán (a Duna/
-  // Tisza/Dráva külföldi szakaszai is benne vannak, a radar-vetítéshez
-  // kellenek). Itt viszont a rács egyenes, lineáris vetület - egy messze
-  // kívül eső pont (pl. a Duna romániai torkolata) egyenes szakasszal
-  // kötné össze a magyarországi résszel, ami a teljes vásznon átszelő,
-  // hamis vonalként jelenne meg. Ezért a rács-tartományon kívül eső
-  // pontoknál megszakítjuk a vonalat, nem a peremre lapítjuk.
+  // A water-geo.json (folyók/Balaton) és a borders.json (országhatár) is
+  // SZÁNDÉKOSAN túlnyúlik Magyarországon (a radar azimutális vetítéséhez, ill.
+  // a világ összes országához kell). Itt viszont a rács egyenes, lineáris
+  // vetület - egy messze kívül eső pont egyenes szakasszal kötné össze a
+  // magyarországi résszel, ami a teljes vásznon átszelő, hamis vonalként
+  // jelenne meg. Ezért a rács-tartományon kívül eső pontoknál megszakítjuk a
+  // vonalat, nem a peremre lapítjuk.
   const BOUNDS_MARGIN = 3;
   const inGridBounds = (row, col) =>
     row >= -BOUNDS_MARGIN && row <= maxRow + BOUNDS_MARGIN &&
     col >= -BOUNDS_MARGIN && col <= maxCol + BOUNDS_MARGIN;
-  const waterGeoPath = rings => {
+  const ringsToPath = rings => {
     let d = "";
     for (const ring of rings) {
       let connected = false;
@@ -2157,11 +2250,94 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     }
     return d;
   };
+
+  // --- Talajnedvesség-raszter: ld. a szakasz-fejkomment. Minden kimeneti
+  // képpontot a 4 legközelebbi mintapont súlyozott átlagából (bilineáris
+  // interpoláció) számolunk. A mintarács az ország szélén lépcsős (nem minden
+  // rács-cella esik Magyarországra), de a kimenetnek SZÍN NÉLKÜLI lyukak
+  // helyett teljesen ki kell töltenie a befoglaló téglalapot - a valódi
+  // alak kialakítását lent, a vágás (clip-path) végzi az országhatárral,
+  // nem a mintarács hiányos szélei. Ezért egy hiányzó rács-pontot a hozzá
+  // legközelebbi VALÓDI mintapont értékével helyettesítünk (legközelebbi
+  // szomszéd extrapoláció), nem hagyjuk üresen.
+  const cellRowCols = cells.map(cell => ({ ...toRowCol(cell.lat, cell.lon), liters: cell.liters_total }));
+  const valueGrid = new Map();
+  for (const c of cellRowCols) valueGrid.set(`${Math.round(c.row)},${Math.round(c.col)}`, c.liters);
+  const nearestCache = new Map();
+  const valueAt = (r, c) => {
+    const key = `${r},${c}`;
+    const exact = valueGrid.get(key);
+    if (exact !== undefined) return exact;
+    if (nearestCache.has(key)) return nearestCache.get(key);
+    let best = cellRowCols[0], bestDist = Infinity;
+    for (const cand of cellRowCols) {
+      const d = (cand.row - r) ** 2 + (cand.col - c) ** 2;
+      if (d < bestDist) { bestDist = d; best = cand; }
+    }
+    nearestCache.set(key, best.liters);
+    return best.liters;
+  };
+
+  const canvasW = Math.max(1, Math.round(gridPixelWidth));
+  const canvasH = Math.max(1, Math.round(gridPixelHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(canvasW, canvasH);
+  const tierStops = [0, 1, 2, 3, 4].map(i => cssVarRgb(`--t${i}`));
+
+  for (let y = 0; y < canvasH; y++) {
+    const rowF = y / cellH - 0.5;
+    const r0 = Math.floor(rowF), r1 = r0 + 1, ty = rowF - r0;
+    for (let x = 0; x < canvasW; x++) {
+      const colF = x / cellW - 0.5;
+      const c0 = Math.floor(colF), c1 = c0 + 1, tx = colF - c0;
+      const value =
+        valueAt(r0, c0) * (1 - ty) * (1 - tx) +
+        valueAt(r0, c1) * (1 - ty) * tx +
+        valueAt(r1, c0) * ty * (1 - tx) +
+        valueAt(r1, c1) * ty * tx;
+      const [r, g, b] = tierGradientRgb(fracFor(value), tierStops);
+      const di = (y * canvasW + x) * 4;
+      img.data[di] = r;
+      img.data[di + 1] = g;
+      img.data[di + 2] = b;
+      img.data[di + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Az ország VALÓDI körvonalára vágjuk a rasztert (nem a mintarács durva,
+  // lépcsős szélére) - ld. selectCountryBorderRing fejkomment.
+  const maxLon = Math.max(...lons);
+  const borderRing = selectCountryBorderRing(minLon, maxLon, minLat, maxLat);
+  let clipMarkup = "";
+  let borderMarkup = "";
+  if (borderRing) {
+    let borderD = "";
+    borderRing.forEach(([lon, lat], i) => {
+      const { x, y } = projectLatLon(lat, lon);
+      borderD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+    borderD += "Z";
+    clipMarkup = `<clipPath id="water-relief-clip"><path d="${borderD}"></path></clipPath>`;
+    borderMarkup = `<path class="water-relief-border" d="${borderD}"></path>`;
+  }
+  const clipAttr = clipMarkup ? ` clip-path="url(#water-relief-clip)"` : "";
+  const cellsMarkup =
+    `<image href="${canvas.toDataURL()}" x="${originX.toFixed(1)}" y="${originY.toFixed(1)}" width="${gridPixelWidth.toFixed(1)}" height="${gridPixelHeight.toFixed(1)}"${clipAttr}></image>`;
+
+  // A legnagyobb folyók és a Balaton VALÓDI vonala/körvonala, ugyanazzal a
+  // projectLatLon-nal, mint a mérőállomások - ugyanaz a water-geo.json,
+  // amit a radar is használ (ld. loadWaterGeo), csak most a rács fölé
+  // vetítve, nem azimutálisan. A raszter UTÁN kell rajzolni, különben az
+  // eltakarná.
   let geoMarkup = "";
   if (waterGeo) {
-    const riverD = waterGeoPath(waterGeo.rivers);
+    const riverD = ringsToPath(waterGeo.rivers);
     if (riverD) geoMarkup += `<path class="water-map-river" d="${riverD}"></path>`;
-    const lakeD = waterGeoPath(waterGeo.lakes);
+    const lakeD = ringsToPath(waterGeo.lakes);
     if (lakeD) geoMarkup += `<path class="water-map-lake" d="${lakeD}"></path>`;
   }
 
@@ -2181,26 +2357,57 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     markersMarkup += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle>`;
   }
 
-  svgEl.innerHTML = `<defs></defs>${cellsMarkup}${geoMarkup}${markersMarkup}`;
+  svgEl.innerHTML = `<defs>${clipMarkup}</defs>${cellsMarkup}${borderMarkup}${geoMarkup}${markersMarkup}`;
 
-  // A legenda ugyanazt az 5 fokozatú --t0..--t4 szürkeskálát rajzolja ki,
-  // amit a cellák - a két nézet (térkép és legenda) garantáltan összhangban
-  // marad, nem két külön színskála.
-  const tierBoundaries = [0, 1, 2, 3, 4, 5].map(k => minL + (k / 5) * (maxL - minL));
-  const tierLabel = i => {
-    const lo = Math.round(tierBoundaries[i] / 1e9);
-    const hi = Math.round(tierBoundaries[i + 1] / 1e9);
-    if (i === 0) return `${hi} alatt`;
-    if (i === 4) return `${lo} felett`;
-    return `${lo}–${hi}`;
-  };
-  const legendSwatches = [0, 1, 2, 3, 4].map(i =>
-    `<span style="display:flex;align-items:center;gap:6px;"><svg width="13" height="13" aria-hidden="true"><rect width="13" height="13" fill="var(--t${i})" stroke="var(--fg)" stroke-width="0.75"></rect></svg>${tierLabel(i)}</span>`
-  ).join("");
+  // Egérrel rámutatva a leolvasott érték buborékban - a raszter <image>-re
+  // kötve (NEM a teljes svg-re), mert a clip-path a találat-tesztelést is
+  // levágja az ország valódi körvonalára, tehát a buborék magától eltűnik,
+  // amint a kurzor kilép az országhatáron. Ugyanazt a bilineáris
+  // interpolációt futtatjuk le a kurzor pontjában, mint ami a raszter
+  // minden képpontját kiszínezte, hogy a kiírt szám pontosan illeszkedjen
+  // ahhoz, amit a térkép épp ott mutat.
+  const imageEl = svgEl.querySelector("image");
+  const tooltipEl = document.getElementById("water-map-tooltip");
+  if (imageEl && tooltipEl) {
+    const showReadingAt = event => {
+      const rect = svgEl.getBoundingClientRect();
+      const svgX = (event.clientX - rect.left) * (640 / rect.width);
+      const svgY = (event.clientY - rect.top) * (400 / rect.height);
+      const rowF = (svgY - originY) / cellH - 0.5;
+      const colF = (svgX - originX) / cellW - 0.5;
+      const r0 = Math.floor(rowF), r1 = r0 + 1, ty = rowF - r0;
+      const c0 = Math.floor(colF), c1 = c0 + 1, tx = colF - c0;
+      const value =
+        valueAt(r0, c0) * (1 - ty) * (1 - tx) +
+        valueAt(r0, c1) * (1 - ty) * tx +
+        valueAt(r1, c0) * ty * (1 - tx) +
+        valueAt(r1, c1) * ty * tx;
+      tooltipEl.textContent = `${waterNum(value / 1e9, 1)} milliárd liter`;
+      tooltipEl.style.left = `${(svgX / 640) * 100}%`;
+      tooltipEl.style.top = `${(svgY / 400) * 100}%`;
+      tooltipEl.hidden = false;
+    };
+    imageEl.addEventListener("mousemove", showReadingAt);
+    imageEl.addEventListener("mouseleave", () => { tooltipEl.hidden = true; });
+  }
+
+  // A legenda most egy folytonos szürke-fokozatú sáv (nem 5 külön téglalap) -
+  // ugyanazokból a --t0..--t4 színekből épül, mint a raszter maga, tehát a
+  // két nézet (térkép és legenda) garantáltan összhangban marad.
+  const legendStops = tierStops
+    .map((rgb, i) => `<stop offset="${(i / (tierStops.length - 1) * 100).toFixed(0)}%" stop-color="rgb(${rgb.map(Math.round).join(",")})"></stop>`)
+    .join("");
 
   legendEl.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;color:var(--muted);">${legendSwatches}</div>
-    <p style="margin: var(--sp-2) 0 0;">Minden cella kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km, a szín erőssége jelzi, mennyi víz van alatta (milliárd liter). A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--muted);">
+      <span>kevesebb</span>
+      <svg width="160" height="12" aria-hidden="true">
+        <defs><linearGradient id="water-relief-legend-gradient" x1="0" x2="1" y1="0" y2="0">${legendStops}</linearGradient></defs>
+        <rect width="160" height="12" fill="url(#water-relief-legend-gradient)" stroke="var(--border)" stroke-width="0.75"></rect>
+      </svg>
+      <span>több</span>
+    </div>
+    <p style="margin: var(--sp-2) 0 0;">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között), a köztük mért értékek sima átmenetét mutatja a szín erőssége. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
 }
 
 // ---- 2c. Folyóhálózat: teljes vonalhálózat, vastagság = vízhozam ----
@@ -2366,43 +2573,13 @@ function renderRiverChart(svgEl, station) {
 // tó-pillanatképekkel) - ezért ennek a lekérése is a többitől FÜGGETLEN
 // try/catch-ben történik lent, hogy egy még hiányzó csatorna-pillanatkép
 // ne dönthesse el a már működő szakaszokat.
-function channelsProject(lon, lat, bounds, width, height) {
-  return {
-    x: ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * width,
-    y: ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * height,
-  };
-}
-
-function channelsRingsToPath(rings, bounds, width, height) {
+function channelsRingsToPath(rings, project) {
   let d = "";
   for (const ring of rings) {
     ring.forEach(([lon, lat], i) => {
-      const { x, y } = channelsProject(lon, lat, bounds, width, height);
+      const { x, y } = project(lat, lon);
       d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
     });
-  }
-  return d;
-}
-
-// borderRings tartalmazza a VILÁG összes országhatárát (a radar azimutális
-// vetítése ezt sugár-korlátozva, magától "levágja" - ld. radarMaxRadiusKm),
-// ezért itt, lapos vetítésnél, csak a bounds-on (+margó) BELÜLI pontokat
-// vesszük figyelembe, és egy határon kívüli pontnál új "M"-mel kezdünk új
-// darabot (ugyanaz a trükk, mint buildReliefMap waterGeoPath-jában) -
-// különben egy másik ország határvonala az egész vásznat behálózná.
-function channelsBorderPath(rings, bounds, width, height, marginDeg) {
-  const inBounds = (lon, lat) =>
-    lon >= bounds.minLon - marginDeg && lon <= bounds.maxLon + marginDeg &&
-    lat >= bounds.minLat - marginDeg && lat <= bounds.maxLat + marginDeg;
-  let d = "";
-  for (const ring of rings) {
-    let connected = false;
-    for (const [lon, lat] of ring) {
-      if (!inBounds(lon, lat)) { connected = false; continue; }
-      const { x, y } = channelsProject(lon, lat, bounds, width, height);
-      d += `${connected ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-      connected = true;
-    }
   }
   return d;
 }
@@ -2427,23 +2604,33 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   }
   const lons = geoPoints.map(p => p[0]);
   const lats = geoPoints.map(p => p[1]);
-  const bounds = {
-    minLon: Math.min(...lons) - PAD_DEG,
-    maxLon: Math.max(...lons) + PAD_DEG,
-    minLat: Math.min(...lats) - PAD_DEG,
-    maxLat: Math.max(...lats) + PAD_DEG,
-  };
+  const minLon = Math.min(...lons) - PAD_DEG, maxLon = Math.max(...lons) + PAD_DEG;
+  const minLat = Math.min(...lats) - PAD_DEG, maxLat = Math.max(...lats) + PAD_DEG;
+
+  // Ugyanaz a torzításmentes vetítés és a világ-körvonalak közül ugyanaz a
+  // pontos, egybefüggő gyűrű-kiválasztás, mint a dombormű-térképen (ld.
+  // fitFlatProjection/selectCountryBorderRing fejkomment) - a határvonal
+  // mindenhol a site-on egyformán pontos legyen. A SVG saját
+  // overflow:hidden-je automatikusan levágja azt, ami a nézeten (a csatorna-
+  // hálózat szűkebb kivágásán) kívül esik, nem kell külön bounds-vágás.
+  const project = fitFlatProjection(minLon, maxLon, minLat, maxLat, WIDTH, HEIGHT);
 
   let markup = "";
-  if (borderRings && borderRings.length) {
-    const borderD = channelsBorderPath(borderRings, bounds, WIDTH, HEIGHT, PAD_DEG);
-    if (borderD) markup += `<path class="water-channel-border" d="${borderD}"></path>`;
+  const borderRing = selectCountryBorderRing(minLon, maxLon, minLat, maxLat);
+  if (borderRing) {
+    let borderD = "";
+    borderRing.forEach(([lon, lat], i) => {
+      const { x, y } = project(lat, lon);
+      borderD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+    borderD += "Z";
+    markup += `<path class="water-channel-border" d="${borderD}"></path>`;
   }
   // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna, hogy a
   // ritkább, de "fontosabb" vízfolyások ne tűnjenek el a sűrű árokrajzban.
-  if (ditchRings.length) markup += `<path class="water-channel-ditch" d="${channelsRingsToPath(ditchRings, bounds, WIDTH, HEIGHT)}"></path>`;
-  if (drainRings.length) markup += `<path class="water-channel-drain" d="${channelsRingsToPath(drainRings, bounds, WIDTH, HEIGHT)}"></path>`;
-  if (canalRings.length) markup += `<path class="water-channel-canal" d="${channelsRingsToPath(canalRings, bounds, WIDTH, HEIGHT)}"></path>`;
+  if (ditchRings.length) markup += `<path class="water-channel-ditch" d="${channelsRingsToPath(ditchRings, project)}"></path>`;
+  if (drainRings.length) markup += `<path class="water-channel-drain" d="${channelsRingsToPath(drainRings, project)}"></path>`;
+  if (canalRings.length) markup += `<path class="water-channel-canal" d="${channelsRingsToPath(canalRings, project)}"></path>`;
 
   svgEl.innerHTML = markup;
   legendEl.textContent = "Tömör vonal: csatorna. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Csak a nevesített vízfolyások.";
@@ -2764,6 +2951,7 @@ async function buildWaterPanel(point) {
       fetchWaterSnapshot("rivers-snapshot"),
       fetchWaterSnapshot("lakes-snapshot"),
       loadWaterGeo(), // a legnagyobb folyók/Balaton valódi vonala a dombormű-térképhez (globális `waterGeo`)
+      loadBorders(), // az ország valódi körvonala a dombormű-raszter vágásához (globális `borderRings`)
     ]);
 
     // 1. Talajvíz: országos
