@@ -762,6 +762,43 @@ noscript .about {
   pointer-events: none;
 }
 
+/* A látható vonalak (fent) mind pointer-events: none-ok - a tényleges
+   rámutatás/koppintás-céllap ez az átlátszó, szélesebb másolat, ugyanúgy,
+   mint a .water-cell-touch/.water-marker-touch-nál: a legvékonyabb
+   (0.4px-es árok-) vonalra is könnyű legyen rámutatni. */
+.water-channel-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 8;
+  pointer-events: stroke;
+}
+
+#water-channels-map {
+  touch-action: none;
+  cursor: grab;
+}
+
+.water-map-zoom-controls {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.water-map-zoom-controls button {
+  width: 28px;
+  height: 28px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
 .water-lake-gauges {
   display: flex;
   flex-direction: column;

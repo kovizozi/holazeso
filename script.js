@@ -2157,10 +2157,20 @@ function fitFlatProjection(minLon, maxLon, minLat, maxLat, width, height) {
   const scale = Math.min(width / lonSpan, height / latSpan);
   const originX = (width - lonSpan * scale) / 2;
   const originY = (height - latSpan * scale) / 2;
-  return (lat, lon) => ({
+  const project = (lat, lon) => ({
     x: originX + (lon - minLon) * lonFactor * scale,
     y: originY + (maxLat - lat) * scale,
   });
+  // A pöccre nagyítható/mozgatható csatorna-térkép (buildChannelsMap) a
+  // fordított irányhoz (képernyő -> lat/lon, kurzor-középpontú nagyításhoz/
+  // húzáshoz) ugyanezt a skálát/origót használja - itt tesszük elérhetővé
+  // project tulajdonságaiként, hogy ne kelljen a vetítő-matekot máshol
+  // megismételni.
+  project.lonFactor = lonFactor;
+  project.scale = scale;
+  project.originX = originX;
+  project.originY = originY;
+  return project;
 }
 
 // Csak jelölők, FELIRAT NÉLKÜL: egy sűrű rácson (akár 12 folyó-állomás +
@@ -2573,67 +2583,264 @@ function renderRiverChart(svgEl, station) {
 // tó-pillanatképekkel) - ezért ennek a lekérése is a többitől FÜGGETLEN
 // try/catch-ben történik lent, hogy egy még hiányzó csatorna-pillanatkép
 // ne dönthesse el a már működő szakaszokat.
-function channelsRingsToPath(rings, project) {
-  let d = "";
-  for (const ring of rings) {
-    ring.forEach(([lon, lat], i) => {
-      const { x, y } = project(lat, lon);
-      d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    });
-  }
-  return d;
+// geo.names egy dedup-olt névtábla, geo.features egy lapos lista (ld.
+// app/channels.py docstring) - minden feature saját gyűrűt, típust és
+// hosszt visel, hogy a térképen EGYENKÉNT rámutatható/rákoppintható legyen.
+function decodeChannelFeatures(geo) {
+  const names = geo.names || [];
+  return (geo.features || []).map(f => ({
+    name: names[f.n] ?? null,
+    type: f.t,
+    km: f.km,
+    ring: decodeDeltaRings([f.g])[0],
+  }));
 }
 
+const CHANNEL_TYPE_LABEL = { canal: "csatorna", drain: "belvízelvezető", ditch: "árok" };
+
+// Pöccre nagyítható/mozgatható csatorna-térkép: a teljes hálózat helyett
+// mindig csak a jelenlegi nézet (view) + a rajta belüli zoom-szinthez
+// (zoomRatio) tartozó típus(ok) rajzolódnak ki - ettől marad gyors a DOM
+// akár 6335 nevesített vízfolyásnál is. A view SOHA nem léphet ki a
+// hálózat teljes kiterjedéséből (fullBounds) - se nagyítással kisebbre,
+// se kicsinyítéssel nagyobbra, se húzással arrébb -, hogy sose lehessen
+// kiüres területre pannelni.
 function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   const WIDTH = 400;
   const HEIGHT = 250;
   const PAD_DEG = 0.15;
+  const ZOOM_STEP = 1.4;
+  const MIN_VIEW_DEG = 0.015; // kb. 1,5 km-es sávnál ne engedjünk tovább nagyítani
+  const LOD_DRAIN_RATIO = 2.2; // zoomRatio (teljes/jelenlegi szélesség), amitől a belvízelvezető is látszik
+  const LOD_DITCH_RATIO = 5.5; // ...és amitől az árok is
 
-  const canalRings = decodeDeltaRings(channelsSnapshot.geo.canal || []);
-  const drainRings = decodeDeltaRings(channelsSnapshot.geo.drain || []);
-  const ditchRings = decodeDeltaRings(channelsSnapshot.geo.ditch || []);
-
-  // A méretarány-doboz MINDIG a csatornák saját kiterjedéséből jön (azok
-  // garantáltan Magyarországon belül vannak) - a világ-körvonalakból
-  // (borderRings) sosem, mert azok kiterjedése az egész Föld.
-  const geoPoints = [...canalRings, ...drainRings, ...ditchRings].flat();
-  if (!geoPoints.length) {
+  const features = decodeChannelFeatures(channelsSnapshot.geo);
+  if (!features.length) {
     svgEl.innerHTML = "";
     legendEl.textContent = "";
     return;
   }
-  const lons = geoPoints.map(p => p[0]);
-  const lats = geoPoints.map(p => p[1]);
-  const minLon = Math.min(...lons) - PAD_DEG, maxLon = Math.max(...lons) + PAD_DEG;
-  const minLat = Math.min(...lats) - PAD_DEG, maxLat = Math.max(...lats) + PAD_DEG;
 
-  // Ugyanaz a torzításmentes vetítés és a világ-körvonalak közül ugyanaz a
-  // pontos, egybefüggő gyűrű-kiválasztás, mint a dombormű-térképen (ld.
-  // fitFlatProjection/selectCountryBorderRing fejkomment) - a határvonal
-  // mindenhol a site-on egyformán pontos legyen. A SVG saját
-  // overflow:hidden-je automatikusan levágja azt, ami a nézeten (a csatorna-
-  // hálózat szűkebb kivágásán) kívül esik, nem kell külön bounds-vágás.
-  const project = fitFlatProjection(minLon, maxLon, minLat, maxLat, WIDTH, HEIGHT);
+  // A méretarány-doboz MINDIG a csatornák saját kiterjedéséből jön (azok
+  // garantáltan Magyarországon belül vannak) - a világ-körvonalakból
+  // (borderRings) sosem, mert azok kiterjedése az egész Föld. Minden
+  // feature-höz egyszer kiszámoljuk a saját bbox-át is, hogy nagyításkor
+  // gyorsan ki lehessen szűrni, mi esik a látható ablakba.
+  const featuresWithBounds = features.map(f => {
+    const flons = f.ring.map(p => p[0]), flats = f.ring.map(p => p[1]);
+    return {
+      ...f,
+      minLon: Math.min(...flons), maxLon: Math.max(...flons),
+      minLat: Math.min(...flats), maxLat: Math.max(...flats),
+    };
+  });
+  const allLons = featuresWithBounds.map(f => f.minLon).concat(featuresWithBounds.map(f => f.maxLon));
+  const allLats = featuresWithBounds.map(f => f.minLat).concat(featuresWithBounds.map(f => f.maxLat));
+  const fullBounds = {
+    minLon: Math.min(...allLons) - PAD_DEG, maxLon: Math.max(...allLons) + PAD_DEG,
+    minLat: Math.min(...allLats) - PAD_DEG, maxLat: Math.max(...allLats) + PAD_DEG,
+  };
+  // Ugyanaz a pontos, egybefüggő gyűrű-kiválasztás, mint a dombormű-
+  // térképen (ld. selectCountryBorderRing fejkomment) - a határvonal
+  // mindenhol a site-on egyformán pontos legyen, bármilyen nagyításnál.
+  const borderRing = selectCountryBorderRing(fullBounds.minLon, fullBounds.maxLon, fullBounds.minLat, fullBounds.maxLat);
 
-  let markup = "";
-  const borderRing = selectCountryBorderRing(minLon, maxLon, minLat, maxLat);
-  if (borderRing) {
-    let borderD = "";
-    borderRing.forEach(([lon, lat], i) => {
-      const { x, y } = project(lat, lon);
-      borderD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    });
-    borderD += "Z";
-    markup += `<path class="water-channel-border" d="${borderD}"></path>`;
+  let view = { ...fullBounds };
+  let visible = []; // az aktuálisan kirajzolt feature-ök - a data-fid ebbe indexel
+  const activePointers = new Map(); // pointerId -> {x, y}, húzáshoz/csippentéshez
+  let renderScheduled = false;
+
+  const tooltipEl = document.getElementById("water-channels-tooltip");
+
+  const clampSpan = (span, fullSpan) => Math.min(Math.max(span, MIN_VIEW_DEG), fullSpan);
+
+  function setView(minLon, maxLon, minLat, maxLat) {
+    const lonSpan = maxLon - minLon, latSpan = maxLat - minLat;
+    const fullLonSpan = fullBounds.maxLon - fullBounds.minLon;
+    const fullLatSpan = fullBounds.maxLat - fullBounds.minLat;
+    const clampedMinLon = fullLonSpan <= lonSpan
+      ? fullBounds.minLon
+      : Math.min(Math.max(minLon, fullBounds.minLon), fullBounds.maxLon - lonSpan);
+    const clampedMinLat = fullLatSpan <= latSpan
+      ? fullBounds.minLat
+      : Math.min(Math.max(minLat, fullBounds.minLat), fullBounds.maxLat - latSpan);
+    view = { minLon: clampedMinLon, maxLon: clampedMinLon + lonSpan, minLat: clampedMinLat, maxLat: clampedMinLat + latSpan };
+    scheduleRender();
   }
-  // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna, hogy a
-  // ritkább, de "fontosabb" vízfolyások ne tűnjenek el a sűrű árokrajzban.
-  if (ditchRings.length) markup += `<path class="water-channel-ditch" d="${channelsRingsToPath(ditchRings, project)}"></path>`;
-  if (drainRings.length) markup += `<path class="water-channel-drain" d="${channelsRingsToPath(drainRings, project)}"></path>`;
-  if (canalRings.length) markup += `<path class="water-channel-canal" d="${channelsRingsToPath(canalRings, project)}"></path>`;
 
-  svgEl.innerHTML = markup;
-  legendEl.textContent = "Tömör vonal: csatorna. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Csak a nevesített vízfolyások.";
+  function zoomBy(factor, centerLon, centerLat) {
+    const lonSpan = clampSpan((view.maxLon - view.minLon) / factor, fullBounds.maxLon - fullBounds.minLon);
+    const latSpan = clampSpan((view.maxLat - view.minLat) / factor, fullBounds.maxLat - fullBounds.minLat);
+    const relX = (centerLon - view.minLon) / (view.maxLon - view.minLon);
+    const relY = (centerLat - view.minLat) / (view.maxLat - view.minLat);
+    const minLon = centerLon - relX * lonSpan;
+    const minLat = centerLat - relY * latSpan;
+    setView(minLon, minLon + lonSpan, minLat, minLat + latSpan);
+  }
+
+  function screenToGeo(px, py) {
+    const project = fitFlatProjection(view.minLon, view.maxLon, view.minLat, view.maxLat, WIDTH, HEIGHT);
+    return {
+      lon: view.minLon + (px - project.originX) / (project.lonFactor * project.scale),
+      lat: view.maxLat - (py - project.originY) / project.scale,
+    };
+  }
+
+  function panByPixels(dxPx, dyPx) {
+    const project = fitFlatProjection(view.minLon, view.maxLon, view.minLat, view.maxLat, WIDTH, HEIGHT);
+    const dLon = -dxPx / (project.lonFactor * project.scale);
+    const dLat = dyPx / project.scale;
+    setView(view.minLon + dLon, view.maxLon + dLon, view.minLat + dLat, view.maxLat + dLat);
+  }
+
+  function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => { renderScheduled = false; render(); });
+  }
+
+  function showTooltip(fid, clientX, clientY) {
+    const f = visible[fid];
+    if (!f) return;
+    const rect = svgEl.getBoundingClientRect();
+    tooltipEl.textContent = f.name
+      ? `${f.name} (${CHANNEL_TYPE_LABEL[f.type]}, ${waterNum(f.km, 1)} km)`
+      : `${CHANNEL_TYPE_LABEL[f.type]}, ${waterNum(f.km, 1)} km`;
+    tooltipEl.style.left = `${((clientX - rect.left) / rect.width) * 100}%`;
+    tooltipEl.style.top = `${((clientY - rect.top) / rect.height) * 100}%`;
+    tooltipEl.hidden = false;
+  }
+  function hideTooltip() {
+    if (tooltipEl) tooltipEl.hidden = true;
+  }
+
+  function render() {
+    const project = fitFlatProjection(view.minLon, view.maxLon, view.minLat, view.maxLat, WIDTH, HEIGHT);
+    const zoomRatio = (fullBounds.maxLon - fullBounds.minLon) / (view.maxLon - view.minLon);
+    const activeTypes = new Set(["canal"]);
+    if (zoomRatio >= LOD_DRAIN_RATIO) activeTypes.add("drain");
+    if (zoomRatio >= LOD_DITCH_RATIO) activeTypes.add("ditch");
+
+    // Kis ráhagyással szűrünk, hogy a view szélén belépő vonalak se
+    // vágódjanak le csonkán, mire a pointer odaér.
+    const marginLon = (view.maxLon - view.minLon) * 0.1;
+    const marginLat = (view.maxLat - view.minLat) * 0.1;
+    visible = featuresWithBounds.filter(f =>
+      activeTypes.has(f.type) &&
+      f.maxLon >= view.minLon - marginLon && f.minLon <= view.maxLon + marginLon &&
+      f.maxLat >= view.minLat - marginLat && f.minLat <= view.maxLat + marginLat
+    );
+
+    const pathByIdx = visible.map(f => {
+      let d = "";
+      f.ring.forEach(([lon, lat], i) => {
+        const { x, y } = project(lat, lon);
+        d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+      });
+      return d;
+    });
+
+    let markup = "";
+    if (borderRing) {
+      let borderD = "";
+      borderRing.forEach(([lon, lat], i) => {
+        const { x, y } = project(lat, lon);
+        borderD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+      });
+      markup += `<path class="water-channel-border" d="${borderD}Z"></path>`;
+    }
+    // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna, hogy a
+    // ritkább, de "fontosabb" vízfolyások ne tűnjenek el a sűrű árokrajzban.
+    for (const type of ["ditch", "drain", "canal"]) {
+      if (!activeTypes.has(type)) continue;
+      visible.forEach((f, idx) => {
+        if (f.type !== type) return;
+        markup += `<path class="water-channel-${type}" data-fid="${idx}" d="${pathByIdx[idx]}"></path>`;
+      });
+    }
+    // A találat-céllapok (átlátszó, szélesebb vonal) legfelül, MINDEN
+    // látható vonalra - ugyanaz a trükk, mint a .water-cell-touch/
+    // .water-marker-touch-nál, hogy a vékony árok-vonalakra is könnyű legyen
+    // rámutatni/rákoppintani.
+    visible.forEach((f, idx) => {
+      markup += `<path class="water-channel-hit" data-fid="${idx}" d="${pathByIdx[idx]}"></path>`;
+    });
+
+    svgEl.innerHTML = markup;
+  }
+
+  function endPointer(event) {
+    activePointers.delete(event.pointerId);
+    if (activePointers.size === 0) svgEl.style.cursor = "grab";
+  }
+
+  svgEl.addEventListener("wheel", event => {
+    event.preventDefault();
+    const rect = svgEl.getBoundingClientRect();
+    const px = (event.clientX - rect.left) * (WIDTH / rect.width);
+    const py = (event.clientY - rect.top) * (HEIGHT / rect.height);
+    const { lon, lat } = screenToGeo(px, py);
+    zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, lon, lat);
+  }, { passive: false });
+
+  svgEl.addEventListener("pointerdown", event => {
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    svgEl.setPointerCapture(event.pointerId);
+    svgEl.style.cursor = "grabbing";
+    hideTooltip();
+  });
+
+  svgEl.addEventListener("pointermove", event => {
+    if (!activePointers.has(event.pointerId)) {
+      if (event.target.tagName === "path" && event.target.dataset.fid !== undefined) {
+        showTooltip(Number(event.target.dataset.fid), event.clientX, event.clientY);
+      } else {
+        hideTooltip();
+      }
+      return;
+    }
+    const prev = activePointers.get(event.pointerId);
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const rect = svgEl.getBoundingClientRect();
+
+    if (activePointers.size === 1) {
+      const dxPx = (event.clientX - prev.x) * (WIDTH / rect.width);
+      const dyPx = (event.clientY - prev.y) * (HEIGHT / rect.height);
+      panByPixels(dxPx, dyPx);
+    } else if (activePointers.size === 2) {
+      // Két ujjas csippentés: a másik (nem mozgó) pointer utolsó ismert
+      // helyéhez mérve a távolság-változás adja a nagyítás mértékét, a két
+      // pont középpontja a nagyítás középpontja.
+      const otherId = [...activePointers.keys()].find(id => id !== event.pointerId);
+      const other = activePointers.get(otherId);
+      const prevDist = Math.hypot(prev.x - other.x, prev.y - other.y);
+      const newDist = Math.hypot(event.clientX - other.x, event.clientY - other.y);
+      if (prevDist > 0 && newDist > 0) {
+        const midX = (event.clientX + other.x) / 2, midY = (event.clientY + other.y) / 2;
+        const px = (midX - rect.left) * (WIDTH / rect.width);
+        const py = (midY - rect.top) * (HEIGHT / rect.height);
+        const { lon, lat } = screenToGeo(px, py);
+        zoomBy(newDist / prevDist, lon, lat);
+      }
+    }
+  });
+
+  svgEl.addEventListener("pointerup", endPointer);
+  svgEl.addEventListener("pointercancel", endPointer);
+  svgEl.addEventListener("pointerleave", () => {
+    if (activePointers.size === 0) hideTooltip();
+  });
+
+  const zoomInBtn = document.getElementById("water-channels-zoom-in");
+  const zoomOutBtn = document.getElementById("water-channels-zoom-out");
+  const zoomResetBtn = document.getElementById("water-channels-zoom-reset");
+  const viewCenter = () => ({ lon: (view.minLon + view.maxLon) / 2, lat: (view.minLat + view.maxLat) / 2 });
+  if (zoomInBtn) zoomInBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(ZOOM_STEP, c.lon, c.lat); });
+  if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(1 / ZOOM_STEP, c.lon, c.lat); });
+  if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { view = { ...fullBounds }; render(); });
+
+  render();
+  legendEl.textContent = "Tömör vonal: csatorna. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Csak a nevesített vízfolyások. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás neve és hossza jelenik meg.";
 }
 
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
