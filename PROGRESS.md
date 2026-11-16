@@ -6,9 +6,57 @@ abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le, 
 `ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi állapotot és
 a nyitott szálakat**.
 
-Utolsó frissítés: 2026-11-16, 2. kör (ld. lent az "UX/UI audit" szakaszt - a
-09-12-es KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem
+Utolsó frissítés: 2026-11-16, 3. kör (ld. lent az "UX/UI audit" szakaszokat -
+a 09-12-es KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem
 törölve).
+
+## Domborzat (hillshade) a csatorna-térképhez, 3. kör (2026-11-16)
+
+A felhasználó a 2. kör után külön kérte: "put elevation overlay" - ez a
+PROGRESS.md-ben (és a chat-előzményben) többször is külön, még el nem
+kezdett tételként szerepelt.
+
+**KÉSZ, élesítve.** A terv Open-Meteo `/v1/elevation` végponttal indult
+(ugyanaz a szolgáltató, mint minden máshoz ezen az oldalon) - ez a ~3600
+pontos, egyszeri rács-lekérésnél "Daily API request limit exceeded"-be
+futott, egy önálló, egypontos kéréssel is megerősítve utána. A
+felhasználó jóváhagyásával lecserélve Copernicus DEM GLO-30-ra (30m,
+közkincs), közvetlenül a nyilvános `copernicus-dem-30m` AWS S3-bucketből,
+GDAL `/vsicurl/` HTTP range-kéréssel (rasterio-n keresztül) - ez csak a
+ténylegesen kért pixeleket olvassa, sosem egy teljes (~44MB) csempét, és
+nincs hívásonkénti kvótája.
+
+- **Adat**: `soil-moisture-mapper/app/elevation.py` (új, egyszeri szkript,
+  mint channels.py - NEM az órás ciklus része). 90x40-es, 0,08 fokos
+  (~8km) rács, a határpolygonra NEM vágva (a lejtő-számításhoz minden
+  cellának kell a valódi szomszédja). Szerver oldalon kiszámolt, szabványos
+  GIS hillshade (lejtés+kitettség, ÉNy-i 45 fokos napállás) - a
+  frontendnek csak ki kell rajzolnia. Kontraszt-nyújtva: a nyers hillshade
+  élesben csak a 0-255 skála szűk sávjában mozgott (Magyarország nagyrészt
+  sík), ami szürke foltnak látszott volna domborzat helyett.
+  `app/grid.py`-ban a `generate_grid()` mostantól elfogad `step_deg`/
+  `buffer_km` felülírást (alapértelmezve a settings sajátjára, a meglévő
+  órás hívót nem érinti).
+- **Kimenet**: `holazeso-v0/elevation.json` (14,4 KB nyersen, ~3,9 KB gzip)
+  - statikus fájl, mint borders.json/water-geo.json, NEM megy a
+    push-worker KV-n át (a domborzat sosem változik).
+- **Frontend**: `script.js` `buildChannelsMap` - egyetlen `<canvas>`-ból
+  kapott data URL-kép, a böngésző saját natív nagyításával simítva, az
+  ország körvonalára vágva (ugyanaz a clip-path trükk, mint a dombormű-
+  térképen), a projekciót minden render()-nél (zoom/pan) újraszámolva.
+  Félig áttetsző (opacity 0,45), sötét módban `filter: invert(1)`.
+  Ellenőrizve: élő PNG-előnézet (felismerhető magyar domborzat: északi/
+  nyugati dombvidék, lapos Alföld), majd Playwright-tal light/dark módban
+  és nagyítás előtt/után is (a kép pozíciója helyesen újraszámolódik).
+- **Mellékesen észlelt, NEM saját hiba**: a munka közbeni Open-Meteo
+  teszthívások kimerítették ennek a sandboxnak a napi Open-Meteo-kvótáját
+  (minden Open-Meteo-hívás itt 429-et ad mára) - ez csak EZT a sandboxot
+  érinti, a valódi látogatók saját böngészőjükből, saját IP-ről hívják az
+  API-t (ld. ARCHITECTURE.md), tehát őket nem érinti. Közben viszont azt is
+  észre lehetett venni, hogy az ÉLES push-worker `soil-snapshot`-ja üres
+  (`points: []`, `generated_at` órák óta nem frissült) - ez egy a
+  produkciós (otthoni gépen futó) órás ciklusban lévő, ettől a sessiontől
+  FÜGGETLEN probléma, nem ellenőriztük tovább, mert nem ez volt a kérés.
 
 ## UX/UI audit, 2. kör (2026-11-16): a "Later roadmap" tételek
 
@@ -50,14 +98,12 @@ Ami ebben a körben ELKÉSZÜLT:
   ugyanaz a lista a channels.py-ban ÉS a script.js-ben), ÉS típus-érzékeny
   (egy "Duna" nevű ÁROK, 4 way/0,09 km, és egy "Dunaj" nevű CSATORNA, 1
   way/15,7 km - mindkettő VALÓDI, a folyótól független objektum ugyanazzal
-  a névvel - emiatt a kulcs (név, típus) pár, nem csak név). A teljes
-  PBF-újrafuttatás lokálisan validálva (top10: Tisza 716,5 km, Duna 495,9 km,
-  helyes, duplikátum nélkül), DE MÉG NEM lett élesbe tolva - a
-  `deliver_snapshot` hívás (ami a push-worker KV-t írja) a Claude Code
-  auto-mode által blokkolt akció, FELHASZNÁLÓI jóváhagyás kell előtte. A
-  kész pillanatkép: `/tmp/.../scratchpad/channels_snapshot_d04.json` (ha a
-  scratchpad azóta törlődött, a `python -m app.channels` újrafuttatása kb.
-  5 perc, a Docker-recept lent a "Sorrend" szakaszban/git historyban).
+  a névvel - emiatt a kulcs (név, típus) pár, nem csak név). **ÉLESÍTVE**
+  (a felhasználó jóváhagyásával): `python -m app.channels` lefutott, a
+  push-worker `channels-snapshot` KV-ja frissült (`generated_at`
+  2026-11-16T14:20Z), a "leghosszabb" lista most duplikátum nélküli
+  (Tisza 715,8 km, Duna 480,0 km, ...). A soil-moisture-mapper repóban
+  lokálisan commitolva (`66fb28a`, nincs remote).
 - **"Hivatalos WCAG audit" - automatizált kör lefutott**: `axe-core`
   (`@axe-core/playwright`) a teljes oldalon, összecsukott ÉS minden
   lenyíló/térkép/folyó-sor kinyitott állapotában: **0 violation**
@@ -93,12 +139,9 @@ Ami ebben a körben ELKÉSZÜLT:
   (az audit eredeti, teljes kérése) - csak a legfontosabb pontatlanságok
   (talaj: "mért" -> "modell-becslés") és egy aggregált időbélyeg készült el,
   nem egy teljes, minden kártyát érintő tartalmi átalakítás.
-- **D04 adat ÉLESBE tolása**: a kód kész és validálva, a push (a
-  `deliver_snapshot` hívás) a Claude Code auto-mode által blokkolt, FELHASZ-
-  NÁLÓI jóváhagyást igénylő akció - ld. fent a pontos állapotot.
-- **Domborzati/magassági réteg (hillshading)** a csatorna-térképhez - a
-  felhasználó többször kérte, de ehhez új adatforrás (SRTM/Copernicus DEM)
-  és egy önálló tervezési kör kellene, ezt a 2. kör sem érintette.
+- ~~D04 adat élesbe tolása~~ - **KÉSZ**, ld. fent (2026-11-16 14:20Z).
+- ~~Domborzati/magassági réteg (hillshading)~~ - **KÉSZ**, ld. a fájl
+  tetején, "Domborzat (hillshade) a csatorna-térképhez, 3. kör" szakasz.
 - **Kézi/képernyőolvasós (nem csak automatizált axe) akadálymentességi
   átvizsgálás** - az axe-core 0 violation jó jel, de nem helyettesíti.
 

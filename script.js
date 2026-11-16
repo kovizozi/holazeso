@@ -661,6 +661,30 @@ function loadWaterGeo() {
   return waterGeoLoading;
 }
 
+// ---- Domborzat (hillshade) a csatorna-térkép hátterében ----
+// A felhasználó többször kérte ("terrarians"/"elevation overlay") - statikus
+// fájl, mint a borders.json/water-geo.json, NEM a push-worker KV-n megy át
+// (a domborzat sosem változik). A soil-moisture-mapper app/elevation.py-ja
+// generálja (ld. ott a fejkommentet): Open-Meteo magassági API, egy 90x40-es
+// rács, SZERVER OLDALON előre kiszámolt hillshade (0-255 szürkeárnyalat) -
+// a frontendnek csak ki kell rajzolnia, nem kell újraszámolnia a
+// lejtő-matekot.
+const ELEVATION_URL = "elevation.json?v=1";
+let elevationGrid = null;
+let elevationLoading = null;
+
+function loadElevation() {
+  if (elevationLoading) return elevationLoading;
+  elevationLoading = fetch(ELEVATION_URL)
+    .then(res => res.json())
+    .then(data => { elevationGrid = data; })
+    .catch(err => {
+      console.error(err);
+      elevationGrid = null;
+    });
+  return elevationLoading;
+}
+
 // ---- Radarkép a radaron ----
 // A csapadékképet a RainViewer publikus radarcsempéiből rakjuk össze.
 //
@@ -3001,6 +3025,33 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   // mindenhol a site-on egyformán pontos legyen, bármilyen nagyításnál.
   const borderRing = selectCountryBorderRing(fullBounds.minLon, fullBounds.maxLon, fullBounds.minLat, fullBounds.maxLat);
 
+  // Domborzat-háttér: a nyers 90x40-es rácsot EGYETLEN <canvas>-ból kapott
+  // data URL-ként tároljuk, EGYSZER (nem minden render()-nél újra) - a
+  // böngésző saját, natív képnagyítása (bilineáris) simítja fel, amikor az
+  // SVG <image> a tényleges képernyőméretre nyújtja lent, nincs szükség
+  // kézi upscale-re/interpolációra a frontenden.
+  let elevationDataUrl = null;
+  if (elevationGrid && elevationGrid.rows && elevationGrid.cols) {
+    const canvas = document.createElement("canvas");
+    canvas.width = elevationGrid.cols;
+    canvas.height = elevationGrid.rows;
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(elevationGrid.cols, elevationGrid.rows);
+    for (let r = 0; r < elevationGrid.rows; r++) {
+      const row = elevationGrid.shade[r];
+      for (let c = 0; c < elevationGrid.cols; c++) {
+        const v = row[c];
+        const di = (r * elevationGrid.cols + c) * 4;
+        img.data[di] = v;
+        img.data[di + 1] = v;
+        img.data[di + 2] = v;
+        img.data[di + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    elevationDataUrl = canvas.toDataURL();
+  }
+
   let view = { ...fullBounds };
   let visible = []; // az aktuálisan kirajzolt feature-ök - a data-fid ebbe indexel
   const activePointers = new Map(); // pointerId -> {x, y}, húzáshoz/csippentéshez
@@ -3136,12 +3187,26 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     });
 
     let markup = "";
+    let borderD = "";
     if (borderRing) {
-      let borderD = "";
       borderRing.forEach(([lon, lat], i) => {
         const { x, y } = project(lat, lon);
         borderD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
       });
+    }
+    // A domborzat-kép az ORSZÁG VALÓDI körvonalára van vágva (ugyanaz a
+    // borderD, amit a látható határvonal is használ lent) - a kép maga a
+    // teljes rács téglalapját fedi, a project() minden render()-nél (zoom/
+    // pan) újraszámolja, hova vetül a rács négy sarka a jelenlegi nézetben.
+    if (borderD && elevationDataUrl) {
+      const gridMaxLat = elevationGrid.min_lat + (elevationGrid.rows - 1) * elevationGrid.step_deg;
+      const gridMaxLon = elevationGrid.min_lon + (elevationGrid.cols - 1) * elevationGrid.step_deg;
+      const topLeft = project(gridMaxLat, elevationGrid.min_lon);
+      const bottomRight = project(elevationGrid.min_lat, gridMaxLon);
+      markup += `<defs><clipPath id="water-channels-elevation-clip"><path d="${borderD}Z"></path></clipPath></defs>`;
+      markup += `<image class="water-channel-elevation" href="${elevationDataUrl}" x="${topLeft.x.toFixed(1)}" y="${topLeft.y.toFixed(1)}" width="${(bottomRight.x - topLeft.x).toFixed(1)}" height="${(bottomRight.y - topLeft.y).toFixed(1)}" preserveAspectRatio="none" clip-path="url(#water-channels-elevation-clip)"></image>`;
+    }
+    if (borderD) {
       markup += `<path class="water-channel-border" d="${borderD}Z"></path>`;
     }
     // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna/tó, hogy a
@@ -3465,7 +3530,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     <button type="button" class="water-legend-item" data-type="${type}" aria-pressed="true">
       <svg class="water-legend-swatch" viewBox="0 0 24 6" aria-hidden="true"><line x1="0" y1="3" x2="24" y2="3" class="water-channel-${type}"></line></svg>${CHANNEL_TYPE_LABEL[type]}
     </button>`).join("");
-  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg. A fenti jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.`;
+  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg. A fenti jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.${elevationDataUrl ? " A háttér domborzat-árnyékolás (Copernicus DEM GLO-30)." : ""}`;
 
   legendEl.addEventListener("click", event => {
     const btn = event.target.closest(".water-legend-item");
@@ -3891,7 +3956,7 @@ async function buildWaterPanel(point) {
     const loadChannelsSection = async () => {
       try {
         const channels = await fetchWaterSnapshot("channels-snapshot");
-        await loadBorders();
+        await Promise.all([loadBorders(), loadElevation()]);
         buildChannelsMap(
           document.getElementById("water-channels-map"),
           document.getElementById("water-channels-legend"),

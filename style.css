@@ -902,6 +902,22 @@ noscript .about {
   pointer-events: none;
 }
 
+/* Domborzat-háttér (hillshade) - a felhasználó többször kérte ("elevation
+   overlay"). Félig áttetsző, hogy a csatorna-vonalak maradjanak a fő
+   elem; sötét módban invertálva, mert egy fehér alapon szürkített kép
+   sötét háttéren fordítva nézne ki (a hegyek "lyuknak" tűnnének, nem
+   kiemelkedésnek) - ld. script.js buildChannelsMap. */
+.water-channel-elevation {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .water-channel-elevation {
+    filter: invert(1);
+  }
+}
+
 .water-channel-canal {
   fill: none;
   stroke: var(--fg);
