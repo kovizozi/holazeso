@@ -2596,7 +2596,9 @@ function decodeChannelFeatures(geo) {
   }));
 }
 
-const CHANNEL_TYPE_LABEL = { canal: "csatorna", drain: "belvízelvezető", ditch: "árok" };
+const CHANNEL_TYPE_LABEL = {
+  canal: "csatorna", drain: "belvízelvezető", ditch: "árok", river: "folyó", lake: "tó",
+};
 
 // Pöccre nagyítható/mozgatható csatorna-térkép: a teljes hálózat helyett
 // mindig csak a jelenlegi nézet (view) + a rajta belüli zoom-szinthez
@@ -2717,7 +2719,10 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   function render() {
     const project = fitFlatProjection(view.minLon, view.maxLon, view.minLat, view.maxLat, WIDTH, HEIGHT);
     const zoomRatio = (fullBounds.maxLon - fullBounds.minLon) / (view.maxLon - view.minLon);
-    const activeTypes = new Set(["canal"]);
+    // A folyó (438 nevesített) és a tó (1056) a csatornával együtt MINDIG
+    // látszik - nagyságrendileg ugyanott van, mint a ma is alapból látható
+    // csatorna (2161) -, csak a belvízelvezető/árok vár nagyításra.
+    const activeTypes = new Set(["canal", "river", "lake"]);
     if (zoomRatio >= LOD_DRAIN_RATIO) activeTypes.add("drain");
     if (zoomRatio >= LOD_DITCH_RATIO) activeTypes.add("ditch");
 
@@ -2749,9 +2754,9 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
       });
       markup += `<path class="water-channel-border" d="${borderD}Z"></path>`;
     }
-    // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna, hogy a
+    // Legalul a legapróbb/legsűrűbb (árok), legfelül a csatorna/tó, hogy a
     // ritkább, de "fontosabb" vízfolyások ne tűnjenek el a sűrű árokrajzban.
-    for (const type of ["ditch", "drain", "canal"]) {
+    for (const type of ["ditch", "drain", "river", "canal", "lake"]) {
       if (!activeTypes.has(type)) continue;
       visible.forEach((f, idx) => {
         if (f.type !== type) return;
@@ -2840,7 +2845,55 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { view = { ...fullBounds }; render(); });
 
   render();
-  legendEl.textContent = "Tömör vonal: csatorna. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Csak a nevesített vízfolyások. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás neve és hossza jelenik meg.";
+
+  // Induló "kígyózó" betöltés: a kezdő (teljes kiterjedésű) nézet vonalai
+  // nem egyszerre jelennek meg, hanem sorban, kirajzolódva - MINDIG csak itt,
+  // zoomra/pannelésre SOHA nem ismétlődik (a render() ezt nem hívja újra).
+  // A stroke-dasharray/-dashoffset trükk: a vonal saját hosszára állítjuk a
+  // szaggatást, elrejtve azt, majd 0-ra animáljuk - a lépcsőzött delay adja
+  // a "kígyó" hatást. A találat-céllapok (.water-channel-hit) érintetlenek,
+  // a rámutatás már az animáció közben is működik.
+  // Ennyire kizoomolva sok apró feature (kis tó, rövid folyószakasz) a
+  // pixel-kerekítés miatt NULLA hosszú path-ot ad (minden pontja ugyanarra
+  // a 0,1 egységre kerekszik) - ezeken a dashoffset sosem VÁLTOZIK (0 -> 0),
+  // a böngésző (helyesen) nem indít animációt, a transitionend sosem tüzel.
+  // Ezeket ezért ki is hagyjuk a kígyózásból, nem csak hiába állítjuk be.
+  const introPaths = [...svgEl.querySelectorAll("path[data-fid]")].filter(
+    p => !p.classList.contains("water-channel-hit") && p.getTotalLength() > 0.5
+  );
+  if (introPaths.length) {
+    const INTRO_MS = 1600;
+    const DRAW_MS = 420;
+    const lengths = introPaths.map(p => p.getTotalLength());
+    introPaths.forEach((p, idx) => {
+      const len = lengths[idx];
+      p.style.strokeDasharray = `${len}`;
+      p.style.strokeDashoffset = `${len}`;
+    });
+    // Dupla requestAnimationFrame: a böngészőnek TÉNYLEG ki kell festenie a
+    // fenti "elrejtett" állapotot (1. keret), mielőtt az átmenetet elindítjuk
+    // (2. keret) - egy szinkron reflow-olvasás (pl. getBoundingClientRect)
+    // ehhez NEM elég, az átmenet "előző" állapota csak egy valódi kifestett
+    // kereten át rögzül, különben a két stílusváltás egybeolvad, nincs
+    // animáció, és a transitionend sosem tüzel el (a tó szaggatása is
+    // beragadna).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        introPaths.forEach((p, idx) => {
+          const delay = (idx / introPaths.length) * INTRO_MS;
+          p.style.transition = `stroke-dashoffset ${DRAW_MS}ms ease ${delay}ms`;
+          p.style.strokeDashoffset = "0";
+          p.addEventListener("transitionend", () => {
+            p.style.strokeDasharray = "";
+            p.style.strokeDashoffset = "";
+            p.style.transition = "";
+          }, { once: true });
+        });
+      });
+    });
+  }
+
+  legendEl.textContent = "Tömör vonal: csatorna. Félkövér vonal: folyó. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Szaggatott körvonal: tó. Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg.";
 }
 
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
@@ -3223,7 +3276,7 @@ async function buildWaterPanel(point) {
       );
       const stats = channels.stats;
       document.getElementById("water-channels-headline").textContent =
-        `${waterNum(stats.total_ways, 0)} csatorna, belvízelvezető és árok`;
+        `${waterNum(stats.total_ways, 0)} folyó, csatorna, belvízelvezető, árok és tó`;
       document.getElementById("water-channels-detail").textContent =
         `összesen kb. ${waterNum(stats.total_km, 0)} km`;
       document.getElementById("water-channels-longest").innerHTML = stats.longest

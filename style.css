@@ -762,6 +762,26 @@ noscript .about {
   pointer-events: none;
 }
 
+.water-channel-river {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* Kontúr-only (nincs fill - szigorúan monokróm, nincs "víz-kék" tipp), a
+   .water-channel-ditch-től eltérő szaggatás-mintával (3 2, nem 1 1.5), hogy
+   a két szaggatott stílus ne keveredjen össze egymással. */
+.water-channel-lake {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  pointer-events: none;
+}
+
 /* A látható vonalak (fent) mind pointer-events: none-ok - a tényleges
    rámutatás/koppintás-céllap ez az átlátszó, szélesebb másolat, ugyanúgy,
    mint a .water-cell-touch/.water-marker-touch-nál: a legvékonyabb
