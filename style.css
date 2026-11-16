@@ -53,9 +53,19 @@ body {
   flex-direction: column;
 }
 
+/* A csatorna-térkép "kígyózó" betöltő-animációja alatt (ld. script.js
+   buildChannelsMap IntersectionObserver-je) - hogy a felhasználó ne tudjon
+   kapkodva tovább görgetni, mire a vonalak kirajzolódnak, az animáció
+   végén magától feloldódik. */
+html.scroll-locked,
+body.scroll-locked {
+  overflow: hidden;
+  touch-action: none;
+}
+
 #app {
   flex: 1;
-  max-width: 640px;
+  max-width: 1300px;
   margin: 0 auto;
   width: 100%;
   padding: var(--sp-5) var(--sp-3) 0;
@@ -730,7 +740,7 @@ noscript .about {
    .radar-river/.radar-lake mintájához hasonlóan. */
 .water-channel-border {
   fill: none;
-  stroke: var(--border);
+  stroke: var(--fg);
   stroke-width: 1;
   pointer-events: none;
 }
@@ -774,11 +784,18 @@ noscript .about {
 /* Kontúr-only (nincs fill - szigorúan monokróm, nincs "víz-kék" tipp), a
    .water-channel-ditch-től eltérő szaggatás-mintával (3 2, nem 1 1.5), hogy
    a két szaggatott stílus ne keveredjen össze egymással. */
+/* vector-effect: non-scaling-stroke - a legnagyobb nevesített tó is csak
+   néhány képpont kiterjedésű keskeny mobilon (ld. script.js MIN_LAKE_PX
+   komment) - ha a vonalvastagság a geometriával együtt zsugorodna, egy
+   ilyen apró tónál a vonal MAGA is észrevehetetlenül vékony lenne, nem csak
+   a formája. Így a vastagság (és a szaggatás-minta) mindig valódi
+   képpontban marad, a tó egy ténylegesen látható kis folttá válik. */
 .water-channel-lake {
   fill: none;
   stroke: var(--muted);
-  stroke-width: 1;
+  stroke-width: 1.5;
   stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
@@ -834,6 +851,20 @@ noscript .about {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+/* Kikapcsolt típus a legendában (ld. script.js buildChannelsMap kattintás-
+   kezelője) - halvány, áthúzott, hogy egyértelmű legyen, hogy épp nem
+   látszik a térképen, nem csak egy dekoratív jelmagyarázat. */
+.water-legend-item-off {
+  opacity: 0.4;
+  text-decoration: line-through;
 }
 
 /* .water-figure svg (fent) 100%-os szélességet/display:block-et ad minden

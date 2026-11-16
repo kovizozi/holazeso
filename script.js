@@ -2688,6 +2688,9 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   let visible = []; // az aktuálisan kirajzolt feature-ök - a data-fid ebbe indexel
   const activePointers = new Map(); // pointerId -> {x, y}, húzáshoz/csippentéshez
   let renderScheduled = false;
+  // A legenda kattintható (ld. lent) - egy típus ide kerül, ha a felhasználó
+  // kikapcsolta, függetlenül attól, hogy a LOD szerint egyébként látszana.
+  const disabledTypes = new Set();
 
   const tooltipEl = document.getElementById("water-channels-tooltip");
 
@@ -2764,6 +2767,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     const activeTypes = new Set(["canal", "river", "lake"]);
     if (zoomRatio >= LOD_DRAIN_RATIO) activeTypes.add("drain");
     if (zoomRatio >= LOD_DITCH_RATIO) activeTypes.add("ditch");
+    for (const t of disabledTypes) activeTypes.delete(t);
 
     // Kis ráhagyással szűrünk, hogy a view szélén belépő vonalak se
     // vágódjanak le csonkán, mire a pointer odaér.
@@ -2776,7 +2780,15 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     // project.scale képpontban) - csak azok a tavak látszanak, amik ennyire
     // kizoomolva egyáltalán ÉSZREVEHETŐK lennének, a többi majd nagyításra
     // kerül elő, ahogy a saját mérete nő a képernyőn.
-    const MIN_LAKE_PX = 4;
+    // Élesben lemérve: a legnagyobb nevesített tó (Alcsi Holt-Tisza) teljes
+    // kiterjedésben, keskeny mobilon is csak ~4 képpont - NINCS ennél nagyobb
+    // a teljes adatban, egy 14 képpontos küszöb a TELJES tó-réteget kiszűrte
+    // volna. A valódi fix nem egy magasabb küszöb, hanem hogy a vonal saját
+    // vastagsága NE zsugorodjon a térkép-geometriával együtt (ld. lent,
+    // .water-channel-lake vector-effect: non-scaling-stroke) - így egy ilyen
+    // apró tó is egy ténylegesen látható, tömör kis folt marad, nem egy
+    // észrevehetetlen hajszálvonal.
+    const MIN_LAKE_PX = 3;
     visible = featuresWithBounds.filter(f => {
       if (!activeTypes.has(f.type)) return false;
       if (f.type === "lake") {
@@ -2930,10 +2942,11 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     p.style.strokeDashoffset = `${len}`;
   });
 
-  function playSnakeIntro() {
-    if (!introPaths.length) return;
+  function playSnakeIntro(onDone) {
+    if (!introPaths.length) { onDone(); return; }
     const INTRO_MS = 1600;
     const DRAW_MS = 420;
+    let finished = 0;
     // Dupla requestAnimationFrame: a böngészőnek TÉNYLEG ki kell festenie a
     // fenti "elrejtett" állapotot (1. keret), mielőtt az átmenetet elindítjuk
     // (2. keret) - egy szinkron reflow-olvasás (pl. getBoundingClientRect)
@@ -2951,34 +2964,66 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
             p.style.strokeDasharray = "";
             p.style.strokeDashoffset = "";
             p.style.transition = "";
+            finished += 1;
+            if (finished === introPaths.length) onDone();
           }, { once: true });
         });
       });
     });
   }
 
+  // A felhasználó kérésére: NEM azonnal indul a kígyózás, amint a térkép
+  // akár csak egy kicsit is látszóvá válik - egy röpke szünet után (hogy a
+  // görgetés "megüljön"), ÉS csak utána tiltjuk le a görgetést az animáció
+  // idejére, hogy ne tudjon félbehagyva, kapkodva továbbgörgetni mellette.
+  // A tiltás az animáció végén (minden vonal lekígyózott) magától feloldódik.
+  const SCROLL_LOCK_DELAY_MS = 500;
   if (introPaths.length && "IntersectionObserver" in window) {
     const introObserver = new IntersectionObserver((entries) => {
       if (entries.some(e => e.isIntersecting)) {
         introObserver.disconnect();
-        playSnakeIntro();
+        setTimeout(() => {
+          document.documentElement.classList.add("scroll-locked");
+          document.body.classList.add("scroll-locked");
+          playSnakeIntro(() => {
+            document.documentElement.classList.remove("scroll-locked");
+            document.body.classList.remove("scroll-locked");
+          });
+        }, SCROLL_LOCK_DELAY_MS);
       }
     }, { threshold: 0.2 });
     introObserver.observe(svgEl);
   } else {
-    playSnakeIntro();
+    playSnakeIntro(() => {});
   }
 
   // Valódi mini-vonalmintával (ugyanazzal a CSS-osztállyal, mint a térképen),
   // nem csak prózában leírva, melyik stílus melyik típust jelenti - ha a
   // térképi stílus változik, ez a legenda automatikusan követi, nincs két
-  // helyen karbantartandó leírás.
+  // helyen karbantartandó leírás. KATTINTHATÓ is: egy típus ki-/bekapcsolható,
+  // a disabledTypes-on és a render() activeTypes-szűrésén keresztül hat.
   const LEGEND_TYPE_ORDER = ["canal", "river", "drain", "ditch", "lake"];
   const swatchRow = LEGEND_TYPE_ORDER.map(type => `
-    <span class="water-legend-item">
+    <button type="button" class="water-legend-item" data-type="${type}" aria-pressed="true">
       <svg class="water-legend-swatch" viewBox="0 0 24 6" aria-hidden="true"><line x1="0" y1="3" x2="24" y2="3" class="water-channel-${type}"></line></svg>${CHANNEL_TYPE_LABEL[type]}
-    </span>`).join("");
-  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg.`;
+    </button>`).join("");
+  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg. A fenti jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.`;
+
+  legendEl.addEventListener("click", event => {
+    const btn = event.target.closest(".water-legend-item");
+    if (!btn) return;
+    const type = btn.dataset.type;
+    if (disabledTypes.has(type)) {
+      disabledTypes.delete(type);
+      btn.setAttribute("aria-pressed", "true");
+      btn.classList.remove("water-legend-item-off");
+    } else {
+      disabledTypes.add(type);
+      btn.setAttribute("aria-pressed", "false");
+      btn.classList.add("water-legend-item-off");
+    }
+    scheduleRender();
+  });
 }
 
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
