@@ -2637,6 +2637,25 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     return;
   }
 
+  // A Balaton (és a Fertő-/Velencei-tó) OSM-ben multipolygon-RELÁCIÓ, a
+  // channels.py feldolgozás szándékosan nem kapja el őket (ld. a python-
+  // oldali modul-docstring) - DE a Balaton valódi körvonala már úgyis itt
+  // van a honlapon, a water-geo.json-ban (a dombormű-térkép/radar
+  // használja). Kár lenne nem felhasználni ugyanerre a térképre is: a
+  // felhasználó Magyarország legismertebb taváról kérdez rá, nem kapna
+  // kielégítő választ, ha a pöccre nagyítható térkép egyszerűen hallgat
+  // róla, miközben a geometria már rendelkezésre áll.
+  if (waterGeo && waterGeo.lakes && waterGeo.lakes.length && waterGeo.lakes[0].length > 2) {
+    const ring = waterGeo.lakes[0];
+    let perimeterKm = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const [lon1, lat1] = ring[i];
+      const [lon2, lat2] = ring[(i + 1) % ring.length];
+      perimeterKm += distanceKm(lat1, lon1, lat2, lon2);
+    }
+    features.push({ name: "Balaton", type: "lake", km: perimeterKm, ring });
+  }
+
   // A méretarány-doboz MINDIG a csatornák saját kiterjedéséből jön (azok
   // garantáltan Magyarországon belül vannak) - a világ-körvonalakból
   // (borderRings) sosem, mert azok kiterjedése az egész Föld. Minden
@@ -2979,6 +2998,19 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     const INTRO_MS = 1600;
     const DRAW_MS = 420;
     let finished = 0;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      onDone();
+    };
+    // Biztonsági háló: ha a felhasználó zoomol/pannel az animáció KÖZBEN,
+    // a render() újraépíti a DOM-ot (svgEl.innerHTML = markup), a még
+    // függőben lévő transitionend-ek a RÉGI (már eltávolított) elemeken
+    // SOHA nem tüzelnek el - enélkül a `finished` sosem éri el a célszámot,
+    // és a görgetés-tiltás örökre beragadna. Egy felső korlát-időzítő
+    // garantálja a feloldást akkor is, ha ez történik.
+    setTimeout(finish, INTRO_MS + DRAW_MS + 400);
     // Dupla requestAnimationFrame: a böngészőnek TÉNYLEG ki kell festenie a
     // fenti "elrejtett" állapotot (1. keret), mielőtt az átmenetet elindítjuk
     // (2. keret) - egy szinkron reflow-olvasás (pl. getBoundingClientRect)
@@ -2997,7 +3029,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
             p.style.strokeDashoffset = "";
             p.style.transition = "";
             finished += 1;
-            if (finished === introPaths.length) onDone();
+            if (finished === introPaths.length) finish();
           }, { once: true });
         });
       });
