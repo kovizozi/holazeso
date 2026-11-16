@@ -1786,9 +1786,17 @@ async function tryAutoLocate() {
     runAndTrack(loc);
   } catch (err) {
     console.error(err);
+    // Ha a böngésző helymeghatározása nem elérhető/engedélyezett, ne
+    // kényszerítsük a felhasználót azonnal kézi keresésre - Budapest
+    // ésszerű alapértelmezett, azonnali választ ad, a "másik hely"
+    // (#change-location) linkkel bármikor átválthat a kézi keresőre.
+    // Szándékosan NEM mentjük el mentett helyként (saveLocation) - legközelebb
+    // újra megpróbálja az automatikus helymeghatározást, nem ragad be
+    // Budapestnél, ha az csak egyszeri hiba volt.
     showLoading(false);
-    showPicker();
-    showError("Nem sikerült automatikusan meghatározni a helyzeted. Add meg kézzel:");
+    const loc = { name: "Budapest", lat: 47.4979, lon: 19.0402, countryCode: "HU" };
+    showResult();
+    runAndTrack(loc);
   }
 }
 
@@ -2748,9 +2756,11 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   function render() {
     const project = fitFlatProjection(view.minLon, view.maxLon, view.minLat, view.maxLat, WIDTH, HEIGHT);
     const zoomRatio = (fullBounds.maxLon - fullBounds.minLon) / (view.maxLon - view.minLon);
-    // A folyó (438 nevesített) és a tó (1056) a csatornával együtt MINDIG
-    // látszik - nagyságrendileg ugyanott van, mint a ma is alapból látható
-    // csatorna (2161) -, csak a belvízelvezető/árok vár nagyításra.
+    // A folyó (438 nevesített) a csatornával együtt MINDIG látszik -
+    // nagyságrendileg ugyanott van, mint a ma is alapból látható csatorna
+    // (2161) -, csak a belvízelvezető/árok vár nagyításra. A tó (1056,
+    // típusban MINDIG "aktív", de lent, MÉRET szerint tovább szűrve - ld.
+    // MIN_LAKE_PX) eleve csak a ténylegesen észrevehető méretűekkel.
     const activeTypes = new Set(["canal", "river", "lake"]);
     if (zoomRatio >= LOD_DRAIN_RATIO) activeTypes.add("drain");
     if (zoomRatio >= LOD_DITCH_RATIO) activeTypes.add("ditch");
@@ -2759,11 +2769,26 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     // vágódjanak le csonkán, mire a pointer odaér.
     const marginLon = (view.maxLon - view.minLon) * 0.1;
     const marginLat = (view.maxLat - view.minLat) * 0.1;
-    visible = featuresWithBounds.filter(f =>
-      activeTypes.has(f.type) &&
-      f.maxLon >= view.minLon - marginLon && f.minLon <= view.maxLon + marginLon &&
-      f.maxLat >= view.minLat - marginLat && f.minLat <= view.maxLat + marginLat
-    );
+    // A tavak mérete NAGYON szór (néhány méteres halastótól a több km²-es
+    // tóig) - egy fix zoom-küszöb vagy mindig elrejti a nagyobbakat, vagy
+    // mindig láthatatlanul apróra rajzolja a kicsiket. Ehelyett a tényleges
+    // kirajzolt méretét nézzük a JELENLEGI nagyításnál (saját kiterjedése *
+    // project.scale képpontban) - csak azok a tavak látszanak, amik ennyire
+    // kizoomolva egyáltalán ÉSZREVEHETŐK lennének, a többi majd nagyításra
+    // kerül elő, ahogy a saját mérete nő a képernyőn.
+    const MIN_LAKE_PX = 4;
+    visible = featuresWithBounds.filter(f => {
+      if (!activeTypes.has(f.type)) return false;
+      if (f.type === "lake") {
+        const pxLon = (f.maxLon - f.minLon) * project.lonFactor * project.scale;
+        const pxLat = (f.maxLat - f.minLat) * project.scale;
+        if (Math.max(pxLon, pxLat) < MIN_LAKE_PX) return false;
+      }
+      return (
+        f.maxLon >= view.minLon - marginLon && f.minLon <= view.maxLon + marginLon &&
+        f.maxLat >= view.minLat - marginLat && f.minLat <= view.maxLat + marginLat
+      );
+    });
 
     const pathByIdx = visible.map(f => {
       let d = "";
@@ -2944,7 +2969,16 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     playSnakeIntro();
   }
 
-  legendEl.textContent = "Tömör vonal: csatorna. Félkövér vonal: folyó. Vékony, halvány vonal: belvízelvezető. Pontozott vonal: árok. Szaggatott körvonal: tó. Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg.";
+  // Valódi mini-vonalmintával (ugyanazzal a CSS-osztállyal, mint a térképen),
+  // nem csak prózában leírva, melyik stílus melyik típust jelenti - ha a
+  // térképi stílus változik, ez a legenda automatikusan követi, nincs két
+  // helyen karbantartandó leírás.
+  const LEGEND_TYPE_ORDER = ["canal", "river", "drain", "ditch", "lake"];
+  const swatchRow = LEGEND_TYPE_ORDER.map(type => `
+    <span class="water-legend-item">
+      <svg class="water-legend-swatch" viewBox="0 0 24 6" aria-hidden="true"><line x1="0" y1="3" x2="24" y2="3" class="water-channel-${type}"></line></svg>${CHANNEL_TYPE_LABEL[type]}
+    </span>`).join("");
+  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg.`;
 }
 
 // ---- 3. Személyes: a keresett helyszín talajminta-profilja ----
