@@ -6,7 +6,68 @@ abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le, 
 `ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi állapotot és
 a nyitott szálakat**.
 
-Utolsó frissítés: 2026-09-12.
+Utolsó frissítés: 2026-11-16 (ld. lent az "UX/UI audit" szakaszt - a 09-12-es
+KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem törölve).
+
+## UX/UI audit (2026-11-16): mi valósult meg, mi maradt nyitva
+
+Egy külső, élő UX/UI audit (`holazeso-ux-audit-2026-11-16.html`, feltöltve a
+sessionbe) 20+ konkrét hibát/hiányosságot talált. A kvíz-wineket és a
+P0/P1 súlyosságúakat ugyanebben a menetben megvalósítottuk (commitok:
+`dd800e8` és a rákövetkező `d6e7731` hotfix, lásd a git historyt a pontos
+tartalomért - fejléc-hierarchia, billentyűzettel elérhető folyó-sorok,
+"Hamarosan" szétválasztva a jelen/előrejelzésre, a csatorna-térkép nem nyeli
+el a görgetést, Mégse-gomb a helyszín-választón, valódi 404, lusta betöltés
+a csatorna-térképnek, Magyarország határa/a 3 nagy folyó mind a MÁR meglévő,
+pontosabb adatpipeline-geometriára cserélve minden térképen).
+
+**Szándékosan NEM valósult meg** (az audit saját "Later roadmap"
+szakaszában is 3-6 hónapos, önálló funkcióként szerepelt, nem egy
+gyors javításként):
+
+- **Kereshető, teljes vízfolyás-felfedező a csatorna-térképhez.** Az A01
+  billentyűzet-hozzáférési hibát a folyó-állomás lista (`#water-river-list`)
+  és a "leghosszabb nevesített vízfolyások" statikus lista (ami már eddig is
+  tiszta szöveg, tehát eleve elérhető) javítja - de a térkép MAGA (5000+
+  feature) továbbra sem böngészhető/kereshető billentyűzettel vagy
+  képernyőolvasóval, csak egérrel/érintéssel (hover/tap tooltip). Ehhez egy
+  önálló, szűrhető/kereshető lista kellene, ami ugyanazt a nevet/hosszt/
+  helyet adja vissza, mint a térkép - ez már architektúra-szintű munka
+  (`buildChannelsMap`, `script.js`), nem egy kis javítás.
+- **Mentett helyek, településspecifikus URL-ek, megosztható állomás-
+  nézetek.** Az audit saját indoklása szerint is "feltételezett" igény
+  (a visszatérő felhasználó mintájából következtetve), nem megfigyelt hiba -
+  ezért nem önmagában ebből a menetből, külön megbeszélést igényel, mielőtt
+  belevágnánk (állapotkezelés, URL-struktúra, esetleg hátteret igénylő
+  megosztás).
+- **Rövid oktató réteg a vízrajzi adatokhoz** (mi a különbség mérce/vízhozam/
+  vízkészlet közt stb.) - az audit ezt is a "Later" körbe sorolta.
+- **Teljesítmény-validáció valódi közepes kategóriás mobilon.** A T01
+  javítás (lusta betöltés) megtörtént, de a cél-számok (LCP ≤2,5s,
+  INP ≤200ms, CLS ≤0,1) **nincsenek lemérve** - ehhez valódi eszköz/profilozó
+  kellene, nem csak a jelenlegi Playwright-alapú funkcionális teszt.
+- **D01 teljes köre**: egyetlen "adatok frissítve: [idő]" sor került a
+  vízadat-panel tetejére (a snapshot MÁR meglévő `generated_at` mezőjéből) -
+  az audit viszont minden EGYES érték mellé forrás+idő+típus címkét kért
+  volna (pl. "Becsült talajnedvesség · adat ideje: ..."). Ez egy jóval
+  nagyobb, minden vízrajzi kártyát érintő tartalmi átalakítás lenne, nem
+  illesztettük bele ebbe a menetbe.
+- **D04 teljes köre**: a kétnyelvű OSM-névváltozatok (pl. "Duna" vs.
+  "Dunaj / Duna") csak egy figyelmeztető mondatot kaptak a listában - az
+  audit saját maga is óva intett az automatikus összevonástól, amíg a
+  feature-azonosság nincs validálva (pl. hogy ugyanaz-e a folyó két oldalról
+  nézve, vagy tényleg külön szakasz). Ehhez a `app/channels.py`
+  (soil-moisture-mapper) adatpipeline-jában kellene egy azonosítási lépés.
+- **Hivatalos WCAG megfelelőségi audit.** A jelentés maga is "élő interakciós
+  audit, nem WCAG-tanúsítvány" - amit javítottunk, azt konkrét megfigyelt
+  hibákra reagálva tettük, nem egy teljes checklist alapján.
+
+**Emellett külön, nem az auditból, de a felhasználó által korábban
+TÖBBSZÖR kért, még el sem kezdett funkció: domborzati/magassági réteg
+(hillshading) a csatorna-térképhez.** Ehhez új adatforrás (pl. SRTM/
+Copernicus DEM kivonat) és egy önálló tervezési kör kellene (adatméret,
+megjelenítési mód), mielőtt belevágnánk - lásd a chat-előzményt, ha egy
+új session ezt venné fel legközelebb.
 
 ## Legfontosabb: nyitott, befejezetlen teendő
 
