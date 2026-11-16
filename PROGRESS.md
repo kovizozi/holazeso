@@ -6,10 +6,103 @@ abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le, 
 `ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi állapotot és
 a nyitott szálakat**.
 
-Utolsó frissítés: 2026-11-16 (ld. lent az "UX/UI audit" szakaszt - a 09-12-es
-KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem törölve).
+Utolsó frissítés: 2026-11-16, 2. kör (ld. lent az "UX/UI audit" szakaszt - a
+09-12-es KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem
+törölve).
 
-## UX/UI audit (2026-11-16): mi valósult meg, mi maradt nyitva
+## UX/UI audit, 2. kör (2026-11-16): a "Later roadmap" tételek
+
+A felhasználó az 1. kör után kérte: "implement all in order" - vagyis a
+lent, "szándékosan NEM valósult meg" címszó alatt felsorolt tételeket is.
+Ami ebben a körben ELKÉSZÜLT:
+
+- **Kereshető vízfolyás-felfedező a csatorna-térképhez** (`#water-channels-
+  search-input`/`-results`, `script.js` `buildChannelsMap` vége): a
+  feature-öket NÉV+TÍPUS szerint csoportosítva (ld. lent, miért típus is
+  kell), gépeléskor élőben szűrt, legfeljebb 25 találatos lista, valódi
+  `<button>`-ökkel - aktiváláskor a térkép odaugrik (`setView`) és egy
+  állapot-sor (aria-live) kiírja a nevet/típust/hosszt/durva helyet.
+- **Mentett helyek + megosztható link**: `loadRecentLocations`/
+  `rememberRecentLocation` (localStorage, max 5, legújabb elöl) - a
+  helyszín-választóban egy koppintással visszaválthatók. `?lat=&lon=&name=
+  &cc=` URL-paraméter induláskor közvetlenül azt a helyet tölti be (előbbre
+  való, mint a mentett/automatikus), és egy "megosztható link" gomb
+  (`#share-location`) a vágólapra másolja a jelenlegi helyszín ilyen
+  linkjét.
+- **Rövid oktató bekezdés** a `#water-methodology`-ban: vízállás (mérce) vs.
+  vízhozam (m³/s) vs. vízkészlet (liter/km³) - a leggyakoribb fogalmi
+  keveredésre, amit a D02 (tó-mérce) hiba is mutatott.
+- **D01, kibővítve**: a talajnedvesség-becslés most explicit "(becslés,
+  Open-Meteo talajmodell)"-ként van jelölve; a dombormű-térkép legendája
+  korábban TÉVESEN "mért" szót használt a modellezett talajadatra (javítva:
+  "modell-becslés, nem mérés") - ez tényleges tartalmi pontatlanság volt,
+  nem csak hiányzó részlet; a folyó-szakasz forrása (hydroinfo.hu) is kiírva.
+  A minden egyes számhoz külön időbélyeg (a riport eredeti, teljes kérése)
+  továbbra sem készült el - az egyetlen "adatok frissítve" sor maradt az
+  arányos megoldás, ld. lent.
+- **D04, VALÓDI adatpipeline-javítással** (`app/channels.py`,
+  `soil-moisture-mapper`): kipróbáltunk egy ÁLTALÁNOS, "/"-re és " - "-ra
+  bontó heurisztikát - ez a VALÓDI adaton hamis találatokat adott (pl.
+  "Igali 55/1. csatorna" egy számozást nézett nyelvi elválasztónak, és egy
+  teljesen más csatornával olvadt össze; "Kanal Karašica - Drava", egy a
+  Drávától FÜGGETLEN csatorna, tévesen a Dráva alá került volna). Emiatt ez
+  egy véges, kézzel jóváhagyott szinonima-tábla lett (`RIVER_NAME_SYNONYMS`,
+  ugyanaz a lista a channels.py-ban ÉS a script.js-ben), ÉS típus-érzékeny
+  (egy "Duna" nevű ÁROK, 4 way/0,09 km, és egy "Dunaj" nevű CSATORNA, 1
+  way/15,7 km - mindkettő VALÓDI, a folyótól független objektum ugyanazzal
+  a névvel - emiatt a kulcs (név, típus) pár, nem csak név). A teljes
+  PBF-újrafuttatás lokálisan validálva (top10: Tisza 716,5 km, Duna 495,9 km,
+  helyes, duplikátum nélkül), DE MÉG NEM lett élesbe tolva - a
+  `deliver_snapshot` hívás (ami a push-worker KV-t írja) a Claude Code
+  auto-mode által blokkolt akció, FELHASZNÁLÓI jóváhagyás kell előtte. A
+  kész pillanatkép: `/tmp/.../scratchpad/channels_snapshot_d04.json` (ha a
+  scratchpad azóta törlődött, a `python -m app.channels` újrafuttatása kb.
+  5 perc, a Docker-recept lent a "Sorrend" szakaszban/git historyban).
+- **"Hivatalos WCAG audit" - automatizált kör lefutott**: `axe-core`
+  (`@axe-core/playwright`) a teljes oldalon, összecsukott ÉS minden
+  lenyíló/térkép/folyó-sor kinyitott állapotában: **0 violation**
+  mindkétszer. Ez NEM helyettesíti a valódi, kézi/képernyőolvasós
+  tesztelést (axe a WCAG-hibák kb. 30-50%-át fogja meg automatikusan), de
+  konkrét, megerősítő adat, nem puszta állítás.
+- **Teljesítmény-validáció.** Valódi közepes kategóriás mobilra nincs
+  hozzáférés ebben a környezetben, DE élő Lighthouse-méréssel (holazeso.hu,
+  mobil emuláció) lefutott: LCP 1,5s (cél alatt), TBT 10ms (jó, az INP is
+  valószínűleg alacsony lesz), **CLS 0,297 - a 0,1-es célérték fölött**.
+  Oka megtalálva (nem csak sejtés): a `#loading` elem `.settled` osztálynál
+  történő `padding-top` váltása (8rem -> var(--sp-3), ld. style.css) VALÓDI
+  layout-ugrás, amit a `slideRadar` FLIP/transform-trükkje csak a FESTÉST
+  nézve tüntet el - a Layout Instability API a transformot figyelmen kívül
+  hagyva, a nyers layout-dobozt nézi, tehát a CLS-t nem javítja, akármekkora
+  a vizuális simaság. Kipróbáltuk a FLIP célpontját a svg helyett a teljes
+  #loading dobozra váltani - PerformanceObserver-rel megmérve UGYANÚGY
+  jelezte a shiftet, tehát ez nem egyszerű kódhiba, hanem a jelenlegi
+  padding-alapú architektúra valódi korlátja. Egy tényleges javítás a
+  `.loading`/`.settled` párt teljesen transform-alapúra cserélné (fix
+  magasságú doboz, a tartalom csak `translateY`-nal mozogna benne, a
+  layout-doboz sosem változna) - ez a keresés-koreográfia (CLAUDE.md 6.
+  szabály) CSS-mechanizmusát érintő, nagyobb átalakítás lenne, amit
+  SZÁNDÉKOSAN NEM végeztünk el egy becsült, nem tesztelt refaktorral,
+  nehogy hibát vigyen a védett, adatvezérelt viselkedésbe - ld. a
+  `slideRadar` fejkommentjét a script.js-ben a pontos méréshez/indokláshoz.
+
+**Ami még MINDIG nyitva maradt** a 2. kör után:
+
+- **CLS 0,297** a radar-reveal choreográfiánál - ld. fent, szándékosan nem
+  nyúltunk hozzá a védett kódhoz egy becsült refaktorral.
+- **D01 teljes köre**: minden EGYES értékhez külön forrás+idő+típus címke
+  (az audit eredeti, teljes kérése) - csak a legfontosabb pontatlanságok
+  (talaj: "mért" -> "modell-becslés") és egy aggregált időbélyeg készült el,
+  nem egy teljes, minden kártyát érintő tartalmi átalakítás.
+- **D04 adat ÉLESBE tolása**: a kód kész és validálva, a push (a
+  `deliver_snapshot` hívás) a Claude Code auto-mode által blokkolt, FELHASZ-
+  NÁLÓI jóváhagyást igénylő akció - ld. fent a pontos állapotot.
+- **Domborzati/magassági réteg (hillshading)** a csatorna-térképhez - a
+  felhasználó többször kérte, de ehhez új adatforrás (SRTM/Copernicus DEM)
+  és egy önálló tervezési kör kellene, ezt a 2. kör sem érintette.
+- **Kézi/képernyőolvasós (nem csak automatizált axe) akadálymentességi
+  átvizsgálás** - az axe-core 0 violation jó jel, de nem helyettesíti.
+
+## UX/UI audit, 1. kör (2026-11-16): mi valósult meg, mi maradt nyitva
 
 Egy külső, élő UX/UI audit (`holazeso-ux-audit-2026-11-16.html`, feltöltve a
 sessionbe) 20+ konkrét hibát/hiányosságot talált. A kvíz-wineket és a
@@ -25,49 +118,11 @@ pontosabb adatpipeline-geometriára cserélve minden térképen).
 szakaszában is 3-6 hónapos, önálló funkcióként szerepelt, nem egy
 gyors javításként):
 
-- **Kereshető, teljes vízfolyás-felfedező a csatorna-térképhez.** Az A01
-  billentyűzet-hozzáférési hibát a folyó-állomás lista (`#water-river-list`)
-  és a "leghosszabb nevesített vízfolyások" statikus lista (ami már eddig is
-  tiszta szöveg, tehát eleve elérhető) javítja - de a térkép MAGA (5000+
-  feature) továbbra sem böngészhető/kereshető billentyűzettel vagy
-  képernyőolvasóval, csak egérrel/érintéssel (hover/tap tooltip). Ehhez egy
-  önálló, szűrhető/kereshető lista kellene, ami ugyanazt a nevet/hosszt/
-  helyet adja vissza, mint a térkép - ez már architektúra-szintű munka
-  (`buildChannelsMap`, `script.js`), nem egy kis javítás.
-- **Mentett helyek, településspecifikus URL-ek, megosztható állomás-
-  nézetek.** Az audit saját indoklása szerint is "feltételezett" igény
-  (a visszatérő felhasználó mintájából következtetve), nem megfigyelt hiba -
-  ezért nem önmagában ebből a menetből, külön megbeszélést igényel, mielőtt
-  belevágnánk (állapotkezelés, URL-struktúra, esetleg hátteret igénylő
-  megosztás).
-- **Rövid oktató réteg a vízrajzi adatokhoz** (mi a különbség mérce/vízhozam/
-  vízkészlet közt stb.) - az audit ezt is a "Later" körbe sorolta.
-- **Teljesítmény-validáció valódi közepes kategóriás mobilon.** A T01
-  javítás (lusta betöltés) megtörtént, de a cél-számok (LCP ≤2,5s,
-  INP ≤200ms, CLS ≤0,1) **nincsenek lemérve** - ehhez valódi eszköz/profilozó
-  kellene, nem csak a jelenlegi Playwright-alapú funkcionális teszt.
-- **D01 teljes köre**: egyetlen "adatok frissítve: [idő]" sor került a
-  vízadat-panel tetejére (a snapshot MÁR meglévő `generated_at` mezőjéből) -
-  az audit viszont minden EGYES érték mellé forrás+idő+típus címkét kért
-  volna (pl. "Becsült talajnedvesség · adat ideje: ..."). Ez egy jóval
-  nagyobb, minden vízrajzi kártyát érintő tartalmi átalakítás lenne, nem
-  illesztettük bele ebbe a menetbe.
-- **D04 teljes köre**: a kétnyelvű OSM-névváltozatok (pl. "Duna" vs.
-  "Dunaj / Duna") csak egy figyelmeztető mondatot kaptak a listában - az
-  audit saját maga is óva intett az automatikus összevonástól, amíg a
-  feature-azonosság nincs validálva (pl. hogy ugyanaz-e a folyó két oldalról
-  nézve, vagy tényleg külön szakasz). Ehhez a `app/channels.py`
-  (soil-moisture-mapper) adatpipeline-jában kellene egy azonosítási lépés.
-- **Hivatalos WCAG megfelelőségi audit.** A jelentés maga is "élő interakciós
-  audit, nem WCAG-tanúsítvány" - amit javítottunk, azt konkrét megfigyelt
-  hibákra reagálva tettük, nem egy teljes checklist alapján.
-
-**Emellett külön, nem az auditból, de a felhasználó által korábban
-TÖBBSZÖR kért, még el sem kezdett funkció: domborzati/magassági réteg
-(hillshading) a csatorna-térképhez.** Ehhez új adatforrás (pl. SRTM/
-Copernicus DEM kivonat) és egy önálló tervezési kör kellene (adatméret,
-megjelenítési mód), mielőtt belevágnánk - lásd a chat-előzményt, ha egy
-új session ezt venné fel legközelebb.
+(A konkrét lista itt az 1. kör végén még nyitva volt: kereshető
+vízfolyás-felfedező, mentett helyek/megosztható link, oktató réteg,
+teljesítmény-validáció, D01/D04 teljes köre, WCAG-audit, domborzati réteg.
+**A 2. kör ezeket dolgozta fel** - ld. a fájl tetején, "UX/UI audit, 2. kör"
+szakaszt a pontos, naprakész státuszért, ne ezt a bekezdést.)
 
 ## Legfontosabb: nyitott, befejezetlen teendő
 

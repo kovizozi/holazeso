@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=44">
+<link rel="stylesheet" href="style.css?v=45">
 </head>
 <body>
 
@@ -59,6 +59,13 @@
       </form>
       <button id="retry-geo" class="link-btn" type="button">inkább a jelenlegi helyzetem használata</button>
       <p id="location-error" class="error" role="alert" hidden></p>
+      <!-- Az utoljára használt (nem a Budapest-tartalék) helyszínek, hogy
+           visszatérő látogató ne kelljen újra begépelje őket - ld. script.js
+           renderRecentLocations. -->
+      <div id="recent-locations" class="recent-locations" hidden>
+        <p class="label">vagy korábbi helyszín</p>
+        <ul id="recent-locations-list"></ul>
+      </div>
     </section>
 
     <!-- Fő tartalom: csak akkor látszik, ha már van kiválasztott település -->
@@ -66,6 +73,7 @@
 
       <div class="top">
         <button id="notify-toggle" class="link-btn" type="button">értesíts, ha esni kezd</button>
+        <button id="share-location" class="link-btn" type="button">megosztható link</button>
         <button id="change-location" class="link-btn" type="button">helyszín módosítása</button>
       </div>
 
@@ -259,6 +267,17 @@
             <div id="water-channels-tooltip" class="water-map-tooltip" hidden></div>
             <figcaption id="water-channels-legend"></figcaption>
           </figure>
+          <!-- UX-audit A01, teljes kör: a térkép maga (5000+ feature) eddig
+               csak egérrel/érintéssel volt böngészhető (hover/tap tooltip).
+               Ez egy billentyűzettel/képernyőolvasóval is elérhető kereső -
+               ugyanazt a nevet/típust/hosszt adja vissza, mint a tooltip, és
+               aktiváláskor a térképet is odaugratja (script.js buildChannelsMap). -->
+          <div class="water-channels-search">
+            <label for="water-channels-search-input">Vízfolyás keresése a térképen</label>
+            <input type="text" id="water-channels-search-input" autocomplete="off" placeholder="pl. Duna, Hortobágy-Berettyó-főcsatorna">
+            <p id="water-channels-search-status" class="context" aria-live="polite"></p>
+            <ul id="water-channels-search-results" class="water-channels-search-results"></ul>
+          </div>
           <div class="water-river-net-table">
             <h3>A leghosszabb nevesített vízfolyások</h3>
             <ul id="water-channels-longest"></ul>
@@ -346,6 +365,7 @@
           <div class="water-methodology-text">
             <p class="about">Az Open-Meteo öt mélységben adja meg a talaj nedvességét, köbméter víz egy köbméter talajban: 0–1, 1–3, 3–9, 9–27 és 27–81 cm. Cellánként és rétegenként: nedvesség × cellaterület × rétegvastagság × 1000 = liter.</p>
             <p class="about">A folyók és tavak vízállása a hydroinfo.hu (Országos Vízügyi Főigazgatóság) élő méréseiből jön, centiméterben, az adott mérce saját 0 pontjához mérve, nem tengerszinthez.</p>
+            <p class="about">Három fogalom könnyen összekeveredik ezen az oldalon: a <strong>vízállás</strong> (mérce, cm) azt mutatja, milyen magasan áll a víz egy adott ponton, nem a folyó/tó teljes mennyiségét. A <strong>vízhozam</strong> (m³/másodperc) azt, mennyi víz folyik át egy keresztmetszeten egy másodperc alatt - egy magas vízállás lehet lassan folyó víz is, a kettő nem ugyanaz. A <strong>vízkészlet</strong> vagy térfogat (liter, km³) a teljes mennyiség egy adott helyen vagy időszakban - ebből számoljuk a Balaton-egységeket is.</p>
             <p class="about">A vízmérleg főösszegei sokéves országos átlagok (nem napi adat): 58 km³ csapadék, 114 km³ belépő folyóvíz, 52 km³ párolgás, 120 km³ kilépő folyóvíz.</p>
             <p class="about" style="color: var(--muted);">A Balaton térfogata kb. 1,9 km³, azaz 1900 milliárd liter; 1 cm vízszint a 594 km²-es tavon kb. 5,9 milliárd liter.</p>
           </div>
@@ -376,7 +396,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=70"></script>
+  <script src="script.js?v=71"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

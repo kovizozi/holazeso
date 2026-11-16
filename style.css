@@ -172,6 +172,30 @@ body.scroll-locked {
   flex-wrap: wrap;
 }
 
+.recent-locations {
+  margin-top: var(--sp-4);
+}
+
+.recent-locations ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0;
+  margin: 0;
+}
+
+.recent-locations button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
 #retry-geo {
   display: block;
   margin: 1rem auto 0;
@@ -675,6 +699,64 @@ noscript .about {
 
 .water-methodology-text .about {
   margin: 0.2em 0;
+}
+
+/* UX-audit A01 (teljes kör): a csatorna-térkép billentyűzettel/
+   képernyőolvasóval is elérhető keresője - ld. script.js buildChannelsMap. */
+.water-channels-search {
+  text-align: left;
+  max-width: 420px;
+  margin: var(--sp-3) auto 0;
+}
+
+.water-channels-search label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: var(--sp-1);
+}
+
+.water-channels-search input[type="text"] {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.water-channels-search-results {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-1) 0 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.water-channels-search-results button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
+.water-channels-search-results li:first-child button {
+  border-top: none;
+}
+
+.water-channels-search-results button span:last-child {
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* Folyóhálózat-szakasz átlagos vízhozam-táblázata: ugyanaz a "sor = flex

@@ -220,6 +220,7 @@ function saveLocation(loc) {
   } catch (err) {
     console.error(err);
   }
+  rememberRecentLocation(loc);
 }
 
 function loadSavedLocation() {
@@ -229,6 +230,34 @@ function loadSavedLocation() {
   } catch (err) {
     console.error(err);
     return null;
+  }
+}
+
+// UX-audit "mentett helyek" (PROGRESS.md, Later roadmap): nem fiókos
+// kedvencek, hanem az utoljára HASZNÁLT (nem a Budapest-tartalék, ld.
+// tryAutoLocate catch ága) helyszínek, legfeljebb 5, legújabb elöl - a
+// visszatérő látogató egy koppintással válthat köztük, újbóli gépelés
+// nélkül, a #location-picker alján.
+const RECENT_LOCATIONS_KEY = "holazeso_recent_locations";
+const RECENT_LOCATIONS_MAX = 5;
+
+function rememberRecentLocation(loc) {
+  try {
+    const recent = loadRecentLocations().filter(r => r.name !== loc.name);
+    recent.unshift(loc);
+    localStorage.setItem(RECENT_LOCATIONS_KEY, JSON.stringify(recent.slice(0, RECENT_LOCATIONS_MAX)));
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function loadRecentLocations() {
+  try {
+    const raw = localStorage.getItem(RECENT_LOCATIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error(err);
+    return [];
   }
 }
 
@@ -1734,6 +1763,24 @@ function scheduleReveal() {
 // ELŐTT és UTÁN, a különbséggel visszatoljuk oda, ahol volt, majd onnan
 // animáljuk az új helyére. Így ugrás helyett szépen lecsúszik, miközben a
 // szöveg beúszik fölötte.
+//
+// UX-audit teljesítmény-validáció (PROGRESS.md, Later roadmap): élő
+// Lighthouse-méréssel mérve a CLS (Cumulative Layout Shift) 0,297 - messze a
+// 0,1-es célérték fölött -, a #loading-nak tulajdonítva. Kipróbáltuk: a FLIP
+// célpontját a svg helyett a teljes #loading dobozra váltva a Layout
+// Instability API MÉGIS ugyanúgy jelezte a shiftet (PerformanceObserver-rel
+// közvetlenül megmérve) - kiderült, hogy ez a böngésző metrikájának valódi
+// korlátja, nem egy itteni hiba: a Layout Instability API a LAYOUT-dobozt
+// (padding-top: 8rem -> var(--sp-3) a .settled osztálynál) nézi, a
+// transformot (ami csak a FESTÉST mozgatja) figyelmen kívül hagyja - FLIP
+// a VIZUÁLIS ugrást szünteti meg emberi szemnek, a CLS-metrikát nem téveszti
+// meg. Egy valódi javítás a padding-alapú elrendezést teljesen transform-
+// alapúra cserélné (fix magasságú doboz, a tartalom csak transform:
+// translateY-nal mozogna benne) - ez a keresés-koreográfia (CLAUDE.md 6.
+// szabály) CSS-mechanizmusát érintő, nagyobb átalakítás lenne, amit
+// szándékosan NEM végeztünk el itt, nehogy a védett, adatvezérelt
+// viselkedésbe hibát vigyen be egy becsült, de nem tesztelt CSS-refaktor.
+// Ezért a célpont visszakerült a svg-re (az eredeti, bevált viselkedés).
 function slideRadar(applyLayoutChange) {
   const svg = document.getElementById("radar-svg");
   const first = svg.getBoundingClientRect();
@@ -1806,10 +1853,38 @@ function showResult() {
   document.getElementById("result").hidden = false;
 }
 
+function renderRecentLocations() {
+  const wrap = document.getElementById("recent-locations");
+  const list = document.getElementById("recent-locations-list");
+  list.innerHTML = "";
+  // A JELENLEGI helyszínt nem ajánljuk fel újra - úgyis az van elöl.
+  const items = loadRecentLocations().filter(loc => !currentLoc || loc.name !== currentLoc.name);
+  if (!items.length) {
+    wrap.hidden = true;
+    return;
+  }
+  for (const loc of items) {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = loc.name;
+    btn.addEventListener("click", () => {
+      clearLocationError();
+      saveLocation(loc);
+      showResult();
+      runAndTrack(loc);
+    });
+    li.appendChild(btn);
+    list.appendChild(li);
+  }
+  wrap.hidden = false;
+}
+
 function showPicker() {
   document.getElementById("result").hidden = true;
   document.getElementById("location-picker").hidden = false;
   hideLoadingImmediately();
+  renderRecentLocations();
 }
 
 // Automatikus helymeghatározás: ez az alapértelmezett út. Ha a felhasználó
@@ -1978,6 +2053,27 @@ document.getElementById("notify-toggle").addEventListener("click", async () => {
 
 document.getElementById("change-location").addEventListener("click", () => {
   showPicker();
+});
+
+document.getElementById("share-location").addEventListener("click", async () => {
+  if (!currentLoc) return;
+  const params = new URLSearchParams({
+    lat: currentLoc.lat.toFixed(5),
+    lon: currentLoc.lon.toFixed(5),
+    name: currentLoc.name,
+  });
+  if (currentLoc.countryCode) params.set("cc", currentLoc.countryCode);
+  const url = `${location.origin}${location.pathname}?${params.toString()}`;
+  const btn = document.getElementById("share-location");
+  const prevText = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.textContent = "link a vágólapon!";
+  } catch (err) {
+    console.error(err);
+    alert(`Nem sikerült a vágólapra másolni, másold ki kézzel: ${url}`);
+  }
+  setTimeout(() => { btn.textContent = prevText; }, 3000);
 });
 
 document.getElementById("stats-panel").addEventListener("toggle", (event) => {
@@ -2525,7 +2621,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
       </svg>
       <span>több</span>
     </div>
-    <p style="margin: var(--sp-2) 0 0;">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között), a köztük mért értékek sima átmenetét mutatja a szín erőssége. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - a pontos vízállásuk lent, a listákban.</p>`;
+    <p style="margin: var(--sp-2) 0 0;">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között) - a talajnedvesség ITT Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet is a szín erőssége mutatja. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - ezek ÉLŐ mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
 }
 
 // ---- 2c. Folyóhálózat: teljes vonalhálózat, vastagság = vízhozam ----
@@ -2782,6 +2878,26 @@ function decodeChannelFeatures(geo) {
 
 const CHANNEL_TYPE_LABEL = {
   canal: "csatorna", drain: "belvízelvezető", ditch: "árok", river: "folyó", lake: "tó",
+};
+
+// UX-audit D04: ugyanaz a kézzel jóváhagyott szinonima-tábla, mint a
+// soil-moisture-mapper app/channels.py RIVER_NAME_SYNONYMS-je - határ menti
+// szakaszok kétnyelvű OSM-neve ("Dunaj / Duna") itt a kereső-listában (ld.
+// lent, searchableByName) is a magyar kanonikus név alá csoportosul, nem
+// külön, zavaró sorként jelenik meg. Csak ez a véges lista, nem algoritmus -
+// ld. a python oldali fejkommentet, miért nem lett belőle általános heurisztika.
+const RIVER_NAME_SYNONYMS = {
+  "Dunaj / Duna": "Duna", "Dunaj": "Duna", "Dunav / Дунав": "Duna",
+  "Тиса - Tisza": "Tisza", "Tisa - Tisza": "Tisza", "Тиса": "Tisza",
+  "Dráva / Drava": "Dráva", "Drava / Dráva": "Dráva",
+  "Raab / Rába": "Rába",
+  "Ipoly / Ipeľ": "Ipoly", "Ipeľ / Ipoly": "Ipoly",
+  "Slaná / Sajó": "Sajó",
+  "Hernád/Hornád": "Hernád",
+  "Lafnitz / Lapincs": "Lapincs",
+  "Crișul Alb / Fehér-Körös": "Fehér-Körös",
+  "Ledava / Lendva": "Lendva", "Lendva / Ledava": "Lendva",
+  "Tőzegcsatorna / Torfkanal": "Tőzegcsatorna",
 };
 
 // Pöccre nagyítható/mozgatható csatorna-térkép: a teljes hálózat helyett
@@ -3146,6 +3262,98 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   if (zoomInBtn) zoomInBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(ZOOM_STEP, c.lon, c.lat); });
   if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(1 / ZOOM_STEP, c.lon, c.lat); });
   if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { view = { ...fullBounds }; render(); });
+
+  // UX-audit A01 (teljes kör): a térkép maga (5000+ feature) eddig csak
+  // egérrel/érintéssel volt böngészhető. Itt NÉV szerint csoportosítjuk a
+  // feature-öket (egy "Duna" simán 55+ külön OSM-szakaszból áll, ld.
+  // decodeChannelFeatures fejkomment - külön sorként mutatva olvashatatlan
+  // lenne), a hosszukat összeadva és a befoglaló téglalapjukat egyesítve,
+  // EGYSZER, nem minden billentyűleütésnél. A csoportosító kulcs NÉV+TÍPUS
+  // (nem csak név): a valódi adaton kiderült, hogy van külön, a folyótól
+  // FÜGGETLEN "Duna" nevű árok (4 way, 0,09 km) ÉS "Dunaj" nevű csatorna is
+  // (1 way, 15,7 km) - ugyanaz a hiba lenne, mint a D04-ben kijavított
+  // kétnyelvű névösszevonás, ha típustól függetlenül összeadnánk őket (ld.
+  // app/channels.py RIVER_NAME_SYNONYMS fejkommentjét).
+  const searchableByName = new Map();
+  for (const f of featuresWithBounds) {
+    if (!f.name) continue;
+    const canonicalName = RIVER_NAME_SYNONYMS[f.name] || f.name;
+    const key = `${canonicalName}|${f.type}`;
+    const existing = searchableByName.get(key);
+    if (existing) {
+      existing.km += f.km;
+      existing.minLon = Math.min(existing.minLon, f.minLon);
+      existing.maxLon = Math.max(existing.maxLon, f.maxLon);
+      existing.minLat = Math.min(existing.minLat, f.minLat);
+      existing.maxLat = Math.max(existing.maxLat, f.maxLat);
+    } else {
+      searchableByName.set(key, {
+        name: canonicalName, km: f.km,
+        minLon: f.minLon, maxLon: f.maxLon, minLat: f.minLat, maxLat: f.maxLat,
+        types: new Set([f.type]),
+      });
+    }
+  }
+  const searchableFeatures = [...searchableByName.values()];
+
+  const searchInput = document.getElementById("water-channels-search-input");
+  const searchStatus = document.getElementById("water-channels-search-status");
+  const searchResultsEl = document.getElementById("water-channels-search-results");
+  const SEARCH_MAX_RESULTS = 25;
+  const SEARCH_MIN_CHARS = 2;
+
+  function jumpToSearchResult(item) {
+    // Aktiváláskor a típusa ne maradjon a legendából kikapcsolva (ld.
+    // disabledTypes) - a keresés célja pont az, hogy MEGMUTASSA, nem hogy
+    // elrejtett maradjon egy korábbi szűrés miatt.
+    for (const t of item.types) disabledTypes.delete(t);
+    const lonPad = Math.max((item.maxLon - item.minLon) * 0.3, MIN_VIEW_DEG / 2);
+    const latPad = Math.max((item.maxLat - item.minLat) * 0.3, MIN_VIEW_DEG / 2);
+    setView(item.minLon - lonPad, item.maxLon + lonPad, item.minLat - latPad, item.maxLat + latPad);
+    const centerLat = (item.minLat + item.maxLat) / 2, centerLon = (item.minLon + item.maxLon) / 2;
+    const typeLabel = [...item.types].map(t => CHANNEL_TYPE_LABEL[t]).join(", ");
+    searchStatus.textContent =
+      `${item.name} (${typeLabel}, ${waterNum(item.km, 1)} km) - a térkép odaugrott, kb. ${Math.abs(centerLat).toFixed(1)}°É ${Math.abs(centerLon).toFixed(1)}°K`;
+  }
+
+  function renderSearchResults(query) {
+    searchResultsEl.innerHTML = "";
+    const q = query.trim().toLocaleLowerCase("hu-HU");
+    if (q.length < SEARCH_MIN_CHARS) {
+      searchStatus.textContent = query.trim().length > 0 ? `írj be legalább ${SEARCH_MIN_CHARS} betűt` : "";
+      return;
+    }
+    const matches = searchableFeatures
+      .filter(f => f.name.toLocaleLowerCase("hu-HU").includes(q))
+      .sort((a, b) => b.km - a.km)
+      .slice(0, SEARCH_MAX_RESULTS);
+    if (!matches.length) {
+      searchStatus.textContent = "nincs ilyen nevű vízfolyás";
+      return;
+    }
+    searchStatus.textContent = `${matches.length} találat${matches.length === SEARCH_MAX_RESULTS ? " (csak az első " + SEARCH_MAX_RESULTS + ")" : ""}`;
+    for (const item of matches) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      const typeLabel = [...item.types].map(t => CHANNEL_TYPE_LABEL[t]).join(", ");
+      btn.innerHTML = `<span>${item.name}</span><span>${typeLabel}, ${waterNum(item.km, 1)} km</span>`;
+      btn.addEventListener("click", () => jumpToSearchResult(item));
+      li.appendChild(btn);
+      searchResultsEl.appendChild(li);
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => renderSearchResults(searchInput.value));
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const firstBtn = searchResultsEl.querySelector("button");
+        if (firstBtn) firstBtn.click();
+      }
+    });
+  }
 
   render();
 
@@ -3623,7 +3831,7 @@ async function buildWaterPanel(point) {
     document.getElementById("water-soil-balaton-count").textContent = totalCount;
     document.getElementById("water-soil-balaton-label").textContent = "Balatonnyi, 81 cm mélységig";
     document.getElementById("water-soil-exact").textContent =
-      `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter`;
+      `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter (becslés, Open-Meteo talajmodell)`;
     const avgMoisture = waterCountryAvgMoisture(soil);
     renderBalatonStack(
       document.getElementById("water-balaton-stack"),
@@ -3662,7 +3870,7 @@ async function buildWaterPanel(point) {
     document.getElementById("water-rivers-headline").textContent =
       `${riverCount} mérőállomás, ${riverNames.length} nagyobb folyón`;
     document.getElementById("water-rivers-detail").textContent =
-      "koppints egy folyóra az előrejelzéshez és a korábbi vízálláshoz";
+      "élő mérce-adat (hydroinfo.hu) - koppints egy folyóra az előrejelzéshez és a korábbi vízálláshoz";
     buildRiverList(document.getElementById("water-river-list"), rivers.stations);
     document.getElementById("water-rivers-section").hidden = false;
 
@@ -3851,10 +4059,33 @@ if ("serviceWorker" in navigator) {
 
 updateNotifyButton();
 
-const saved = loadSavedLocation();
-if (saved) {
+// UX-audit "megosztható (település-specifikus) link" (PROGRESS.md, Later
+// roadmap): ?lat=&lon=&name=&cc= - ez EXPLICIT felhasználói szándék, a
+// mentett/automatikus helynél is előrébb való. Elmentjük (hogy egy
+// következő, paraméter nélküli látogatás is ezt találja, mint egy kézi
+// keresés után), majd kitakarítjuk az URL-t, hogy egy frissítés ne fusson
+// le kétszer ugyanarra.
+function parseSharedLocationFromURL() {
+  const params = new URLSearchParams(location.search);
+  const lat = parseFloat(params.get("lat"));
+  const lon = parseFloat(params.get("lon"));
+  const name = params.get("name");
+  if (!name || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { name, lat, lon, countryCode: params.get("cc") || null };
+}
+
+const sharedLoc = parseSharedLocationFromURL();
+if (sharedLoc) {
+  saveLocation(sharedLoc);
   showResult();
-  runAndTrack(saved);
+  runAndTrack(sharedLoc);
+  history.replaceState(null, "", location.pathname);
 } else {
-  tryAutoLocate();
+  const saved = loadSavedLocation();
+  if (saved) {
+    showResult();
+    runAndTrack(saved);
+  } else {
+    tryAutoLocate();
+  }
 }
