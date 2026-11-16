@@ -2650,6 +2650,18 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
       minLat: Math.min(...flats), maxLat: Math.max(...flats),
     };
   });
+  // A tavak (ellentétben a csatornával/folyóval) DOT-ként is kirajzolódnak
+  // (ld. render() LAKE_DOT_PX_THRESHOLD), ami egy vonalnál sokkal nagyobb
+  // vizuális súlyú elem - mind az 1056-ot egyszerre, teljes kiterjedésben
+  // kirajzolva a térkép pettyekkel teliszórt, olvashatatlan lett volna.
+  // Ezért a tavak (ellentétben canal/river-rel) ZOOM-fokozatosan tárulnak
+  // fel, a SAJÁT méretük (bbox-átló) szerinti sorrendben - ld. render()
+  // lakeRank/LAKE_REVEAL_BASE.
+  const lakesBySize = featuresWithBounds
+    .filter(f => f.type === "lake")
+    .sort((a, b) => (b.maxLon - b.minLon + (b.maxLat - b.minLat)) - (a.maxLon - a.minLon + (a.maxLat - a.minLat)));
+  const lakeRank = new Map(lakesBySize.map((f, i) => [f, i]));
+
   // Vonalvastagság a vízfolyás saját hossza szerint (nagyobb csatorna/folyó
   // = vastagabb vonal) - a tipus SAJÁT (nem a teljes hálózat) legrövidebb/
   // leghosszabb nevesített tagjához képest, log-skálán (egy-két kiugróan
@@ -2774,41 +2786,48 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     const marginLon = (view.maxLon - view.minLon) * 0.1;
     const marginLat = (view.maxLat - view.minLat) * 0.1;
     // A tavak mérete NAGYON szór (néhány méteres halastótól a több km²-es
-    // tóig) - egy fix zoom-küszöb vagy mindig elrejti a nagyobbakat, vagy
-    // mindig láthatatlanul apróra rajzolja a kicsiket. Ehelyett a tényleges
-    // kirajzolt méretét nézzük a JELENLEGI nagyításnál (saját kiterjedése *
-    // project.scale képpontban) - csak azok a tavak látszanak, amik ennyire
-    // kizoomolva egyáltalán ÉSZREVEHETŐK lennének, a többi majd nagyításra
-    // kerül elő, ahogy a saját mérete nő a képernyőn.
-    // Élesben lemérve: a legnagyobb nevesített tó (Alcsi Holt-Tisza) teljes
-    // kiterjedésben, keskeny mobilon is csak ~4 képpont - NINCS ennél nagyobb
-    // a teljes adatban, egy 14 képpontos küszöb a TELJES tó-réteget kiszűrte
-    // volna. A valódi fix nem egy magasabb küszöb, hanem hogy a vonal saját
-    // vastagsága NE zsugorodjon a térkép-geometriával együtt (ld. lent,
-    // .water-channel-lake vector-effect: non-scaling-stroke) - így egy ilyen
-    // apró tó is egy ténylegesen látható, tömör kis folt marad, nem egy
-    // észrevehetetlen hajszálvonal.
-    const MIN_LAKE_PX = 3;
-    visible = featuresWithBounds.filter(f => {
-      if (!activeTypes.has(f.type)) return false;
+    // tóig). Élesben lemérve: a LEGNAGYOBB nevesített tó (Alcsi Holt-Tisza)
+    // is csak ~4 képpont teljes kiterjedésben, keskeny mobilon - egy, a
+    // VALÓDI körvonalat rajzoló megoldásnak NINCS olyan mérete, ami ezt
+    // látszódóvá tenné, ÉS minden más (apróbb) tavat is láthatóan megjelenít
+    // (ld. non-scaling-stroke próbálkozás: technikailag "látszik", a
+    // képernyőn gyakorlatilag észrevehetetlen maszat). A valódi térképeken
+    // bevett trükk: a TÚL apró alakzatokat nem körvonalként, hanem egy fix
+    // méretű PONTKÉNT rajzoljuk (a tó középpontjában) - ez bármilyen
+    // méretnél ugyanolyan jól látszik, és nagyításkor, amint a valódi alak
+    // már elég nagy lenne, visszavált a tényleges körvonalra.
+    const LAKE_DOT_PX_THRESHOLD = 12;
+    // A tavak száma a nagyítással EGYÜTT nő (mint a drain/ditch rétegnél),
+    // csak itt nem egy be/ki típus-kapcsoló, hanem egy fokozatosan táguló
+    // darabszám, a tavak SAJÁT mérete szerinti sorrendben (lakesBySize) -
+    // teljes kiterjedésben csak a legnagyobbak, minél jobban nagyítasz,
+    // annál több (egészen az összesig).
+    const LAKE_REVEAL_BASE = 30;
+    const lakeKeepCount = Math.min(lakesBySize.length, Math.round(LAKE_REVEAL_BASE * zoomRatio));
+    visible = featuresWithBounds.filter(f =>
+      activeTypes.has(f.type) &&
+      (f.type !== "lake" || lakeRank.get(f) < lakeKeepCount) &&
+      f.maxLon >= view.minLon - marginLon && f.minLon <= view.maxLon + marginLon &&
+      f.maxLat >= view.minLat - marginLat && f.minLat <= view.maxLat + marginLat
+    );
+
+    const pathByIdx = visible.map(f => {
       if (f.type === "lake") {
         const pxLon = (f.maxLon - f.minLon) * project.lonFactor * project.scale;
         const pxLat = (f.maxLat - f.minLat) * project.scale;
-        if (Math.max(pxLon, pxLat) < MIN_LAKE_PX) return false;
+        if (Math.max(pxLon, pxLat) < LAKE_DOT_PX_THRESHOLD) {
+          let sumLon = 0, sumLat = 0;
+          for (const [lon, lat] of f.ring) { sumLon += lon; sumLat += lat; }
+          const { x, y } = project(sumLat / f.ring.length, sumLon / f.ring.length);
+          return { mode: "dot", x, y };
+        }
       }
-      return (
-        f.maxLon >= view.minLon - marginLon && f.minLon <= view.maxLon + marginLon &&
-        f.maxLat >= view.minLat - marginLat && f.minLat <= view.maxLat + marginLat
-      );
-    });
-
-    const pathByIdx = visible.map(f => {
       let d = "";
       f.ring.forEach(([lon, lat], i) => {
         const { x, y } = project(lat, lon);
         d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
       });
-      return d;
+      return { mode: "path", d };
     });
 
     let markup = "";
@@ -2826,17 +2845,27 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
       if (!activeTypes.has(type)) continue;
       visible.forEach((f, idx) => {
         if (f.type !== type) return;
-        const width = strokeWidthFor(f.type, f.km);
-        const widthAttr = width !== null ? ` style="stroke-width:${width.toFixed(2)}"` : "";
-        markup += `<path class="water-channel-${type}" data-fid="${idx}"${widthAttr} d="${pathByIdx[idx]}"></path>`;
+        const item = pathByIdx[idx];
+        if (item.mode === "dot") {
+          markup += `<circle class="water-channel-lake-dot" data-fid="${idx}" cx="${item.x.toFixed(1)}" cy="${item.y.toFixed(1)}" r="2.2"></circle>`;
+        } else {
+          const width = strokeWidthFor(f.type, f.km);
+          const widthAttr = width !== null ? ` style="stroke-width:${width.toFixed(2)}"` : "";
+          markup += `<path class="water-channel-${type}" data-fid="${idx}"${widthAttr} d="${item.d}"></path>`;
+        }
       });
     }
-    // A találat-céllapok (átlátszó, szélesebb vonal) legfelül, MINDEN
+    // A találat-céllapok (átlátszó, szélesebb vonal/kör) legfelül, MINDEN
     // látható vonalra - ugyanaz a trükk, mint a .water-cell-touch/
-    // .water-marker-touch-nál, hogy a vékony árok-vonalakra is könnyű legyen
-    // rámutatni/rákoppintani.
+    // .water-marker-touch-nál, hogy a vékony árok-vonalakra (és az apró
+    // tó-pontokra) is könnyű legyen rámutatni/rákoppintani.
     visible.forEach((f, idx) => {
-      markup += `<path class="water-channel-hit" data-fid="${idx}" d="${pathByIdx[idx]}"></path>`;
+      const item = pathByIdx[idx];
+      if (item.mode === "dot") {
+        markup += `<circle class="water-channel-hit" data-fid="${idx}" cx="${item.x.toFixed(1)}" cy="${item.y.toFixed(1)}" r="7"></circle>`;
+      } else {
+        markup += `<path class="water-channel-hit" data-fid="${idx}" d="${item.d}"></path>`;
+      }
     });
 
     svgEl.innerHTML = markup;
@@ -2932,9 +2961,12 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   // a 0,1 egységre kerekszik) - ezeken a dashoffset sosem VÁLTOZIK (0->0),
   // a böngésző (helyesen) nem indít animációt, a transitionend sosem tüzel.
   // Ezeket ezért ki is hagyjuk a kígyózásból, nem csak hiába rejtjük el.
-  const introPaths = [...svgEl.querySelectorAll("path[data-fid]")].filter(
-    p => !p.classList.contains("water-channel-hit") && p.getTotalLength() > 0.5
-  );
+  // A felhasználó kérésére a legkisebb csatornától a legnagyobbig kígyózik
+  // végig, nem a rajzolási (fontossági) sorrendben - a feature saját km-je
+  // adja a sorrendet, nem azt, melyik típus/réteg.
+  const introPaths = [...svgEl.querySelectorAll("path[data-fid]")]
+    .filter(p => !p.classList.contains("water-channel-hit") && p.getTotalLength() > 0.5)
+    .sort((a, b) => visible[Number(a.dataset.fid)].km - visible[Number(b.dataset.fid)].km);
   const introLengths = introPaths.map(p => p.getTotalLength());
   introPaths.forEach((p, idx) => {
     const len = introLengths[idx];
@@ -2973,25 +3005,24 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   }
 
   // A felhasználó kérésére: NEM azonnal indul a kígyózás, amint a térkép
-  // akár csak egy kicsit is látszóvá válik - egy röpke szünet után (hogy a
-  // görgetés "megüljön"), ÉS csak utána tiltjuk le a görgetést az animáció
-  // idejére, hogy ne tudjon félbehagyva, kapkodva továbbgörgetni mellette.
-  // A tiltás az animáció végén (minden vonal lekígyózott) magától feloldódik.
-  const SCROLL_LOCK_DELAY_MS = 500;
+  // akár csak egy kicsit is látszóvá válik - csak akkor, amikor a térkép
+  // TELJESEN befért a látható ablakba (threshold majdnem 1 - a kerekítési
+  // hibák miatt nem pontosan 1). ETTŐL a pillanattól tiltjuk le a
+  // görgetést az animáció idejére, hogy ne tudjon félbehagyva, kapkodva
+  // továbbgörgetni mellette. A tiltás az animáció végén (minden vonal
+  // lekígyózott) magától feloldódik.
   if (introPaths.length && "IntersectionObserver" in window) {
     const introObserver = new IntersectionObserver((entries) => {
-      if (entries.some(e => e.isIntersecting)) {
+      if (entries.some(e => e.intersectionRatio >= 0.98)) {
         introObserver.disconnect();
-        setTimeout(() => {
-          document.documentElement.classList.add("scroll-locked");
-          document.body.classList.add("scroll-locked");
-          playSnakeIntro(() => {
-            document.documentElement.classList.remove("scroll-locked");
-            document.body.classList.remove("scroll-locked");
-          });
-        }, SCROLL_LOCK_DELAY_MS);
+        document.documentElement.classList.add("scroll-locked");
+        document.body.classList.add("scroll-locked");
+        playSnakeIntro(() => {
+          document.documentElement.classList.remove("scroll-locked");
+          document.body.classList.remove("scroll-locked");
+        });
       }
-    }, { threshold: 0.2 });
+    }, { threshold: [0, 0.98, 1] });
     introObserver.observe(svgEl);
   } else {
     playSnakeIntro(() => {});

@@ -810,6 +810,23 @@ noscript .about {
   pointer-events: stroke;
 }
 
+/* A tó-pont (lent) találat-céllapja kör, nem vonal - a teljes korongra kell
+   reagáljon, nem csak egy vékony gyűrűre a szélén. */
+circle.water-channel-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: fill;
+}
+
+/* Túl apró tavak fix méretű pontként (ld. script.js render() LAKE_DOT_PX_
+   THRESHOLD) - tömör, mert egy ilyen apró ponton egy vékony/szaggatott
+   körvonal ugyanúgy észrevehetetlen maradna, mint a valódi alak. */
+.water-channel-lake-dot {
+  fill: var(--fg);
+  stroke: none;
+  pointer-events: none;
+}
+
 #water-channels-map {
   touch-action: none;
   cursor: grab;
