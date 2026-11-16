@@ -79,6 +79,15 @@ body.scroll-locked {
   margin-bottom: var(--sp-5);
 }
 
+/* 44px a WCAG 2.5.8 szerinti minimális célterület - a szöveg mérete/stílusa
+   marad a .link-btn-é, csak a kattintható terület nő körülötte. */
+.top .link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
 .link-btn {
   background: none;
   border: none;
@@ -102,6 +111,7 @@ body.scroll-locked {
 
 .question {
   font-size: 16px;
+  font-weight: 400;
   color: var(--muted);
   margin: 0 0 var(--sp-1);
 }
@@ -569,6 +579,21 @@ noscript .about {
   margin-top: var(--sp-3);
 }
 
+/* UX-audit I01: kompakt belső ugrólista a hosszú vízadat-szakasz tetején. */
+.water-toc {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.water-toc a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
 .water-section + .water-section {
   margin-top: var(--sp-4);
   padding-top: var(--sp-4);
@@ -688,6 +713,56 @@ noscript .about {
 .water-river-net-table .about {
   margin-top: var(--sp-2);
   color: var(--muted);
+}
+
+/* UX-audit V01: a sűrű vízmérleg-ábra (#water-sankey) feliratai 600px alatt
+   olvashatatlanul kicsire zsugorodnának (mért eset: kb. 6px egy 340px-es
+   nézetben) - helyette ugyanaz az adat egy rendes szöveglista, legalább
+   14px-es betűvel. 600px fölött fordítva: az ábra marad, a lista rejtve. */
+.water-sankey-list {
+  display: none;
+  text-align: left;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.water-sankey-list-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: var(--sp-3) 0 var(--sp-1);
+}
+
+.water-sankey-list-heading:first-child {
+  margin-top: 0;
+}
+
+.water-sankey-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.water-sankey-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 600px) {
+  /* .water-figure svg { display:block } specifikusabb (0,1,1) a sima
+     .water-sankey-diagram-nál (0,1,0), ezért itt a svg.water-sankey-diagram
+     forma kell a felülíráshoz - ugyanaz a csapda, mint a .water-legend-
+     swatch-nál korábban (ld. style.css git history). */
+  .water-figure svg.water-sankey-diagram {
+    display: none;
+  }
+
+  .water-sankey-list {
+    display: block;
+  }
 }
 
 /* A dombormű-rács és a folyó/tó-jelölők kattinthatók/koppinthatók, ugyanaz
@@ -827,8 +902,12 @@ circle.water-channel-hit {
   pointer-events: none;
 }
 
+/* pan-y, NEM none: egy ujjal a térkép fölött is görögjön tovább az oldal
+   (UX-audit U03 - korábban a térkép a legkisebb nagyításnál is MINDEN
+   görgetést elnyelt). A térkép kezeléséhez (húzás/csippentés) ettől kezdve
+   Ctrl/Cmd+görgő vagy két ujj kell - ld. script.js buildChannelsMap. */
 #water-channels-map {
-  touch-action: none;
+  touch-action: pan-y;
   cursor: grab;
 }
 
@@ -842,8 +921,8 @@ circle.water-channel-hit {
 }
 
 .water-map-zoom-controls button {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   font-family: inherit;
   font-size: 15px;
   line-height: 1;
@@ -948,10 +1027,17 @@ circle.water-channel-hit {
 
 .water-river-row-head {
   display: flex;
+  width: 100%;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--sp-2);
   cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 .water-river-name {
@@ -972,6 +1058,46 @@ circle.water-channel-hit {
 
 .water-river-row.open .water-river-chart-wrap {
   display: block;
+}
+
+/* UX-audit D03: a grafikon melletti "értékek táblázatban" lenyíló - alapból
+   csukva, hogy ne nyomja el a grafikont, de pontos érték/dátum bárki
+   számára (billentyűzettel, képernyőolvasóval is) elérhető belőle. */
+.water-river-chart-table-details {
+  margin-top: var(--sp-1);
+}
+
+.water-river-chart-table-details summary {
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.water-river-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--sp-1);
+  font-size: 13px;
+}
+
+.water-river-chart-table caption {
+  caption-side: top;
+  text-align: left;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: var(--sp-1);
+}
+
+.water-river-chart-table th,
+.water-river-chart-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px 4px 0;
+  text-align: left;
+}
+
+.water-river-chart-table th {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .water-river-chart-wrap svg {

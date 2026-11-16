@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=43">
+<link rel="stylesheet" href="style.css?v=44">
 </head>
 <body>
 
@@ -53,11 +53,12 @@
     <section id="location-picker" hidden>
       <label for="location-input" class="label">Melyik településről van szó?</label>
       <form id="location-form">
-        <input type="text" id="location-input" placeholder="pl. Kecskemét" autocomplete="off" required>
-        <button type="submit">Mehet</button>
+        <input type="text" id="location-input" placeholder="pl. Kecskemét" autocomplete="off" required aria-describedby="location-error">
+        <button type="submit">Település keresése</button>
+        <button type="button" id="cancel-location" class="link-btn">Mégse</button>
       </form>
       <button id="retry-geo" class="link-btn" type="button">inkább a jelenlegi helyzetem használata</button>
-      <p id="location-error" class="error" hidden></p>
+      <p id="location-error" class="error" role="alert" hidden></p>
     </section>
 
     <!-- Fő tartalom: csak akkor látszik, ha már van kiválasztott település -->
@@ -69,13 +70,13 @@
       </div>
 
       <div class="block hero-block">
-        <p class="question" id="q1-question">Esik-e…?</p>
+        <h1 class="question" id="q1-question">Esik-e…?</h1>
         <p class="answer" id="q1-answer">…</p>
         <div id="q1-context"></div>
       </div>
 
       <div class="block detail-block" id="q2-block" hidden>
-        <p class="question" id="q2-question"></p>
+        <h2 class="question" id="q2-question"></h2>
         <div id="q2-answer"></div>
       </div>
 
@@ -157,13 +158,26 @@
          rétegek és a vízmérce-ábrák mind script.js-ben generált SVG-k, nem
          statikus markup - ld. a fájl végi "Vízadatok" szekciót. -->
     <section id="water-panel" class="water-details" hidden>
-      <p class="question">mennyi víz van összesen az országban?</p>
+      <h2 class="question">mennyi víz van összesen az országban?</h2>
+      <!-- UX-audit I01: a vízadatok kb. 11 500 CSS-pixel hosszúak, nincs
+           bennük semmilyen belső ugrópont - ez egy kompakt index hozzájuk,
+           ugyanazokkal a #id-kkel, amik a lenti section-okon már megvannak. -->
+      <nav class="water-toc" aria-label="vízadatok tartalomjegyzéke">
+        <a href="#water-soil-section">Talaj</a>
+        <a href="#water-map-section">Térkép</a>
+        <a href="#water-rivers-section">Folyók</a>
+        <a href="#water-channels-section">Csatornák</a>
+        <a href="#water-local-section">Saját hely</a>
+        <a href="#water-balance-section">Vízmérleg</a>
+        <a href="#water-lakes-section">Tavak</a>
+      </nav>
       <div id="water-body" class="water-body">
         <p id="water-status" class="context">töltés…</p>
+        <p id="water-updated" class="context" hidden></p>
 
         <!-- 1. Talajvíz: országos összesítés + Balaton-alakú rétegek -->
         <section class="water-section" id="water-soil-section" hidden>
-          <p class="question">Mennyi víz van most a talajban?</p>
+          <h3 class="question">Mennyi víz van most a talajban?</h3>
           <p class="answer" id="water-soil-balaton-count"></p>
           <p class="context" id="water-soil-balaton-label"></p>
           <p class="context" id="water-soil-exact"></p>
@@ -175,7 +189,7 @@
 
         <!-- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak jelölve -->
         <section class="water-section" id="water-map-section" hidden>
-          <p class="question">és hol a legtöbb, és mi folyik, mi áll?</p>
+          <h3 class="question">és hol a legtöbb, és mi folyik, mi áll?</h3>
           <p class="place-line" id="water-map-headline"></p>
           <p class="context" id="water-map-detail"></p>
           <figure class="water-figure">
@@ -190,7 +204,7 @@
              vonalvastagság a sokéves átlagos vízhozammal arányos. Statikus
              (nem napi adat), ld. script.js WATER_RIVER_NET_SVG. -->
         <section class="water-section" id="water-river-net-section" hidden>
-          <p class="question">melyik folyóban folyik a legtöbb víz?</p>
+          <h3 class="question">melyik folyóban folyik a legtöbb víz?</h3>
           <p class="answer">Duna</p>
           <p class="context">kb. 2300 m³ másodpercenként</p>
           <p class="context">két és félszer annyi, mint a Tisza</p>
@@ -219,7 +233,7 @@
         <!-- 2b. Folyók: önálló szekció, kattintható állomások (az
              előrejelzés és a múltbeli vízállás grafikonon jelenik meg) -->
         <section class="water-section" id="water-rivers-section" hidden>
-          <p class="question">és a folyók?</p>
+          <h3 class="question">és a folyók?</h3>
           <p class="place-line" id="water-rivers-headline"></p>
           <p class="context" id="water-rivers-detail"></p>
           <div id="water-river-list" class="water-river-list"></div>
@@ -232,7 +246,7 @@
              docstringet. Nem élő adat, alkalmanként, kézzel frissül, ezért
              script.js külön try/catch-ben kéri le (ld. buildWaterPanel). -->
         <section class="water-section" id="water-channels-section" hidden>
-          <p class="question">és a folyók, csatornák, árkok, tavak?</p>
+          <h3 class="question">és a folyók, csatornák, árkok, tavak?</h3>
           <p class="place-line" id="water-channels-headline"></p>
           <p class="context" id="water-channels-detail"></p>
           <figure class="water-figure">
@@ -254,7 +268,7 @@
 
         <!-- 3. Személyes: a keresett helyszín talajminta-profilja -->
         <section class="water-section" id="water-local-section" hidden>
-          <p class="question" id="water-local-question"></p>
+          <h3 class="question" id="water-local-question"></h3>
           <p class="place-line" id="water-local-total"></p>
           <p class="context" id="water-local-compare"></p>
           <p class="context" id="water-local-profile-text"></p>
@@ -265,12 +279,38 @@
 
         <!-- 4. Vízmérleg: honnan jön, hova megy (sokéves átlag) -->
         <section class="water-section" id="water-balance-section" hidden>
-          <p class="question">honnan jön és hova megy a víz?</p>
+          <h3 class="question">honnan jön és hova megy a víz?</h3>
           <p class="place-line">172 km³ egy évben</p>
           <p class="context">kétharmada folyókon érkezik, egyharmada eső és hó</p>
           <p class="context">a lehullott csapadék kilenctizede elpárolog</p>
           <figure class="water-figure">
-            <svg id="water-sankey" viewBox="0 0 640 470" preserveAspectRatio="xMidYMid meet"></svg>
+            <svg id="water-sankey" class="water-sankey-diagram" viewBox="0 0 640 470" preserveAspectRatio="xMidYMid meet"></svg>
+            <!-- UX-audit V01: a sűrű ábra feliratai keskeny képernyőn kb. 6px-re
+                 zsugorodnak - ugyanaz az adat itt, listaként, a CSS döntően
+                 cseréli a kettőt (ld. style.css .water-sankey-list). -->
+            <div class="water-sankey-list">
+              <p class="water-sankey-list-heading">Beérkező víz, sokéves átlag, km³ évente</p>
+              <ul>
+                <li><span>Duna</span><span>64,2</span></li>
+                <li><span>Dráva, a Murával</span><span>21,5</span></li>
+                <li><span>Maros</span><span>5,0</span></li>
+                <li><span>Tisza, Tiszabecs</span><span>6,7</span></li>
+                <li><span>Szamos</span><span>3,9</span></li>
+                <li><span>Bodrog</span><span>3,7</span></li>
+                <li><span>Sajó és Hernád</span><span>3,2</span></li>
+                <li><span>Körösök</span><span>3,2</span></li>
+                <li><span>többi folyó</span><span>2,6</span></li>
+                <li><span>eső és hó</span><span>58,0</span></li>
+              </ul>
+              <p class="water-sankey-list-heading">Távozó víz</p>
+              <ul>
+                <li><span>Duna, Mohácsnál</span><span>70,0</span></li>
+                <li><span>Tisza, Szegednél</span><span>28,5</span></li>
+                <li><span>Dráva, a határon</span><span>21,5</span></li>
+                <li><span>párolgás (talaj, növények, tavak)</span><span>52,0</span></li>
+              </ul>
+              <p class="context">be: 172 km³, ki: 172 km³</p>
+            </div>
             <figcaption>Sokéves átlag, km³ évente. Tömör szalag: folyóvíz. Vonalkázott: a levegőből jön vagy oda megy.</figcaption>
           </figure>
           <p class="question" style="margin-top: var(--sp-3);">és ez hány Balaton?</p>
@@ -284,7 +324,7 @@
 
         <!-- 5. Tavak részletesen -->
         <section class="water-section" id="water-lakes-section" hidden>
-          <p class="question">Mennyi víz van most a Balatonban?</p>
+          <h3 class="question">Mekkora a Balaton vízállása?</h3>
           <p class="answer" id="water-balaton-level"></p>
           <p class="context" id="water-balaton-detail"></p>
           <figure class="water-figure">
@@ -336,7 +376,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=68"></script>
+  <script src="script.js?v=69"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

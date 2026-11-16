@@ -546,7 +546,12 @@ function radarProject(bearingDeg, distKm, maxRadiusKm) {
 //
 // Az adat lusta betöltésű és sosem várakoztatja a választ: ha nem érkezik meg
 // vagy hibázik, a radar egyszerűen határok nélkül működik tovább.
-const BORDERS_URL = "borders.json?v=1";
+const BORDERS_URL = "borders.json?v=2";
+// A fájl Magyarország gyűrűjét 0,001 fokos egységben kódolja (nem a többi
+// ország 0,01-es egységében), hogy a valódi, 848 pontos hazai körvonal (a
+// soil-moisture-mapper app/data/hungary_border.json-jéből, ld. ARCHITECTURE)
+// ne vágjon le finom részletet a kerekítéssel - ld. decodeDeltaRings hívás.
+const BORDERS_SCALE = 1000;
 let borderRings = null;
 let bordersLoading = null;
 let radarOrigin = null;
@@ -578,7 +583,7 @@ function loadBorders() {
   bordersLoading = fetch(BORDERS_URL)
     .then(res => res.json())
     .then(encoded => {
-      borderRings = decodeDeltaRings(encoded);
+      borderRings = decodeDeltaRings(encoded, BORDERS_SCALE);
       radarDrawBorders();
     })
     .catch(err => {
@@ -591,12 +596,21 @@ function loadBorders() {
 // ---- Folyók és a Balaton a radaron (water-geo.json) ----
 // Ugyanaz az azimutális vetület és ugyanaz a lusta betöltés, mint a
 // határoknál - csak másik forrásfájl, amiben nem minden ország, hanem a 3
-// legnagyobb folyó (Duna, Tisza, Dráva) és a Balaton valódi körvonala van,
-// Natural Earth 1:50m "rivers_lake_centerlines"/"lakes" adatból. A Fertő-tó
-// és a Velencei-tó nem szerepel benne: ezen a felbontáson a Natural Earth nem
-// tartja nyilván őket külön tóként (a Tavak-szakasz saját, kézzel rajzolt
-// ábrája ettől függetlenül mutatja mindháromat).
-const WATER_GEO_URL = "water-geo.json?v=1";
+// legnagyobb folyó (Duna, Tisza, Dráva) és a Balaton valódi körvonala van.
+// A folyók (korábban Natural Earth 1:50m "rivers_lake_centerlines", kb. 300
+// pont összesen, sok 2-8 pontos töredékkel) a UX-audit "a többi térkép
+// folyói undetailed-nek tűnnek" észrevétele miatt ÚJRA lettek generálva: a
+// csatorna-térkép adatpipeline-ja (app/channels.py) már amúgy is kinyeri a
+// Duna/Tisza/Dráva MINDEN névvel egyező OSM-szakaszát (103 szakasz, kb. 2000
+// pont) sokkal finomabb (0,0003 fokos RDP) felbontásban - ezt a MÁR meglévő
+// geometriát használjuk itt is, nem kell hozzá új OSM-kivonat. A Balaton
+// (lakes) VÁLTOZATLAN marad: az már eddig is jó felbontású volt. A Fertő-tó
+// és a Velencei-tó nem szerepel benne: a Tavak-szakasz saját, kézzel
+// rajzolt ábrája ettől függetlenül mutatja mindháromat.
+const WATER_GEO_URL = "water-geo.json?v=2";
+// A folyók finomabb (0,001 fokos) egységben vannak kódolva, mint a tavak
+// (0,01) - ld. a fenti kommentet és decodeDeltaRings hívását lent.
+const WATER_GEO_RIVER_SCALE = 1000;
 let waterGeo = null;
 let waterGeoLoading = null;
 
@@ -606,7 +620,7 @@ function loadWaterGeo() {
     .then(res => res.json())
     .then(encoded => {
       waterGeo = {
-        rivers: decodeDeltaRings(encoded.rivers),
+        rivers: decodeDeltaRings(encoded.rivers, WATER_GEO_RIVER_SCALE),
         lakes: decodeDeltaRings(encoded.lakes),
       };
       radarDrawWaterGeo();
@@ -1130,18 +1144,33 @@ async function run(userLoc, { silent = false } = {}) {
       hideQ2();
       return;
     }
+    // "Hamarosan" korábban ÖNÁLLÓ válaszként, saját időablak és a
+    // legközelebbi eső keresése NÉLKÜL jelent meg (UX-audit U01/U02): a
+    // jelen állapotot (most nem esik) és az előrejelzést (lehet, hogy
+    // hamarosan fog) egybemosta, ráadásul teljesen elrejtette a #q2-block-ot.
+    // Itt csak egy KIEGÉSZÍTŐ kontextus-sort készítünk elő - a tényleges
+    // választ és a 2. fázisú keresést lent, a "Nem"-mel KÖZÖS ágban kapja
+    // meg, így a legközelebbi eső innentől ebben az állapotban is látszik.
+    // A 3 órás ablak nem kitalált szám: pontosan az, amit soonRainIndex
+    // ténylegesen átvizsgál - nem mondunk többet, mint amit tudunk.
+    let soonContext = null;
     if (isRainingSoon(userForecast)) {
       const idx = soonRainIndex(userForecast);
       const mm = userForecast.hourly.precipitation[idx];
       const prob = userForecast.hourly.precipitation_probability?.[idx];
       const band = intensityBand(mm);
-      const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel, ` : "";
-      setHero("Hamarosan", `${probText}${band.adj} eső várható`);
-      hideQ2();
-      return;
+      const hoursAhead = idx - currentHourIndex(userForecast);
+      const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel ` : "";
+      const etaText = hoursAhead <= 0
+        ? "akár ezen az órán belül"
+        : hoursAhead === 1 ? "becslés szerint kb. 1 óra múlva" : `becslés szerint kb. ${hoursAhead} óra múlva`;
+      soonContext = [
+        `A következő 3 órában ${probText}${band.adj} eső várható`,
+        etaText,
+      ];
     }
 
-    const answer = raining.length > 0 ? "Igen" : "Nem";
+    const answer = soonContext ? "Most nem esik" : (raining.length > 0 ? "Igen" : "Nem");
 
     // Csendes háttérfrissítésnél csak akkor megyünk tovább a távoli
     // keresésre, ha a környék helyzete meg is változott. A "hol esik
@@ -1150,7 +1179,7 @@ async function run(userLoc, { silent = false } = {}) {
     // úgy egy nyitva hagyott lap napi több tízezer pontot kérne le.
     const unchanged = silent &&
       document.getElementById("q1-answer").textContent === answer;
-    setHero(answer, null);
+    setHero(answer, soonContext);
     showQ2("de hol esik pontosan?");
     if (unchanged) return;
 
@@ -1735,20 +1764,37 @@ function showLoading(on, text = "töltés…") {
 }
 
 // Helyszín-módosításkor a lemaradt (settled) radart is el kell tüntetni,
-// különben ott lógna a helyszín-kereső form alatt.
+// különben ott lógna a helyszín-kereső form alatt. FONTOS: NEM hívja a
+// cancelReveal()-t és NEM nulláz a statisztika-/vízadat-panelt (ahogy
+// korábban tette) - azt a TÉNYLEGES új keresés kezdete (beginSearchUI) már
+// amúgy is elvégzi. Ha itt megszakítanánk egy még folyamatban lévő
+// revealPhase(PHASE_DONE)-t, a hozzá tartozó buildWaterPanel hívás NÉMÁN
+// elveszne - ez csak akkor derült ki, amikor a "Mégse" (UX-audit U04) a
+// korábbi eredményhez térhet vissza anélkül, hogy új keresés indulna, és
+// ami emiatt soha nem épülne újra. A #loading elrejtése önmagában elég a
+// "ne lógjon a form alatt" célhoz - a radar ÉPPEN emiatt (hidden) nem
+// villan fel újra, a benne futó setTimeout-nak viszont hagyni kell lefutni.
 function hideLoadingImmediately() {
-  cancelReveal();
   const loading = document.getElementById("loading");
   loading.hidden = true;
   loading.classList.remove("settled", "locating");
-  resetStatsPanel();
-  resetWaterPanel();
 }
 
 function showError(msg) {
   const el = document.getElementById("location-error");
-  el.textContent = msg;
+  // Előbb látszódjon, utána kapjon szöveget: a role="alert" régiót csak a
+  // MÁR látható elemen történő szövegváltozásra jelzik megbízhatóan a
+  // képernyőolvasók, nem a hidden->látható váltásra magára.
   el.hidden = false;
+  el.textContent = msg;
+  document.getElementById("location-input").setAttribute("aria-invalid", "true");
+}
+
+function clearLocationError() {
+  const el = document.getElementById("location-error");
+  el.hidden = true;
+  el.textContent = "";
+  document.getElementById("location-input").setAttribute("aria-invalid", "false");
 }
 
 function showResult() {
@@ -1803,8 +1849,7 @@ async function tryAutoLocate() {
 document.getElementById("location-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = document.getElementById("location-input");
-  const errorEl = document.getElementById("location-error");
-  errorEl.hidden = true;
+  clearLocationError();
 
   let loc;
   try {
@@ -1846,8 +1891,27 @@ async function enableNotifications(userLoc) {
     alert("A böngésződ nem támogatja az értesítéseket.");
     return;
   }
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return;
+  // UX-audit U05: korábban egy nem "granted" engedély-válasz (megtagadva
+  // vagy csak bezárva, választás nélkül) teljesen csendben tért vissza - a
+  // gomb szövege nem változott, semmi nem jelezte, mi történt (vagy nem
+  // történt). Minden kimenetnek legyen látható visszajelzése.
+  const btn = document.getElementById("notify-toggle");
+  const prevText = btn.textContent;
+  btn.textContent = "engedély kérése…";
+  let permission;
+  try {
+    permission = await Notification.requestPermission();
+  } finally {
+    btn.textContent = prevText;
+  }
+  if (permission === "denied") {
+    alert("Az értesítések ebben a böngészőben nem engedélyezhetők.");
+    return;
+  }
+  if (permission !== "granted") {
+    alert("Az értesítések bekapcsolásához engedélyezned kell a böngésző kérését.");
+    return;
+  }
 
   try {
     const registration = await navigator.serviceWorker.ready;
@@ -1901,7 +1965,11 @@ document.getElementById("notify-toggle").addEventListener("click", async () => {
     return;
   }
   const loc = loadSavedLocation();
-  if (loc) await enableNotifications(loc);
+  if (!loc) {
+    alert("Előbb válassz egy helyszínt.");
+    return;
+  }
+  await enableNotifications(loc);
 });
 
 document.getElementById("change-location").addEventListener("click", () => {
@@ -1915,8 +1983,22 @@ document.getElementById("stats-panel").addEventListener("toggle", (event) => {
 // feltöltését a revealPhase(PHASE_DONE) ág intézi.
 
 document.getElementById("retry-geo").addEventListener("click", () => {
-  document.getElementById("location-error").hidden = true;
+  clearLocationError();
   tryAutoLocate();
+});
+
+// Mégse/Escape: a #location-picker EGYETLEN megnyitási útja a #change-location
+// gomb (ld. showPicker hívásai), tehát mindig van érvényes korábbi eredmény,
+// amihez vissza lehet térni - nem kell külön esetet kezelni "nincs korábbi
+// eredmény" helyzetre.
+function cancelLocationPicker() {
+  clearLocationError();
+  showResult();
+  document.getElementById("change-location").focus();
+}
+document.getElementById("cancel-location").addEventListener("click", cancelLocationPicker);
+document.getElementById("location-picker").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") cancelLocationPicker();
 });
 
 // ============================================================================
@@ -1970,6 +2052,20 @@ const LAKE_COMPARE_PATHS = {
 
 function waterNum(n, maxDecimals = 1) {
   return n.toLocaleString("hu-HU", { maximumFractionDigits: maxDecimals });
+}
+
+// UX-audit D01: a talaj-/folyó-/tó-adatok "generated_at" mezője (a
+// push-worker snapshot-jaiban) már megvan, csak eddig sosem jelent meg - a
+// felhasználó nem tudta megkülönböztetni a friss mérést egy elavult
+// válasz tól. Mindig dátum+idő, "ma"-trükk nélkül (az elkerüli a
+// böngésző-időzóna vs. Budapest időzóna félreértést éjfél körül).
+function formatUpdatedAt(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return d.toLocaleString("hu-HU", {
+    timeZone: "Europe/Budapest",
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  });
 }
 
 function waterBalatonCount(liters, decimals = 1) {
@@ -2511,16 +2607,25 @@ const WATER_RIVER_NET_SVG = `
 // grafikonon, "most" elválasztóval.
 function buildRiverList(container, stations) {
   container.innerHTML = "";
-  for (const station of stations) {
+  stations.forEach((station, i) => {
     const row = document.createElement("div");
     row.className = "water-river-row";
-    const head = document.createElement("div");
+    // UX-audit A01: korábban ez egy sima <div onclick> volt - Tab-bal
+    // átugorható, képernyőolvasóval észrevehetetlen. Valódi <button>, hogy a
+    // nyitás/csukás billentyűzettel (Enter/Space) is elérhető legyen, az
+    // aria-expanded/aria-controls pedig jelezze az állapotát és a célját.
+    const chartId = `water-river-chart-${i}`;
+    const head = document.createElement("button");
+    head.type = "button";
     head.className = "water-river-row-head";
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("aria-controls", chartId);
     head.innerHTML =
       `<span class="water-river-name">${station.river} · ${station.name}</span>` +
       `<span class="water-river-level">${waterNum(station.level_cm, 0)} cm</span>`;
     const chartWrap = document.createElement("div");
     chartWrap.className = "water-river-chart-wrap";
+    chartWrap.id = chartId;
     const chartSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     chartSvg.setAttribute("viewBox", "0 0 400 110");
     chartSvg.setAttribute("preserveAspectRatio", "none");
@@ -2528,9 +2633,10 @@ function buildRiverList(container, stations) {
 
     let built = false;
     head.addEventListener("click", () => {
-      row.classList.toggle("open");
-      if (row.classList.contains("open") && !built) {
-        renderRiverChart(chartSvg, station);
+      const open = row.classList.toggle("open");
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open && !built) {
+        renderRiverChart(chartWrap, station, chartId);
         built = true;
       }
     });
@@ -2538,11 +2644,19 @@ function buildRiverList(container, stations) {
     row.appendChild(head);
     row.appendChild(chartWrap);
     container.appendChild(row);
-  }
+  });
 }
 
-function renderRiverChart(svgEl, station) {
-  const historyVals = (station.history || []).map(h => h.level_cm);
+// Rövid "nov. 13." formátum, ugyanúgy mint formatStatsDate - itt viszont
+// Date objektumból, nem ISO dátum-stringből indulunk.
+function formatShortDate(d) {
+  return d.toLocaleDateString("hu-HU", { timeZone: "Europe/Budapest", month: "short", day: "numeric" });
+}
+
+function renderRiverChart(wrapEl, station, chartId) {
+  const svgEl = wrapEl.querySelector("svg");
+  const history = station.history || [];
+  const historyVals = history.map(h => h.level_cm);
   const forecastVals = station.forecast_cm || [];
   const series = [...historyVals, station.level_cm, ...forecastVals];
   const todayIdx = historyVals.length;
@@ -2552,11 +2666,26 @@ function renderRiverChart(svgEl, station) {
     return;
   }
 
+  // UX-audit D03: a grafikonnak eddig nem volt sem cm-tengelye, sem
+  // dátumai - csak "múlt"/"most"/"6 napos előrejelzés" szavak. A tényleges
+  // dátumokat a history[].at mezőkből (múlt) és a mai naptól számolva
+  // (előrejelzés, napi bontású) kapjuk - nem kitalált, a snapshot saját
+  // adata.
+  const today = new Date();
+  const dateFor = i => {
+    if (i < history.length) return new Date(history[i].at);
+    const daysAhead = i - todayIdx; // 0 a "most" pontnál, 1.. az előrejelzésnél
+    const d = new Date(today);
+    d.setDate(d.getDate() + daysAhead);
+    return d;
+  };
+
   const minV = Math.min(...series), maxV = Math.max(...series);
   const span = Math.max(maxV - minV, 1);
-  const padX = 8, padY = 14, w = 400 - padX * 2, h = 110 - padY * 2 - 12;
-  const xFor = i => padX + (i / (series.length - 1)) * w;
-  const yFor = v => padY + h - ((v - minV) / span) * h;
+  const padX = 8, padYTop = 14, padYBottom = 14, axisW = 28;
+  const w = 400 - padX * 2 - axisW, h = 110 - padYTop - padYBottom - 12;
+  const xFor = i => padX + axisW + (i / (series.length - 1)) * w;
+  const yFor = v => padYTop + h - ((v - minV) / span) * h;
 
   const pastPoints = series.slice(0, todayIdx + 1).map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`);
   const futurePoints = series.slice(todayIdx).map((v, i) => `${xFor(todayIdx + i).toFixed(1)},${yFor(v).toFixed(1)}`);
@@ -2567,15 +2696,52 @@ function renderRiverChart(svgEl, station) {
     dots += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(series[i]).toFixed(1)}" r="1.5" fill="var(--muted)"></circle>`;
   }
 
+  svgEl.setAttribute("role", "img");
+  svgEl.setAttribute("aria-label",
+    `${station.river} ${station.name}, vízállás centiméterben, ${formatShortDate(dateFor(0))}-tól ${formatShortDate(dateFor(series.length - 1))}-ig - a pontos értékek a lenti táblázatban`);
   svgEl.innerHTML = `
-    <line x1="${todayX}" y1="${padY}" x2="${todayX}" y2="${(padY + h).toFixed(1)}" stroke="var(--border)" stroke-width="1"></line>
-    <text x="${todayX}" y="${(padY - 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="middle">most</text>
+    <text x="${(padX + axisW - 6).toFixed(1)}" y="${(yFor(maxV) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${waterNum(maxV, 0)}</text>
+    <text x="${(padX + axisW - 6).toFixed(1)}" y="${(yFor(minV) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${waterNum(minV, 0)}</text>
+    <line x1="${todayX}" y1="${padYTop}" x2="${todayX}" y2="${(padYTop + h).toFixed(1)}" stroke="var(--border)" stroke-width="1"></line>
+    <text x="${todayX}" y="${(padYTop - 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="middle">most</text>
     <polyline points="${pastPoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5"></polyline>
     <polyline points="${futurePoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-dasharray="3 3"></polyline>
     ${dots}
     <circle cx="${todayX}" cy="${yFor(station.level_cm).toFixed(1)}" r="2.5" fill="var(--fg)"></circle>
-    <text x="${padX}" y="${(padY + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)">${historyVals.length > 0 ? "múlt" : ""}</text>
-    <text x="${(padX + w).toFixed(1)}" y="${(padY + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">6 napos előrejelzés</text>`;
+    <text x="${(padX + axisW).toFixed(1)}" y="${(padYTop + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)">${history.length > 0 ? formatShortDate(dateFor(0)) : ""}</text>
+    <text x="${(padX + axisW + w).toFixed(1)}" y="${(padYTop + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${formatShortDate(dateFor(series.length - 1))}</text>`;
+
+  // Ugyanaz az adat táblázatként is - billentyűzettel/képernyőolvasóval
+  // elérhető, és pontos érték olvasható ki belőle, nem csak a vonal alakja.
+  // A múltbeli (gyakran óránkénti) mérésekből naponta csak az utolsót
+  // mutatjuk, a diagram vizuális sűrűségét nem kell táblában is visszaadni.
+  const dayRows = new Map();
+  history.forEach(h => {
+    const day = formatShortDate(new Date(h.at));
+    dayRows.set(day, h.level_cm); // az utolsó felülírja a napon belüli korábbiakat
+  });
+  let tableRows = [...dayRows.entries()]
+    .map(([day, cm]) => `<tr><td>${day}</td><td>${waterNum(cm, 0)} cm</td><td>mért</td></tr>`)
+    .join("");
+  tableRows += `<tr><td>${formatShortDate(today)}</td><td>${waterNum(station.level_cm, 0)} cm</td><td>most</td></tr>`;
+  tableRows += forecastVals
+    .map((cm, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i + 1);
+      return `<tr><td>${formatShortDate(d)}</td><td>${waterNum(cm, 0)} cm</td><td>előrejelzés</td></tr>`;
+    })
+    .join("");
+
+  let detailsEl = wrapEl.querySelector("details");
+  if (!detailsEl) {
+    detailsEl = document.createElement("details");
+    detailsEl.className = "water-river-chart-table-details";
+    detailsEl.innerHTML = `<summary>értékek táblázatban</summary><table class="water-river-chart-table"></table>`;
+    wrapEl.appendChild(detailsEl);
+  }
+  detailsEl.querySelector("table").innerHTML = `<caption>${station.river} ${station.name}, napi vízállás</caption>
+    <thead><tr><th>dátum</th><th>vízállás</th><th>típus</th></tr></thead>
+    <tbody>${tableRows}</tbody>`;
 }
 
 // ---- 2d. Csatornák: önálló térkép (a felhasználó kérése szerint "külön" a
@@ -2895,7 +3061,12 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     if (activePointers.size === 0) svgEl.style.cursor = "grab";
   }
 
+  // Sima görgővel a térkép fölött is az OLDAL görögjön tovább (UX-audit
+  // U03) - a térkép nagyítása ezentúl Ctrl/Cmd+görgő (a trackpad-csippentés
+  // is így küldi a wheel eseményt), a +/- gombok értelemszerűen továbbra is
+  // működnek preventDefault nélkül is.
   svgEl.addEventListener("wheel", event => {
+    if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     const rect = svgEl.getBoundingClientRect();
     const px = (event.clientX - rect.left) * (WIDTH / rect.width);
@@ -2905,10 +3076,20 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   }, { passive: false });
 
   svgEl.addEventListener("pointerdown", event => {
+    // Mindenkit nyilvántartunk (kell a második ujj érkezésekor a
+    // csippentés-számításhoz), de EGY érintő ujjat egérfogásként még nem
+    // kezelünk - az az oldal normál görgetése marad (touch-action: pan-y a
+    // CSS-ben, UX-audit U03). A térkép húzása touch-on csak két ujjal
+    // (csippentés közben, ld. pointermove), egérrel egy gombnyomással indul.
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    svgEl.setPointerCapture(event.pointerId);
-    svgEl.style.cursor = "grabbing";
-    hideTooltip();
+    if (event.pointerType === "mouse") {
+      svgEl.setPointerCapture(event.pointerId);
+      svgEl.style.cursor = "grabbing";
+      hideTooltip();
+    } else if (activePointers.size === 2) {
+      for (const id of activePointers.keys()) svgEl.setPointerCapture(id);
+      hideTooltip();
+    }
   });
 
   svgEl.addEventListener("pointermove", event => {
@@ -2925,6 +3106,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     const rect = svgEl.getBoundingClientRect();
 
     if (activePointers.size === 1) {
+      if (event.pointerType !== "mouse") return; // egy ujjal az oldal görög, nem a térkép mozog
       const dxPx = (event.clientX - prev.x) * (WIDTH / rect.width);
       const dyPx = (event.clientY - prev.y) * (HEIGHT / rect.height);
       panByPixels(dxPx, dyPx);
@@ -2932,6 +3114,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
       // Két ujjas csippentés: a másik (nem mozgó) pointer utolsó ismert
       // helyéhez mérve a távolság-változás adja a nagyítás mértékét, a két
       // pont középpontja a nagyítás középpontja.
+      event.preventDefault();
       const otherId = [...activePointers.keys()].find(id => id !== event.pointerId);
       const other = activePointers.get(otherId);
       const prevDist = Math.hypot(prev.x - other.x, prev.y - other.y);
@@ -3343,7 +3526,7 @@ const WATER_LAKE_BANDS = {
   "Fertő": { lowCm: null, highCm: null, axisMin: -50, axisMax: 50 },
 };
 
-function renderLakeGauge(container, name, levelCm, noteExtra) {
+function renderLakeGauge(container, name, levelCm, noteExtra, displayName = name) {
   const band = WATER_LAKE_BANDS[name];
   const wrap = document.createElement("div");
   const valueText = levelCm === null ? "jelenleg nem elérhető" : `${waterNum(levelCm, 0)} cm`;
@@ -3353,7 +3536,7 @@ function renderLakeGauge(container, name, levelCm, noteExtra) {
     const toX = cm => ((cm - band.axisMin) / span) * 400;
     const bandX = toX(band.lowCm), bandW = toX(band.highCm) - bandX;
     const fillW = Math.max(0, Math.min(400, toX(levelCm)));
-    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${name}: ${valueText}">
+    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${displayName}: ${valueText}">
       <rect x="${bandX.toFixed(1)}" y="4" width="${bandW.toFixed(1)}" height="16" fill="var(--bg)" stroke="var(--fg)" stroke-width="0.75" stroke-dasharray="2 2"></rect>
       <rect x="0" y="8" width="${fillW.toFixed(1)}" height="8" fill="var(--fg)"></rect>
       <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1"></line>
@@ -3364,13 +3547,13 @@ function renderLakeGauge(container, name, levelCm, noteExtra) {
       </g>
     </svg>`;
   } else {
-    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${name}: nincs megadva szabályozási sáv">
+    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${displayName}: nincs megadva szabályozási sáv">
       <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
     </svg>`;
   }
   const valueClass = levelCm === null ? "water-lake-gauge-value water-lake-gauge-value-missing" : "water-lake-gauge-value";
   wrap.innerHTML = `
-    <p class="water-lake-gauge-label">${name}</p>
+    <p class="water-lake-gauge-label">${displayName}</p>
     <p class="${valueClass}">${valueText}</p>
     ${gaugeSvg}
     <p class="water-lake-gauge-note">${noteExtra}</p>`;
@@ -3393,6 +3576,14 @@ function findLakeStation(stations, lake, station) {
   return stations.find(s => s.lake === lake && s.station === station);
 }
 
+// UX-audit T01: a csatorna-térkép ~5000 SVG node-ot épít - ezt a lenti
+// IntersectionObserver csak akkor indítja, amikor a szakasz TÉNYLEG közelít
+// a látható területhez, nem minden keresésnél azonnal. Mivel buildWaterPanel
+// minden új keresésnél újrafut, a KORÁBBI megfigyelőt is le kell állítani,
+// különben egy még ki nem oldott, régi megfigyelő egy már elavult
+// (korábbi helyszínhez tartozó) closure-t sülne el később.
+let channelsObserver = null;
+
 async function buildWaterPanel(point) {
   const statusEl = document.getElementById("water-status");
   statusEl.hidden = false;
@@ -3406,6 +3597,22 @@ async function buildWaterPanel(point) {
       loadWaterGeo(), // a legnagyobb folyók/Balaton valódi vonala a dombormű-térképhez (globális `waterGeo`)
       loadBorders(), // az ország valódi körvonala a dombormű-raszter vágásához (globális `borderRings`)
     ]);
+
+    // A HÁROM közül a legrégebbi generated_at-ot mutatjuk: ha bármelyik
+    // forrás elavultabb, az számít (ne tűnjön frissebbnek az oldal, mint
+    // amilyen a leglassabban frissülő adata ténylegesen).
+    const updatedTimes = [soil, rivers, lakes]
+      .map(s => s.generated_at)
+      .filter(Boolean)
+      .map(iso => new Date(iso));
+    const updatedEl = document.getElementById("water-updated");
+    if (updatedTimes.length) {
+      const oldest = new Date(Math.min(...updatedTimes));
+      updatedEl.textContent = `adatok frissítve: ${formatUpdatedAt(oldest)}`;
+      updatedEl.hidden = false;
+    } else {
+      updatedEl.hidden = true;
+    }
 
     // 1. Talajvíz: országos
     const totalCount = waterBalatonCount(soil.country_total_liters, 1);
@@ -3455,33 +3662,56 @@ async function buildWaterPanel(point) {
     buildRiverList(document.getElementById("water-river-list"), rivers.stations);
     document.getElementById("water-rivers-section").hidden = false;
 
-    // 2d. Csatornák: lásd a buildChannelsMap fölötti kommentet - külön
-    // lekérés, külön try/catch, mert ez a pillanatkép nem az óránkénti
-    // ciklus része, tehát hiányozhat anélkül, hogy az a fenti, már
-    // működő szakaszokat is eldöntené.
-    try {
-      const channels = await fetchWaterSnapshot("channels-snapshot");
-      await loadBorders();
-      buildChannelsMap(
-        document.getElementById("water-channels-map"),
-        document.getElementById("water-channels-legend"),
-        channels
-      );
-      const stats = channels.stats;
-      document.getElementById("water-channels-headline").textContent =
-        `${waterNum(stats.total_ways, 0)} folyó, csatorna, belvízelvezető, árok és tó`;
-      document.getElementById("water-channels-detail").textContent =
-        `összesen kb. ${waterNum(stats.total_km, 0)} km`;
-      document.getElementById("water-channels-longest").innerHTML = stats.longest
-        .slice(0, 8)
-        .map(c => `<li><span>${c.name}</span><span>${waterNum(c.km, 1)} km</span></li>`)
-        .join("");
-      document.getElementById("water-channels-caveat").textContent =
-        "A térkép csak a nevesített vízfolyásokat rajzolja ki, a fenti darabszám és hossz viszont mindegyikkel számol - a legtöbb kisebb árok nincs elnevezve.";
-      document.getElementById("water-channels-section").hidden = false;
-    } catch (err) {
-      console.error(err);
-      document.getElementById("water-channels-section").hidden = true;
+    // 2d. Csatornák: lásd a buildChannelsMap fölötti kommentet. UX-audit
+    // T01 - ez a (nagy payload-ú, ~5000 SVG node-ot építő) térkép a kezdeti
+    // betöltéskor még biztosan a látható területen kívül van, ezért a
+    // lekérést/építést nem itt, azonnal indítjuk, hanem csak akkor, amikor
+    // a szakasz ténylegesen közelít hozzá (IntersectionObserver, 400px
+    // előre-töltési margóval - mire a felhasználó odagörget, már kész).
+    // A szakasz maga üresen, "töltés…" szöveggel már most látszik, hogy a
+    // #water-toc ugrólink mindig érvényes célpontra mutasson (ld. I01).
+    if (channelsObserver) channelsObserver.disconnect();
+    document.getElementById("water-channels-headline").textContent = "";
+    document.getElementById("water-channels-detail").textContent = "töltés…";
+    document.getElementById("water-channels-longest").innerHTML = "";
+    document.getElementById("water-channels-caveat").textContent = "";
+    document.getElementById("water-channels-section").hidden = false;
+    const loadChannelsSection = async () => {
+      try {
+        const channels = await fetchWaterSnapshot("channels-snapshot");
+        await loadBorders();
+        buildChannelsMap(
+          document.getElementById("water-channels-map"),
+          document.getElementById("water-channels-legend"),
+          channels
+        );
+        const stats = channels.stats;
+        document.getElementById("water-channels-headline").textContent =
+          `${waterNum(stats.total_ways, 0)} folyó, csatorna, belvízelvezető, árok és tó`;
+        document.getElementById("water-channels-detail").textContent =
+          `összesen kb. ${waterNum(stats.total_km, 0)} km`;
+        document.getElementById("water-channels-longest").innerHTML = stats.longest
+          .slice(0, 8)
+          .map(c => `<li><span>${c.name}</span><span>${waterNum(c.km, 1)} km</span></li>`)
+          .join("");
+        document.getElementById("water-channels-caveat").textContent =
+          "A térkép csak a nevesített vízfolyásokat rajzolja ki, a fenti darabszám és hossz viszont mindegyikkel számol - a legtöbb kisebb árok nincs elnevezve. Egy folyó esetenként több néven is szerepelhet a listában (pl. határ menti kétnyelvű OSM-elnevezés), ezek külön sorként, nem összevonva jelennek meg.";
+      } catch (err) {
+        console.error(err);
+        document.getElementById("water-channels-detail").textContent = "a térkép most nem érhető el";
+      }
+    };
+    const channelsSectionEl = document.getElementById("water-channels-section");
+    if ("IntersectionObserver" in window) {
+      channelsObserver = new IntersectionObserver(entries => {
+        if (entries.some(e => e.isIntersecting)) {
+          channelsObserver.disconnect();
+          loadChannelsSection();
+        }
+      }, { rootMargin: "400px" });
+      channelsObserver.observe(channelsSectionEl);
+    } else {
+      loadChannelsSection();
     }
 
     // 3. Személyes
@@ -3529,7 +3759,10 @@ async function buildWaterPanel(point) {
     if (balatonAvg) {
       document.getElementById("water-balaton-level").textContent = `${waterNum(balatonAvg.level_cm, 0)} cm`;
       document.getElementById("water-balaton-detail").textContent =
-        balatonAvg.stale ? "a siófoki mércén mért országos átlag (tegnapi adat)" : "a siófoki mércén mért országos átlag";
+        (balatonAvg.stale
+          ? "a siófoki mércén mért országos átlag (tegnapi adat), "
+          : "a siófoki mércén mért országos átlag, ")
+        + "a mérce saját 0 pontjához képest, nem tengerszinthez";
       renderBalatonFill(document.getElementById("water-balaton-fill"), balatonAvg.level_cm);
     } else {
       document.getElementById("water-balaton-level").textContent = "jelenleg nem elérhető";
@@ -3547,7 +3780,13 @@ async function buildWaterPanel(point) {
     const velencei = findLakeStation(lakes.stations, "Velencei-tó", "Agárd");
     renderLakeGauge(gaugesEl, "Velencei-tó", velencei ? velencei.level_cm : null, "ideális legalább 140 cm, felső határ 170 cm");
     const tiszato = findRiverStation(rivers.stations, "Tisza", "Kisköre alsó");
-    renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null, "a Kisköre alsó mérce adata, nem feltétlenül a tó üzemvízszintjével egyező skálán");
+    // UX-audit D02: a kártya ne "Tisza-tó"-ként mutassa ezt az értéket - ez
+    // a Tisza folyami mércéje a tározó alatt, NEM a tó saját vízállása (ld.
+    // a fenti WATER_LAKE_BANDS fejkommentet), ezért a displayName ezt a
+    // forrást nevezi meg, nem a tavat.
+    renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null,
+      "a Tisza Kisköre alsó folyami mércéje a tározó alatt, nem a tó üzemvízszintjével egyező skálán - tájékoztató jellegű, nem a tó saját mérce-adata",
+      "Kisköre alsó (folyami mérce)");
     const ferto = findLakeStation(lakes.stations, "Fertő", "Fertőrákos");
     renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása, szabályozási sáv még nincs megadva");
 
@@ -3585,6 +3824,7 @@ async function buildWaterPanel(point) {
   } catch (err) {
     console.error(err);
     statusEl.textContent = "a vízadatok most nem érhetők el";
+    document.getElementById("water-updated").hidden = true;
   }
 }
 
@@ -3596,6 +3836,7 @@ function resetWaterPanel() {
   }
   document.getElementById("water-status").hidden = false;
   document.getElementById("water-status").textContent = "töltés…";
+  document.getElementById("water-updated").hidden = true;
 }
 
 // ---- Indítás ----
