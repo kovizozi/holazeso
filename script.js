@@ -1126,8 +1126,12 @@ async function run(userLoc, { silent = false } = {}) {
     // A helynév-lekérést már a felfestés ALATT elindítjuk. Enélkül a radar a
     // kész kép fölött pörögne tovább, amíg a geokódoló válaszol: a pontok
     // mind kint vannak, mégsem történik semmi.
-    const rainsAtUser = isRainingNow(userForecast) || isRainingSoon(userForecast);
-    let lookup = !rainsAtUser && raining.length > 0 ? startLookup(userLoc, raining[0]) : null;
+    // A lookup-ot csak az isRainingNow ág hagyja figyelmen kívül (az korábban
+    // tér vissza, mielőtt idáig érne) - az isRainingSoon ág UX-audit U01/U02
+    // óta NEM tér vissza korán, tehát ennek a kezdő lookup-nak IS futnia kell,
+    // különben a lenti "if (raining.length > 0) { const { refined } = await
+    // lookup; }" null-on bukna el, ha már az 1. gyűrűben volt találat.
+    let lookup = !isRainingNow(userForecast) && raining.length > 0 ? startLookup(userLoc, raining[0]) : null;
 
     await radarRevealTier(firstRain, { instant: silent });
     if (superseded()) return;
