@@ -559,7 +559,7 @@ let bordersVisible = false;
 // Delta-kódolt egészek 0,01 fokos egységekben, gyűrűnként/vonalanként
 // halmozva. Ez a felére csökkenti a fájlt a nyers koordinátalistához képest.
 // Közös a borders.json és a water-geo.json formátuma, csak a tartalmuk más.
-function decodeDeltaRings(encoded) {
+function decodeDeltaRings(encoded, scale = 100) {
   return encoded.map(flat => {
     const ring = [];
     let x = 0;
@@ -567,7 +567,7 @@ function decodeDeltaRings(encoded) {
     for (let i = 0; i < flat.length; i += 2) {
       x += flat[i];
       y += flat[i + 1];
-      ring.push([x / 100, y / 100]);
+      ring.push([x / scale, y / scale]);
     }
     return ring;
   });
@@ -2588,11 +2588,17 @@ function renderRiverChart(svgEl, station) {
 // hosszt visel, hogy a térképen EGYENKÉNT rámutatható/rákoppintható legyen.
 function decodeChannelFeatures(geo) {
   const names = geo.names || [];
+  // geo.scale: a channels-snapshot SAJÁT, a borders.json/water-geo.json-tól
+  // eltérő, finomabb koordináta-skálája (ld. app/channels.py docstring -
+  // a *100-ás közös skála a nevesített vízfolyások felénél egyetlen pontra
+  // zsugorította a geometriát). A JSON-ban utazik, nem kell kézzel szinkronban
+  // tartott duplikált konstans a frontenden.
+  const scale = geo.scale || 100;
   return (geo.features || []).map(f => ({
     name: names[f.n] ?? null,
     type: f.t,
     km: f.km,
-    ring: decodeDeltaRings([f.g])[0],
+    ring: decodeDeltaRings([f.g], scale)[0],
   }));
 }
 
