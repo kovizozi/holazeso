@@ -7,14 +7,24 @@ Nem hagyományos esőradar (azt már jól lefedi az időkép.hu és a met.hu), c
 egyetlen nagy, domináns válasz: **Nálad** / **Közelben** / **Távolban** / **Sehol**.
 Ha sehol nem esik az országban, egy második kérdés jön: hol esik éppen a Földön.
 
+A válasz alatt egy lenyíló "részletek és statisztika" panel (csapadék,
+előrejelzés, hőmérséklet a keresett helyre), és magyarországi helyszínnél egy
+vízadat-panel is megjelenik: a keresett hely talajnedvessége, majd országos
+talajvíz, folyók, csatornák, vízmérleg és tavak.
+
 A helyszínt az oldal alapból a böngésző helymeghatározásával próbálja kitalálni;
 ha ez nem sikerül vagy nincs engedélyezve, kézi településkereső jön elő helyette.
 
 ## Technikai keret
 
-- Nincs backend, nincs adatbázis: tisztán statikus HTML/CSS/JS.
+- Saját backend nincs: tisztán statikus HTML/CSS/JS. Egyetlen kiegészítő
+  szolgáltatás a külön repóban lévő `holazeso-push-worker` (Cloudflare Worker):
+  a push-értesítéseket küldi, és a vízadat-panel pillanatképeit szolgálja ki.
 - Nincs build lépés, nincs keretrendszer, nincs npm.
 - Adatforrás: [Open-Meteo](https://open-meteo.com/) (ingyenes, API-kulcs nélkül, CC BY 4.0).
+- Vízadatok: a hydroinfo.hu (Országos Vízügyi Főigazgatóság) élő vízállás-mérései
+  és az Open-Meteo talajnedvesség-modellje, a külön `soil-moisture-mapper` repó
+  otthoni jobja gyűjti óránként, és a push-worker KV-jében tárolja.
 - Fordított geokódolás (koordinátából településnév): [BigDataCloud](https://www.bigdatacloud.com/) kliens-oldali API-ja, kulcs nélkül.
 - Látogatottság: Cloudflare Web Analytics és GoatCounter, mindkettő cookie-mentes.
 - Nincs fix településlista: a `script.js` a felhasználó koordinátája köré dinamikusan

@@ -6,9 +6,32 @@ abbamaradt. A `CLAUDE.md` az általános szabályokat és parancsokat írja le, 
 `ARCHITECTURE.md` a rendszer működését - ez a fájl a **jelenlegi állapotot és
 a nyitott szálakat**.
 
-Utolsó frissítés: 2026-11-16, 3. kör (ld. lent az "UX/UI audit" szakaszokat -
+Utolsó frissítés: 2026-11-21 (ld. lent az "UX/UI audit" szakaszokat -
 a 09-12-es KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem
 törölve).
+
+## Vízadat-panel: csak magyar helynél, saját hely legfelül (2026-11-21)
+
+**KÉSZ, élesítve** (`c63f2a3`, `69a2d3f`).
+
+- **Csak magyarországi helyszín**: a felhasználó kérte, hogy külföldi helynél
+  a magyar vízadat-panel ne is jelenjen meg. `revealPhase` csak
+  `currentLoc.countryCode === "HU"` esetén nyitja meg és hívja a
+  `buildWaterPanel`-t. Ismeretlen országkódnál sem jelenik meg (szándékos,
+  óvatosabb döntés; ha a felhasználó mást kér, itt kell lazítani).
+- **Melyik helyre szólnak az adatok**: a "részletek és statisztika" panel
+  tetején új sor: "Az adatok helye: <név>" (`#stats-place`). A felhasználó
+  nem tudta, hogy a keresett vagy az esőt talált település adatai-e (a
+  keresettéi).
+- **Saját hely talajprofilja legfelül**: `#water-local-section` a
+  `#water-body` elejére került, utána jön az országos cím és a
+  tartalomjegyzék. A lekérés a snapshotokkal egy `Promise.all`-ba került,
+  hogy ne ugorjon be később az országos adatok fölé.
+- **Ellenőrizve**: Playwright, Szeged (HU) és Bécs (AT). A worker CORS-a
+  localhostot nem enged, ezért a teszt a kéréseket `page.route`-tal, éles
+  `Origin`-nel továbbította (ld. ARCHITECTURE.md, "Vízadat-panel").
+- **Dokumentáció**: ARCHITECTURE.md új "Részletek-panel és vízadat-panel"
+  fejezet, README.md adatforrások pontosítva.
 
 ## Domborzat (hillshade) a csatorna-térképhez, 3. kör (2026-11-16)
 

@@ -151,6 +151,57 @@ lehetne két szakaszra bontani, mert a "Közelben/Távolban/Sehol" típusú vál
 csak a teljes keresés végén derülne ki. A közel/távol információt most a
 második szakasz kiírt távolsága hordozza.
 
+## Részletek-panel és vízadat-panel
+
+A végleges válasz (`revealPhase(PHASE_DONE)`) után két további blokk jelenik
+meg a radar alatt. Mindkettő a **keresett helyre** (`currentLoc`) szól, nem
+arra a településre, ahol a radar esőt talált.
+
+### "részletek és statisztika" (`#stats-panel`, `buildStatsPanel`)
+
+Lenyíló `<details>`, zárva indul, csak kinyitáskor kér le (31+ napos
+csapadék-história, az elmúlt 3 év ugyanezen időszaka, előrejelzés,
+hőmérséklet, talajnedvesség, Open-Meteo Flood API vízhozam). Nem fut bele az
+5 percenkénti automatikus frissítésbe. A tetején a `#stats-place` sor
+("Az adatok helye: <név>") mondja ki, melyik helyre vonatkoznak a számok.
+Minden adata Open-Meteo-alapú, ezért bármely országban működik.
+
+### Vízadat-panel (`#water-panel`, `buildWaterPanel`)
+
+**Csak magyarországi helyszínnél jelenik meg** (`currentLoc.countryCode ===
+"HU"`), mert minden adata Magyarországra vonatkozik. Ismeretlen országkódnál
+sem jelenik meg; a `run()` addigra már megpróbálja pótolni reverse
+geocodinggal. Külföldi helynél a hozzá tartozó lekérések sem futnak le. A
+`resetWaterPanel()` minden keresés elején elrejti.
+
+Nem lenyíló: a radar után rögtön, nyitva jelenik meg. Sorrend:
+
+1. **Saját hely** (`#water-local-section`): a keresett pont 5 mélységi
+   talajnedvesség-profilja (Open-Meteo, `fetchUserSoilProfile`), az
+   országos átlaghoz mérve. Legfelül, mert ez szól a keresett helyre. A
+   lekérése a snapshotokkal együtt, ugyanabban a `Promise.all`-ban indul
+   (saját `.catch`-csel), és elsőként rajzolódik ki, hogy később ne ugorjon
+   be az országos adatok fölé. Ha nem jön meg, csak ez a szekció marad
+   rejtve.
+2. **Országos adatok** ("mennyi víz van összesen az országban?" cím és
+   tartalomjegyzék alatt): talajvíz Balatonokban, talajnedvesség-dombormű,
+   folyóhálózat, élő folyó-mércék, csatorna-térkép (lustán, látótérbe
+   érve tölt), vízmérleg, tavak.
+
+**Adatforrás**: a `holazeso-push-worker` KV-jében tárolt pillanatképek
+(`GET /soil-snapshot`, `/rivers-snapshot`, `/lakes-snapshot`,
+`/channels-snapshot`). Ezeket egy külön repó, a `soil-moisture-mapper`
+otthoni gépen futó jobja tölti fel óránként (a csatornákat alkalmanként,
+kézzel), Bearer tokenes `POST`-tal. A folyó- és tó-vízállás a hydroinfo.hu
+(OVF) méréseiből, a talajnedvesség az Open-Meteo modelljéből jön. Statikus
+fájlok mellette: `water-geo.json` (folyók, Balaton), `borders.json`
+(országhatár), `elevation.json` (domborzat a csatorna-térképhez).
+
+**Lokális tesztelés**: a worker CORS-a csak az éles originekre válaszol, ezért
+`localhost`-ról a vízadat-panel "a vízadatok most nem érhetők el" üzenettel
+áll meg. Ez nem hiba. Teszteléshez a kéréseket éles `Origin` fejléccel kell
+továbbítani (pl. Playwright `page.route`).
+
 ## Push-értesítés rendszer
 
 ### Kliens oldal (`script.js`, `sw.js`)
@@ -170,8 +221,12 @@ korlátozás nincs, ott böngészőfülben is működik.
 
 ### Worker (`holazeso-push-worker/src/index.js`)
 
-Egy Cloudflare Worker `fetch` (HTTP: `/subscribe`, `/unsubscribe`) és
-`scheduled` (Cron Trigger, percenként) handlerrel.
+Egy Cloudflare Worker `fetch` (HTTP: `/subscribe`, `/unsubscribe`, valamint
+a vízadat-panel pillanatképei: `GET`/`POST /soil-snapshot`, `/rivers-snapshot`,
+`/lakes-snapshot`, `/channels-snapshot`, ld. "Vízadat-panel" fent) és
+`scheduled` (Cron Trigger, percenként) handlerrel. A snapshot-`POST`
+szerver-szerver hívás, a `SOIL_SNAPSHOT_TOKEN` secret-tel hitelesítve, nem a
+CORS-allowlist-tel.
 
 **Tárolás: EGYETLEN KV kulcs.** Eredetileg minden feliratkozás saját KV
 kulcs alatt volt (`endpoint` → rekord), és a cron minden körben

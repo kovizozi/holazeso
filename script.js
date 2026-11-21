@@ -2141,8 +2141,9 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // Három, otthoni gépen (soil-moisture-mapper, külön repó) óránként frissített
 // pillanatkép a push-worker KV-jéből: GET /soil-snapshot, /rivers-snapshot,
 // /lakes-snapshot (ugyanaz a PUSH_WORKER_URL, ami a push-értesítésekhez is
-// kell, ld. fentebb). A panel csak megnyitáskor tölt, és minden megnyitáskor
-// újra - mint a #stats-panel (lásd a toggle-wiringot a fájl végén).
+// kell, ld. fentebb). A panel nem lenyíló: a végleges válasz után, csak
+// magyarországi helyszínnél nyílik meg és tölt be (lásd revealPhase), minden
+// új keresésnél újra.
 // ============================================================================
 
 const BALATON_LITERS = 1.9e12; // ~1,9 km³, több forrásból is megerősített érték
