@@ -1770,8 +1770,14 @@ function revealPhase(phase, delayMs) {
         // A vízadat-panel viszont NEM gombra nyílik: a radar után rögtön
         // megjelenik, nyitva, mert a felhasználó szerint ez folytatja az
         // oldalt, nem egy elrejtendő mellékes részlet.
-        document.getElementById("water-panel").hidden = false;
-        if (currentLoc) buildWaterPanel(currentLoc);
+        // Csak magyarországi helyszínnél: minden adata (hydroinfo.hu mércék,
+        // országos vízmérleg, Balaton) Magyarországra vonatkozik, külföldi
+        // helynél félrevezető lenne. Ismeretlen országkódnál sem jelenik meg
+        // (a run() addigra már megpróbálta pótolni reverse geocodinggal).
+        if (currentLoc && currentLoc.countryCode === "HU") {
+          document.getElementById("water-panel").hidden = false;
+          buildWaterPanel(currentLoc);
+        }
       }
       resolve();
     }, delayMs);
