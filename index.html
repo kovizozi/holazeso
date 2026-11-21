@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=46">
+<link rel="stylesheet" href="style.css?v=47">
 </head>
 <body>
 
@@ -120,6 +120,7 @@
     <details id="stats-panel" class="about-details stats-details" hidden>
       <summary>részletek és statisztika</summary>
       <div id="stats-body" class="stats-body">
+        <p id="stats-place" class="stats-place"></p>
         <p id="stats-status" class="context">töltés…</p>
 
         <section class="stats-group" id="stats-precip">
@@ -166,24 +167,36 @@
          rétegek és a vízmérce-ábrák mind script.js-ben generált SVG-k, nem
          statikus markup - ld. a fájl végi "Vízadatok" szekciót. -->
     <section id="water-panel" class="water-details" hidden>
-      <h2 class="question">mennyi víz van összesen az országban?</h2>
-      <!-- UX-audit I01: a vízadatok kb. 11 500 CSS-pixel hosszúak, nincs
-           bennük semmilyen belső ugrópont - ez egy kompakt index hozzájuk,
-           ugyanazokkal a #id-kkel, amik a lenti section-okon már megvannak. -->
-      <nav class="water-toc" aria-label="vízadatok tartalomjegyzéke">
-        <a href="#water-soil-section">Talaj</a>
-        <a href="#water-map-section">Térkép</a>
-        <a href="#water-rivers-section">Folyók</a>
-        <a href="#water-channels-section">Csatornák</a>
-        <a href="#water-local-section">Saját hely</a>
-        <a href="#water-balance-section">Vízmérleg</a>
-        <a href="#water-lakes-section">Tavak</a>
-      </nav>
       <div id="water-body" class="water-body">
         <p id="water-status" class="context">töltés…</p>
         <p id="water-updated" class="context" hidden></p>
 
-        <!-- 1. Talajvíz: országos összesítés + Balaton-alakú rétegek -->
+        <!-- 1. Személyes: a keresett helyszín talajminta-profilja. Legfelül,
+             mert ez szól a keresett helyre; az országos adatok utána jönnek. -->
+        <section class="water-section" id="water-local-section" hidden>
+          <h3 class="question" id="water-local-question"></h3>
+          <p class="place-line" id="water-local-total"></p>
+          <p class="context" id="water-local-compare"></p>
+          <p class="context" id="water-local-profile-text"></p>
+          <figure class="water-figure water-figure-narrow">
+            <svg id="water-soil-core" viewBox="10 -4 235 352" preserveAspectRatio="xMidYMid meet"></svg>
+          </figure>
+        </section>
+
+        <h2 class="question water-country-heading">mennyi víz van összesen az országban?</h2>
+        <!-- UX-audit I01: a vízadatok kb. 11 500 CSS-pixel hosszúak, nincs
+             bennük semmilyen belső ugrópont - ez egy kompakt index hozzájuk,
+             ugyanazokkal a #id-kkel, amik a lenti section-okon már megvannak. -->
+        <nav class="water-toc" aria-label="vízadatok tartalomjegyzéke">
+          <a href="#water-soil-section">Talaj</a>
+          <a href="#water-map-section">Térkép</a>
+          <a href="#water-rivers-section">Folyók</a>
+          <a href="#water-channels-section">Csatornák</a>
+          <a href="#water-balance-section">Vízmérleg</a>
+          <a href="#water-lakes-section">Tavak</a>
+        </nav>
+
+        <!-- 2. Talajvíz: országos összesítés + Balaton-alakú rétegek -->
         <section class="water-section" id="water-soil-section" hidden>
           <h3 class="question">Mennyi víz van most a talajban?</h3>
           <p class="answer" id="water-soil-balaton-count"></p>
@@ -283,17 +296,6 @@
             <ul id="water-channels-longest"></ul>
             <p class="about" id="water-channels-caveat"></p>
           </div>
-        </section>
-
-        <!-- 3. Személyes: a keresett helyszín talajminta-profilja -->
-        <section class="water-section" id="water-local-section" hidden>
-          <h3 class="question" id="water-local-question"></h3>
-          <p class="place-line" id="water-local-total"></p>
-          <p class="context" id="water-local-compare"></p>
-          <p class="context" id="water-local-profile-text"></p>
-          <figure class="water-figure water-figure-narrow">
-            <svg id="water-soil-core" viewBox="10 -4 235 352" preserveAspectRatio="xMidYMid meet"></svg>
-          </figure>
         </section>
 
         <!-- 4. Vízmérleg: honnan jön, hova megy (sokéves átlag) -->
@@ -396,7 +398,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=73"></script>
+  <script src="script.js?v=74"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

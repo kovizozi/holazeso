@@ -1403,6 +1403,10 @@ let statsLoading = false;
 async function buildStatsPanel(point) {
   if (statsLoading) return;
   statsLoading = true;
+  // Egyértelművé tesszük, hogy minden alábbi adat a KERESETT helyre szól,
+  // nem arra a településre, ahol a radar esőt talált.
+  document.getElementById("stats-place").textContent =
+    `Az adatok helye: ${point.name || "a keresett helyszín"}`;
   const statusEl = document.getElementById("stats-status");
   statusEl.hidden = false;
   statusEl.textContent = "töltés…";
@@ -3873,12 +3877,15 @@ async function buildWaterPanel(point) {
   statusEl.textContent = "töltés…";
 
   try {
-    const [soil, rivers, lakes] = await Promise.all([
+    // A saját hely talajprofilja párhuzamosan jön, és a hibája nem buktatja
+    // el az országos adatokat (null: a szekció rejtve marad).
+    const [soil, rivers, lakes, , , localMoisture] = await Promise.all([
       fetchWaterSnapshot("soil-snapshot"),
       fetchWaterSnapshot("rivers-snapshot"),
       fetchWaterSnapshot("lakes-snapshot"),
       loadWaterGeo(), // a legnagyobb folyók/Balaton valódi vonala a dombormű-térképhez (globális `waterGeo`)
       loadBorders(), // az ország valódi körvonala a dombormű-raszter vágásához (globális `borderRings`)
+      fetchUserSoilProfile(point).catch(err => { console.error(err); return null; }),
     ]);
 
     // A HÁROM közül a legrégebbi generated_at-ot mutatjuk: ha bármelyik
@@ -3897,13 +3904,40 @@ async function buildWaterPanel(point) {
       updatedEl.hidden = true;
     }
 
-    // 1. Talajvíz: országos
+    // 1. Személyes: legfelül, mert ez szól a keresett helyre; az országos
+    // adatok utána jönnek. Ugyanabban a lépésben jelenik meg, mint az
+    // országos szekciók, hogy később ne ugorjon be föléjük.
+    const avgMoisture = waterCountryAvgMoisture(soil);
+    document.getElementById("water-local-question").textContent =
+      `Mennyi víz van most a talajban ${point.name || "a keresett helyszín"} környékén?`;
+    if (localMoisture) {
+      const localAvgPct = Math.round(waterWeightedAvg(localMoisture) * 100);
+      const countryAvgPct = Math.round(waterWeightedAvg(avgMoisture) * 100);
+      document.getElementById("water-local-total").textContent = `${localAvgPct}% átlagos víztartalom`;
+      document.getElementById("water-local-compare").textContent =
+        localAvgPct >= countryAvgPct
+          ? `az országos átlag (${countryAvgPct}%) felett`
+          : `az országos átlag (${countryAvgPct}%) alatt`;
+      const surfacePct = Math.round(localMoisture[0] * 100);
+      const deepPct = Math.round(localMoisture[4] * 100);
+      document.getElementById("water-local-profile-text").textContent =
+        surfacePct > deepPct
+          ? "felül nedvesebb, mélyebben alig van víz"
+          : surfacePct < deepPct
+            ? "mélyebben van több víz, mint felül"
+            : "a mélység mentén egyenletes a víztartalom";
+      renderSoilCoreProfile(document.getElementById("water-soil-core"), localMoisture);
+      document.getElementById("water-local-section").hidden = false;
+    } else {
+      document.getElementById("water-local-section").hidden = true;
+    }
+
+    // 2. Talajvíz: országos
     const totalCount = waterBalatonCount(soil.country_total_liters, 1);
     document.getElementById("water-soil-balaton-count").textContent = totalCount;
     document.getElementById("water-soil-balaton-label").textContent = "Balatonnyi, 81 cm mélységig";
     document.getElementById("water-soil-exact").textContent =
       `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter (becslés, Open-Meteo talajmodell)`;
-    const avgMoisture = waterCountryAvgMoisture(soil);
     renderBalatonStack(
       document.getElementById("water-balaton-stack"),
       soil.depth_bands_cm,
@@ -3995,32 +4029,6 @@ async function buildWaterPanel(point) {
       channelsObserver.observe(channelsSectionEl);
     } else {
       loadChannelsSection();
-    }
-
-    // 3. Személyes
-    document.getElementById("water-local-question").textContent = `és ${point.name || "a keresett helyszín"} környékén?`;
-    try {
-      const localMoisture = await fetchUserSoilProfile(point);
-      const localAvgPct = Math.round(waterWeightedAvg(localMoisture) * 100);
-      const countryAvgPct = Math.round(waterWeightedAvg(avgMoisture) * 100);
-      document.getElementById("water-local-total").textContent = `${localAvgPct}% átlagos víztartalom`;
-      document.getElementById("water-local-compare").textContent =
-        localAvgPct >= countryAvgPct
-          ? `az országos átlag (${countryAvgPct}%) felett`
-          : `az országos átlag (${countryAvgPct}%) alatt`;
-      const surfacePct = Math.round(localMoisture[0] * 100);
-      const deepPct = Math.round(localMoisture[4] * 100);
-      document.getElementById("water-local-profile-text").textContent =
-        surfacePct > deepPct
-          ? "felül nedvesebb, mélyebben alig van víz"
-          : surfacePct < deepPct
-            ? "mélyebben van több víz, mint felül"
-            : "a mélység mentén egyenletes a víztartalom";
-      renderSoilCoreProfile(document.getElementById("water-soil-core"), localMoisture);
-      document.getElementById("water-local-section").hidden = false;
-    } catch (err) {
-      console.error(err);
-      document.getElementById("water-local-section").hidden = true;
     }
 
     // 4. Vízmérleg

@@ -526,6 +526,12 @@ noscript .about {
   margin-top: 0;
 }
 
+.stats-place {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 var(--sp-3);
+}
+
 .stats-heading {
   font-size: 14px;
   font-weight: 600;
@@ -616,6 +622,25 @@ noscript .about {
   font-size: 13px;
   color: var(--muted);
   text-decoration: underline;
+}
+
+/* Csoportváltás: a saját hely után itt kezdődnek az országos adatok. */
+.water-country-heading {
+  margin-top: var(--sp-4);
+}
+
+/* Elválasztó vonal csak akkor, ha a saját hely szekció tényleg látszik. */
+.water-section:not([hidden]) + .water-country-heading {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+/* A saját hely és az országos blokk eleje ne tapadjon a fölötte lévő
+   "frissítve" sorhoz, illetve a tartalomjegyzékhez. */
+#water-updated + .water-section,
+.water-toc + .water-section {
+  margin-top: var(--sp-4);
 }
 
 .water-section + .water-section {
