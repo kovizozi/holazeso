@@ -15,6 +15,7 @@ Nincs build lépés, nincs csomagkezelő a webhelyhez (`holazeso-v0`), nincs for
 - **Lokális futtatás**: nyisd meg VS Code-ban, jobb klikk `index.html` → **Open with Live Server**. (Közvetlen `file://` megnyitásnál a `fetch` hívások CORS-hibába futhatnak.)
 - **Szintaxis-ellenőrzés módosítás után**: `node --check script.js` (a `sw.js`-re is, ha azt módosítod).
 - **Em dash ellenőrzés** (ez a projekt szigorú szabálya, lásd lent): `grep -n "—" script.js index.html style.css README.md ARCHITECTURE.md`
+- **Cigánd-hírfigyelő kézzel** (a GitHub Action óránként ugyanezt futtatja): `python3 .github/scripts/cigand_news.py`; csak változásnál írja újra a `cigand-news.json`-t.
 - **Deploy**: `git push` a `main`-re, a Cloudflare Pages Git-integráció automatikusan deployol. Lásd `README.md` a részletekért.
 - **Push-worker deploy** (a `holazeso-push-worker` külön repóban): `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy` abban a mappában.
 - **Adatgyűjtő** (`soil-moisture-mapper`, otthoni gépen): `docker compose up -d --build` abban a mappában; egy kör kézzel: `docker compose run --rm soil-moisture-mapper --once`.

@@ -391,3 +391,20 @@ márka/domain felismerhetőségéről szól, nem tartalom-rangsorolásról.
 - A csatorna-térkép egy kattintásra aktiválódik (`is-active`), utána a sima görgő nagyít; Escape vagy kívülre kattintás elengedi.
 - A 0 literes (adat nélküli) talajcellák nincs-adatnak számítanak a talajtérképen és a fejsorban.
 - A Tisza-tó nincs a tó-kártyák között (nincs valódi tó-mérce); a Velencei-tó körvonala kézzel rajzolt séma.
+
+## Cigánd-hírfigyelő
+
+- A `.github/scripts/cigand_news.py` (csak Python-standard könyvtár) nyolc magyar hírportál RSS-csatornáját olvassa (telex.hu, HVG, Index, 444, Magyar Nemzet, Portfolio, Agrárszektor, BOON; a lista a script tetején van). Az a hír találat, amelynek címében vagy (HTML nélküli) leírásában szerepel a "cigánd" (a "cigándi" is). Egy hibás csatorna csak naplózódik, nem állítja meg a futást.
+- Hírenként csak cím, link, forrásnév, megjelenés ideje és első észlelés kerül a `cigand-news.json`-ba. Cikkszöveget sosem tárolunk (szerzői jog).
+- A csatornák csak az utolsó ~20-60 elemet tartják, ezért a script minden futásnál összefésüli az új találatokat a meglévő fájllal: dedupe a normalizált link (query és záró perjel nélkül) és az azonos (kisbetűs) cím szerint, legújabb elöl, legfeljebb 30 elem.
+- A `.github/workflows/cigand-news.yml` óránként (`17 * * * *`) és kézzel is futtatható. A fájlt csak akkor írja újra, ha a hírlista változott, és csak akkor kommitol (`github-actions[bot]`), így nincs óránkénti zajos commit. Emiatt az `updated` mező az utolsó VÁLTOZÁS ideje, nem az utolsó ellenőrzésé. Egy kommit Cloudflare Pages deployt indít.
+- A böngésző `cigand-news.json?h=ÉÉÉÉHHNNÓÓ` címet kér (óránként új kulcs, a custom-domain gyorsítótár miatt); a `sw.js` ezt a fájlt nem gyorsítótárazza. Hiba vagy 0 hír esetén a "Friss hírek" rész nem jelenik meg.
+- Miért nem Google News RSS: a felhasználási feltételei tiltják a weboldalon való megjelenítését.
+
+### AI-lépés a hírfigyelőben
+
+- A még fel nem dolgozott hírekre fut (az újakra; sikertelen próbálkozás után újra, hírenként legfeljebb 3 kísérlet az `ai_attempts` számlálóval; a feldolgozott, `ai: true` elemeket sosem dolgozza újra), futásonként legfeljebb 10 hívás. Szolgáltató: DeepSeek (`deepseek-chat`), sima `urllib` POST az OpenAI-kompatibilis `https://api.deepseek.com/chat/completions` címre, JSON módban (`response_format: json_object`, `temperature: 0`); SDK és pip nincs. A rendszerüzenet tartalmazza a várt JSON alakot példával (a JSON mód ezt megköveteli). A script letölti a cikket (ha nem sikerül, a cím és az RSS-leírás marad), nyers szöveggé alakítja (max. ~12 ezer karakter), majd egy hívásban kér `relevant`, `summary` (magyar, max. 2 mondat) és `facts` mezőket. Hibás JSON vagy hiányzó mező esetén az elem feldolgozatlan marad.
+- A modellnek nem hiszünk: a `facts` csak akkor marad meg, ha az `evidence` szó szerint (szóköz- és kisbetű-normalizálva) szerepel a letöltött szövegben; a `stored_volume_m3` csak akkor, ha a szám az evidence-ben is megtalálható (felismeri: "2 millió", "2,5 millió", "2 000 000", "kétmillió", "2 millió 300 ezer") és 0 és 94 millió m³ között van; a `gate_status` csak akkor, ha az evidence tartalmazza a nyit/zár tövet. A nem releváns hírek `relevant: false` jelzéssel megmaradnak, a frontend elrejti őket. Cikkszöveg nem kerül tárolásra.
+- A `latest_status` a legújabb, ellenőrzött tényt tartalmazó releváns hírből készül, és csak újabb tény érkezésekor cserélődik. A frontend ezt egy sorban mutatja a Cigánd-blokk tetején ("Legfrissebb hír szerint: ..."), ha újabb a kézzel vezetett `cigand.json` adatánál; azt nem írja felül, a tározó-ábrát nem érinti.
+- Hiányzó `DEEPSEEK_API_KEY` vagy API-hiba esetén a script AI-mezők nélkül, a korábbi módon működik (figyelmeztetés stderr-re, kilépési kód 0). Beállítás: GitHub repo, Settings, Secrets and variables, Actions, New repository secret, név: `DEEPSEEK_API_KEY`.
+- Teszt API nélkül: `CIGAND_NEWS_FAKE_AI=1` előre gyártott választ ad (a "HALLUCINATE" szöveget tartalmazó cikknél a szám nem egyezik az evidence-szel, ezért el kell dobódnia).

@@ -39,6 +39,10 @@ self.addEventListener("fetch", (event) => {
   // appban örökre megragadhatna egy régi verziónál.
   if (event.request.mode === "navigate") return;
 
+  // A Cigánd-hírlista óránként változik (?h=ÉÉÉÉHHNNÓÓ kulcsos kérés), nem
+  // cache-eljük: a hálózat az igazság, a böngésző HTTP-cache-e elég.
+  if (url.pathname.endsWith("/cigand-news.json")) return;
+
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const cached = await cache.match(event.request);

@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=50">
+<link rel="stylesheet" href="style.css?v=52">
 </head>
 <body>
 
@@ -232,6 +232,7 @@
             <h3 class="question" id="cigand-title"></h3>
             <p class="cigand-lead" id="cigand-lead"></p>
             <div class="cigand-tiles" id="cigand-tiles"></div>
+            <p class="cigand-latest" id="cigand-latest" hidden></p>
 
             <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
               <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
@@ -264,6 +265,11 @@
 
             <h4 class="cigand-subhead">Időrend</h4>
             <ol class="cigand-timeline" id="cigand-timeline"></ol>
+            <div id="cigand-news" hidden>
+              <h4 class="cigand-subhead">Friss hírek</h4>
+              <ul class="cigand-news-list" id="cigand-news-list"></ul>
+              <p class="cigand-news-note" id="cigand-news-note"></p>
+            </div>
             <p class="cigand-sources" id="cigand-sources"></p>
           </div>
         </section>
@@ -493,7 +499,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=78"></script>
+  <script src="script.js?v=80"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

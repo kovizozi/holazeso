@@ -5468,6 +5468,51 @@ function setupCigandAnimation(svgEl, geoInfo, data) {
   cigandAnim = { stop: () => { stop(); if (observer) observer.disconnect(); } };
 }
 
+// Friss hírek: a cigand-news.json-t óránként frissíti a GitHub Action
+// (.github/scripts/cigand_news.py). Hiba vagy 0 hír esetén semmit nem rajzol.
+async function buildCigandNews(data) {
+  const box = document.getElementById("cigand-news");
+  const latestEl = document.getElementById("cigand-latest");
+  box.hidden = true;
+  latestEl.hidden = true;
+  try {
+    const d = new Date();
+    const hour = d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, "0") +
+      String(d.getUTCDate()).padStart(2, "0") + String(d.getUTCHours()).padStart(2, "0");
+    const res = await fetch(`cigand-news.json?h=${hour}`);
+    if (!res.ok) return;
+    const news = await res.json();
+    const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    // Az AI által kinyert, ellenőrzött legfrissebb szám: csak akkor jelenik meg,
+    // ha újabb a kézzel vezetett cigand.json adatánál; azt nem írja felül.
+    const ls = news.latest_status;
+    if (ls && typeof ls.stored_volume_m3 === "number" && (ls.fact_date || ls.when || "") > data.facts.date) {
+      const when = new Date((ls.fact_date || ls.when) + "T12:00:00");
+      latestEl.innerHTML = `Legfrissebb hír szerint: kb. ${waterNum(ls.stored_volume_m3 / 1e6, 1)} millió m³ ` +
+        `(<a href="${esc(ls.link)}" target="_blank" rel="noopener">${esc(ls.source)}</a>, ${new Intl.DateTimeFormat("hu-HU", { month: "short", day: "numeric" }).format(when)})`;
+      latestEl.hidden = false;
+    }
+    const items = (news.items || []).filter(it => it.relevant !== false).slice(0, 5);
+    if (!items.length) return;
+    const fmt = new Intl.DateTimeFormat("hu-HU", { month: "short", day: "numeric" });
+    document.getElementById("cigand-news-list").innerHTML = items.map(it => {
+      const t = new Date(it.published);
+      const isNew = Date.now() - t.getTime() < 48 * 3600 * 1000;
+      return `<li><span class="cigand-news-date">${fmt.format(t)}</span> ` +
+        `<a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a> ` +
+        `<span class="cigand-news-src">${esc(it.source)}</span>` +
+        (isNew ? ` <span class="cigand-news-new">új</span>` : "") +
+        (it.summary ? `<span class="cigand-news-sum">${esc(it.summary)}</span>` : "") + `</li>`;
+    }).join("");
+    document.getElementById("cigand-news-note").textContent =
+      `Automatikusan gyűjtve ${(news.sources || []).length} hírforrás RSS-csatornájából, óránként ellenőrizve.` +
+      (items.some(it => it.summary) ? " Az összefoglalókat mesterséges intelligencia készíti a cikkekből, hibázhat; a pontos tartalomért nyisd meg a cikket." : "");
+    box.hidden = false;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function buildCigand(soil, rivers) {
   const section = document.getElementById("water-cigand-section");
   const tocLink = document.getElementById("water-toc-cigand");
@@ -5503,6 +5548,7 @@ async function buildCigand(soil, rivers) {
       document.getElementById("cigand-badge-line").hidden = !narrow;
     };
     drawCigandFigures();
+    buildCigandNews(data);
     if (buildCigand.mq) buildCigand.mq.removeEventListener("change", buildCigand.onMq);
     buildCigand.mq = narrowMq;
     buildCigand.onMq = drawCigandFigures;

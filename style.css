@@ -2092,6 +2092,67 @@ circle.water-channel-hit {
 }
 
 .cigand-tl-text a,
+.cigand-news-list {
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cigand-news-list li {
+  margin: 0 0 var(--sp-2);
+}
+
+.cigand-news-list a {
+  color: inherit;
+}
+
+.cigand-news-date,
+.cigand-news-src {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cigand-news-date {
+  display: inline-block;
+  min-width: 4.5em;
+}
+
+.cigand-news-sum {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cigand-latest {
+  max-width: 46em;
+  margin: var(--sp-2) auto 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cigand-latest a {
+  color: inherit;
+}
+
+.cigand-news-new {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.cigand-news-note {
+  max-width: 46em;
+  margin: var(--sp-1) auto 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+
 .cigand-sources a {
   color: var(--muted);
 }
