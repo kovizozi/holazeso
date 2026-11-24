@@ -17,9 +17,14 @@ ha ez nem sikerül vagy nincs engedélyezve, kézi településkereső jön elő 
 
 ## Technikai keret
 
-- Saját backend nincs: tisztán statikus HTML/CSS/JS. Egyetlen kiegészítő
-  szolgáltatás a külön repóban lévő `holazeso-push-worker` (Cloudflare Worker):
-  a push-értesítéseket küldi, és a vízadat-panel pillanatképeit szolgálja ki.
+- Maga az oldal statikus HTML/CSS/JS, de van mögötte egy kis backend, két külön
+  repóban:
+  - `holazeso-push-worker` (Cloudflare Worker + KV): push-értesítések, és a
+    vízadat-panel pillanatképeinek kiszolgálása;
+  - `soil-moisture-mapper` (otthoni gépen, Docker): óránként gyűjti a vízadatokat,
+    és feltölti a workernek.
+
+  Részletek: `ARCHITECTURE.md`, "Áttekintés".
 - Nincs build lépés, nincs keretrendszer, nincs npm.
 - Adatforrás: [Open-Meteo](https://open-meteo.com/) (ingyenes, API-kulcs nélkül, CC BY 4.0).
 - Vízadatok: a hydroinfo.hu (Országos Vízügyi Főigazgatóság) élő vízállás-mérései
@@ -47,8 +52,9 @@ fejléccel, ezzel nincs teendő.)
 
 ## Lokális futtatás
 
-Mivel az oldal statikus és közvetlenül böngészőből hívja az Open-Meteo API-kat,
-elég egy egyszerű helyi webszerver:
+Mivel az oldal statikus, elég egy egyszerű helyi webszerver (a vízadat-panel
+localhostról nem tölt be, mert a worker csak az éles domaint engedi, ld.
+`ARCHITECTURE.md`):
 
 1. Nyisd meg a mappát VS Code-ban.
 2. Telepítsd a **Live Server** kiegészítőt, ha még nincs meg.
@@ -65,3 +71,22 @@ CORS-problémákba futhatnak, ezért érdemes helyi szerverről futtatni.)
 3. Build beállítások: **Framework preset: None**, build command üresen hagyható,
    build output directory: `/` (a repó gyökere, mivel nincs build lépés).
 4. Deploy. Ezután minden `main`-re történő push automatikusan újra deployol.
+
+## Licenc
+
+A forráskód MIT licenc alatt áll, részletek a [`LICENSE`](LICENSE) fájlban.
+Az alább felsorolt külső adatforrásokra a saját licencük vonatkozik.
+
+## Adatforrások
+
+- [Open-Meteo](https://open-meteo.com/): időjárás, csapadék-előrejelzés, talajnedvesség,
+  árvízi és magassági adatok (CC BY 4.0).
+- [hydroinfo.hu](https://www.hydroinfo.hu/) / Országos Vízügyi Főigazgatóság: folyók és
+  tavak vízállása.
+- [OpenStreetMap](https://www.openstreetmap.org/copyright) közreműködői: térképi geometria
+  (ODbL), a gyűjtő a Geofabrik kivonatain keresztül is használja.
+- [BigDataCloud](https://www.bigdatacloud.com/): fordított geokódolás.
+- [RainViewer](https://www.rainviewer.com/): radarképek.
+- [geoBoundaries](https://www.geoboundaries.org/): megyehatárok (CC BY 4.0); országhatárok:
+  Natural Earth.
+- Copernicus DEM (GLO-30): domborzati adat a vízgyűjtő-számításokhoz.
