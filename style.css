@@ -72,6 +72,13 @@ body.scroll-locked {
   margin: 0 auto;
   width: 100%;
   padding: var(--sp-5) var(--sp-3) 0;
+  /* CLS: a keresés fázisai közben az alkalmazás magassága többször nő (a
+     válasz-szöveg, a radar, a panelek jelennek meg). Ha az alatta lévő
+     .seo-content a látható területen kezdődne, minden növekedés eltolná, és
+     a böngésző ezt layout-ugrásnak mérné. Egy teljes képernyőnyi minimum
+     magassággal a tartalom a hajtás alá kerül, ahol az eltolódása nem számít. */
+  min-height: 100vh;
+  min-height: 100svh;
 }
 
 .top {
@@ -2376,4 +2383,260 @@ circle.water-channel-hit {
   .top {
     margin-bottom: var(--sp-3);
   }
+}
+
+/* Statikus, indexelhető tartalom az alkalmazás alatt: h1, rövid leírás és a
+   generált (tools/build_pages.py) településlista. */
+.seo-content {
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--sp-6) var(--sp-3) 0;
+}
+
+.seo-content h1 {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0;
+}
+
+.seo-content h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: var(--sp-4) 0 var(--sp-2);
+  text-align: center;
+}
+
+.place-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 9em;
+  column-gap: var(--sp-3);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.place-links li {
+  break-inside: avoid;
+}
+
+.place-links a {
+  color: var(--muted);
+}
+
+.seo-content .about a {
+  color: inherit;
+}
+
+.seo-content nav {
+  max-width: 46em;
+  margin: 0 auto;
+}
+
+/* Könnyű szöveges oldalak (/vizallas/, /cigand/; tools/build_pages.py doc_page):
+   fejléc, egy szövegoszlop, lábléc. Az esőalkalmazás nélkül. */
+.doc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+  max-width: 736px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--sp-3) var(--sp-3) 0;
+  font-size: 13px;
+}
+
+.doc-top a,
+.doc-crumb a {
+  color: var(--muted);
+}
+
+.doc-home {
+  font-weight: 600;
+  color: var(--fg) !important;
+  text-decoration: none;
+}
+
+.doc-top nav a + a {
+  margin-left: var(--sp-2);
+}
+
+.doc-main {
+  flex: 1;
+  max-width: 736px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--sp-4) var(--sp-3) 0;
+  line-height: 1.6;
+}
+
+.doc-crumb {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.doc-main h1 {
+  font-size: clamp(26px, 6vw, 34px);
+  line-height: 1.15;
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+
+.doc-main h2 {
+  font-size: 18px;
+  margin: var(--sp-4) 0 var(--sp-1);
+}
+
+.vz-sentence {
+  font-size: 18px;
+  margin: var(--sp-1) 0 0;
+}
+
+.doc-note,
+.doc-more {
+  font-size: 13px;
+  color: var(--muted);
+  margin: var(--sp-3) 0 0;
+}
+
+.doc-main p a,
+.doc-main li a,
+.vz-table a,
+.cg-faq a {
+  color: inherit;
+}
+
+.spark-fig {
+  margin: var(--sp-2) 0 0;
+  max-width: 320px;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.spark-dot {
+  fill: var(--accent);
+}
+
+.spark-fig figcaption {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vz-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--sp-3);
+  font-size: 15px;
+}
+
+.vz-table th,
+.vz-table td {
+  text-align: left;
+  font-weight: 400;
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.vz-table thead th {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vz-table td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cg-list li {
+  margin-top: var(--sp-2);
+}
+
+.cg-date {
+  font-weight: 600;
+  margin-right: var(--sp-1);
+}
+
+.cg-kind {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0 var(--sp-1);
+  margin-left: var(--sp-1);
+  white-space: nowrap;
+}
+
+.cg-sum {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cg-faq dt {
+  font-weight: 600;
+  margin-top: var(--sp-3);
+}
+
+.cg-faq dd {
+  margin: 0;
+}
+
+/* A főoldali vízpanel alján: linkek a generált vízállás- és Cigánd-oldalakra. */
+.water-links {
+  font-size: 13px;
+  text-align: center;
+  margin: var(--sp-4) 0 var(--sp-3);
+}
+
+.water-links a {
+  color: var(--muted);
+}
+
+.water-links a + a {
+  margin-left: var(--sp-3);
+}
+
+/* Főoldali "Hol esik a hó?" link (novembertől márciusig, script.js). */
+.snow-link {
+  font-size: 13px;
+  margin: 0 0 var(--sp-3);
+}
+
+/* Településoldalak: összecsukható beágyazó-kód a widgethez. */
+.embed-box {
+  max-width: 46em;
+  margin: var(--sp-4) auto 0;
+  text-align: left;
+}
+
+.embed-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 5.5em;
+  margin-top: var(--sp-2);
+  padding: var(--sp-1);
+  font: 12px/1.4 ui-monospace, monospace;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  resize: vertical;
 }

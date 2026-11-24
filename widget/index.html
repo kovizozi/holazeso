@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>Esik most? | hol az eső?</title>
+<style>
+:root { --fg: #000; --bg: #fff; --muted: #6b6b6b; --border: #d6d6d6; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --fg: #fff; --bg: #000; --muted: #9a9a9a; --border: #333; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 14px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--fg); background: var(--bg);
+  max-width: 320px; max-height: 120px; overflow: hidden;
+  padding: 13px 13px 8px; border: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+#q { margin: 0; font-size: 14px; color: var(--muted); }
+#a { margin: 0; font-size: 38px; font-weight: 700; line-height: 1.05; }
+#more { margin: 0; font-size: 12px; text-align: right; }
+#more a { color: var(--muted); }
+</style>
+</head>
+<body>
+<p id="q">Esik most?</p>
+<p id="a" aria-live="polite">&hellip;</p>
+<p id="more"><a id="link" href="https://holazeso.hu/" target="_blank" rel="noopener">hol az eső?</a></p>
+<script>
+(function () {
+  var qs = new URLSearchParams(location.search);
+  var q = document.getElementById("q"), a = document.getElementById("a"), link = document.getElementById("link");
+  function show(text) { a.textContent = text; }
+  function check(lat, lon, loc) {
+    q.textContent = "Esik most " + loc + "?";
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(4) + "&longitude=" + lon.toFixed(4) +
+          "&current=precipitation,snowfall,weather_code")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var c = d.current;
+        if (!c || typeof c.precipitation !== "number") throw new Error("nincs adat");
+        var rate = c.precipitation * 3600 / (c.interval || 900);
+        if ([56, 57, 66, 67].indexOf(c.weather_code) !== -1) show("Ónos eső");
+        else if (c.snowfall > 0) show("Havazik");
+        else show(rate >= 0.1 ? "Igen" : "Nem");
+      })
+      .catch(function () { show("?"); });
+  }
+  var lat = parseFloat(qs.get("lat")), lon = parseFloat(qs.get("lon"));
+  var slug = qs.get("hely");
+  if (slug && /^[a-z0-9-]+$/.test(slug)) {
+    link.href = "https://holazeso.hu/eso/" + slug + "/";
+    fetch("/places-hu.json").then(function (r) { return r.json(); }).then(function (list) {
+      var p = list.filter(function (x) { return x.slug === slug; })[0];
+      if (!p) throw new Error("ismeretlen hely");
+      check(p.lat, p.lon, p.loc);
+    }).catch(function () { q.textContent = "Ismeretlen hely"; show("?"); });
+  } else if (isFinite(lat) && isFinite(lon)) {
+    check(lat, lon, qs.get("name") ? qs.get("name") + " környékén" : "itt");
+  } else {
+    q.textContent = "Hiányzó hely"; show("?");
+  }
+})();
+</script>
+</body>
+</html>

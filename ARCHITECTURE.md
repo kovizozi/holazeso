@@ -205,6 +205,33 @@ Minden adata Open-Meteo-alapú, ezért bármely országban működik.
 
 ### Vízadat-panel (`#water-panel`, `buildWaterPanel`)
 
+**A kód külön fájlban van, lustán töltődik** (SEO-PLAN 4. fázis). A panel
+teljes logikája (folyók, tavak, talaj, csatornák, Cigánd, a térképek, kb. 219
+kB) a `/water.js`-ben van, a `script.js` (kb. 117 kB) csak a vékony lusta
+betöltőt tartalmazza (`requestWaterPanel`, `startWaterPanel`, `loadWaterJs`,
+`resetWaterPanel`). A `water.js` KLASSZIKUS script (nem modul), ezért a
+`script.js` legfelső szintű nevei (`openMeteo`, `loadWaterGeo`, `loadBorders`,
+`loadPlaces`, `placesList`, `waterGeo`, `elevationGrid`, `distanceKm` stb.)
+közös globális lexikális környezetben közvetlenül láthatók benne, külön
+névtér nem kell; fordítva a `script.js` csak a `buildWaterPanel`-t és a
+`resetWaterPanelNow`-t hívja a `water.js`-ből. Ami mindkettőnek kell
+(`loadPlaces`/`placesList`), a `script.js`-ben maradt. A `water.js` csak
+deklarációkat tartalmaz, betöltéskor semmit nem futtat. Ha a `water.js`-ben
+olyan nevet használsz, ami a `script.js`-ben van, a két fájl betöltési
+sorrendje (előbb `script.js`) garantálja a meglétét; fordítva TILOS
+legfelső szinten hivatkozni a `water.js`-re a `script.js`-ben.
+
+Mikor töltődik be: a keresés végén a panel azonnal látható (helyfoglaló
+vázzal), de a `requestWaterPanel` csak azután figyeli IntersectionObserverrel
+(`rootMargin: 600px 0px`), hogy a statisztika-panel felépült (vagy 6 mp
+eltelt); a `water.js` és a vízadat-pillanatképek lekérése a panel
+közelébe érkezéskor indul. Azonnal indul a betöltés tartalomjegyzék-linkre
+(`a[href^="#water-"]` kattintás), `hashchange`-re és ha az oldal `#water-...`
+hash-sel nyílt (a build után a cél szakaszra görget). Új keresés/reset
+(`waterBuildToken`) eldobja a függő betöltést. A `sw.js`-en nincs teendő: a
+`water.js?v=N` azonos eredetű GET, ugyanúgy stale-while-revalidate és a `?v=`
+miatt az `activate` takarítja.
+
 **Csak magyarországi helyszínnél jelenik meg** (`currentLoc.countryCode ===
 "HU"`), mert minden adata Magyarországra vonatkozik. Ismeretlen országkódnál
 sem jelenik meg; a `run()` addigra már megpróbálja pótolni reverse
@@ -334,6 +361,23 @@ elempáron belül (pl. kérdés → rá adott válasz), arányosan nagyobb ugrá
 (34px) csoportváltásnál (fő válasz blokk → pontos hely blokk), legnagyobb
 (89px) a tartalomtól teljesen független részek előtt (pl. lábléc).
 
+### Layout-stabilitás (CLS)
+
+A `#app` `min-height: 100svh` (style.css): a keresés fázisai közben az app
+magassága többször nő, és az alatta lévő `.seo-content` addig a látható
+területen kezdődött, így minden növekedés "ugrásként" mérődött (ez volt a
+CLS túlnyomó része). Most a hajtás alatt kezdődik. Mockolt Playwright-méréssel
+(3 futás mediánja, 14 mp) a főoldal 375 px-en 1,46-ról 0,154-re, 1280 px-en
+0,76-ról 0,17-re, a `/eso/kecskemet/` 375 px-en 1,39-ről 0,154-re esett.
+A maradék két ugrás a "egy kérdés, egy válasz" felfedés VELEJÁRÓJA: amikor a
+válasz-szöveg (q1, majd q2) megjelenik a radar FÖLÖTT, a #loading doboza
+layoutban lejjebb kerül és a `.settled`/where állapot `padding-top`-ja is
+változik; a `slideRadar` FLIP-je ezt vizuálisan eltünteti, a metrika viszont a
+layout-dobozt nézi. Ennek megszüntetése a radar-koreográfia CSS-mechanizmusát
+(CLAUDE.md 6. szabály) érintené, ezért szándékosan marad. A vízpanel
+(`.water-skeleton`) és a statisztika-panel helyfoglalása egyenletes
+görgetésnél mérten ~0 ugrást ad (a panelek a hajtás alatt töltenek).
+
 ## Üzemeltetési buktatók
 
 ### `?v=N` cache-busting: KÖTELEZŐ minden script.js/style.css módosításnál
@@ -345,6 +389,12 @@ cache-elhetik. Az `index.html`-ben ezért `script.js?v=N` / `style.css?v=N`
 szerepel: **minden alkalommal, amikor módosítod ezeket a fájlokat, bővítsd a
 megfelelő `?v=N` számot** az `index.html`-ben. Az `index.html` maga mindig
 frissen töltődik (`max-age=0, must-revalidate`), ezzel nincs teendő.
+
+A `water.js` ugyanígy verziózott, de a hivatkozása nem az `index.html`-ben,
+hanem a `script.js` `WATER_JS_URL` konstansában van (`/water.js?v=N`, a
+lusta betöltő hozza létre a script-elemet): a `water.js` módosításakor
+emeld a `?v=`-t ott, és mivel ezzel a `script.js` is változik, az
+`index.html`-ben a `script.js?v=`-t is.
 
 Diagnosztizálva, de nem megoldva: miért nem tartja tiszteletben a domain a
 `_headers`-t. A direkt `*.pages.dev` URL helyesen `no-cache`-t ad, csak a
@@ -376,6 +426,36 @@ tartalom kliens-oldalon, a felhasználó helyzete alapján generálódik, ezért
 keresőrobot szempontjából nincs "indexelhető" tartalma az egyes
 válaszoknak (ez a projekt jellegéből adódik, nem hiba); a SEO itt a
 márka/domain felismerhetőségéről szól, nem tartalom-rangsorolásról.
+
+## Generált oldalak (`tools/build_pages.py`)
+
+Egyetlen Python-generátor (csak standard könyvtár) állítja elő az aloldalakat az `index.html`-ből mint sablonból. A kimenet a repóban van (mint a `cigand-news.json`), a `.github/workflows/build-pages.yml` futtatja (push, ha `index.html`, `places-hu.json`, `climate-hu.json`, `tools/**` változik; napi cron 05:23; kézi indítás), és csak változás esetén kommitol (`git pull --rebase` a push előtt).
+
+- **Sablon-jelölők az `index.html`-ben**: `<!--GEN:content-->` (a `<footer>` előtti statikus szakasz: h1, bevezető) és benne `<!--GEN:places-->` (a főoldali "Települések" lista). A főoldal maga az `index.html`, a generátor csak a lista részt írja újra benne.
+- **`render_page(ctx, path=, title=, description=, h1=, content_html=, boot_script=, indexable=)`**: a közös függvény. Átírja a title/description/canonical/og/twitter/JSON-LD fejlécet, kicseréli a content blokkot, a sablon relatív asset-hivatkozásait gyökér-abszolútra írja (`/style.css?v=N`), és a `script.js` elé beszúrja a boot-szkriptet. `indexable=False` `noindex` meta-t ad (widget).
+- **Oldaltípusok**: `PAGE_BUILDERS` lista, minden builder `Ctx`-ből `Page` listát ad. Most: `build_home`, `build_town_pages` (`/eso/<slug>/`), `build_cigand_page` (`/cigand/`), `build_water_pages` (`/vizallas/`, `/vizallas/<slug>/`). A 3. fázis oldalai: `build_snow_page` (`/ho/`) és `build_widget_page` (`/widget/`).
+- **Adatok**: `places-hu.json` (`slug`, `loc` = helyhatározós alak kézzel; `n`, `lat`, `lon`, `r`), `climate-hu.json` (éves átlagos csapadék, legcsapadékosabb hónap, esős napok/év; Open-Meteo archive API, 2013-2024, napi csapadék; "esős nap" >= 1 mm). A klímát csak a `--fetch-climate` kéri le, csak a hiányzó helyekre, 4-es csomagokban, 15 s várakozással; hibánál (pl. 429) leáll, és a hiányzó helyek oldaláról egyszerűen kimarad a klíma-szöveg.
+- **`sitemap.xml`**: a generátor írja; a `lastmod` csak akkor változik, ha az oldal tartalom-hash-e (a `<!--h:...-->` komment az url-ben) változott. A `robots.txt` hivatkozik rá.
+- **Településoldal boot**: `window.HOLAZESO_PLACE = {name, lat, lon, countryCode}` a `script.js` előtt. A `script.js` indításkor ezt használja a mentett és az automatikus hely helyett, de nem menti el és nem módosítja az URL-t; a helyszín-váltó ugyanúgy működik. A megosztó gomb `/eso/<slug>/` linket ad, ha a hely 3 km-en belül egy listás település.
+- **Útvonalak**: a `script.js` minden `fetch`-e és a service worker regisztrációja (`/sw.js`, scope `/`) gyökér-abszolút. A `sw.js` navigációt nem cache-el, ezért az `/eso/x/` oldalakat sosem a főoldali `index.html`-lel szolgálja ki.
+
+### Vízállás- és Cigánd-oldalak (2. fázis)
+
+- **Könnyű sablon**: ezek szöveges oldalak, nem az esőalkalmazás. A `doc_page()` a `render_page()` fejét (meta, canonical, JSON-LD, `style.css?v=N`) használja, a törzs saját: fejléc (főoldal-link, Vízállás, Cigánd), `<main class="doc-main">`, lábléc, GoatCounter. Nincs `script.js`, nincs animáció. Stílus: `style.css` végén a `.doc-*`, `.vz-*`, `.spark-*`, `.cg-*` osztályok.
+- **Adat**: `--fetch-water` (az Action ezt használja) a worker `/rivers-snapshot` és `/lakes-snapshot` végpontját kéri `Origin: https://holazeso.hu` fejléccel; `--water-dir DIR` teszthez (DIR/rivers.json, lakes.json). Ha nincs kapcsoló vagy a worker nem elérhető/hibás, a vízoldalak NEM íródnak újra, és a `sitemap.xml` megtartja a meglévő `/vizallas/` bejegyzéseket (üres oldal sosem készül). A `/cigand/` csak repóbeli fájlokból (`cigand.json`, `cigand-news.json`) épül, hálózat nélkül.
+- **Oldalak**: `/vizallas/` (táblázat), `/vizallas/<slug>/`: `duna`, `tisza`, `raba`, `maros`, `harmas-koros`, `drava`, `balaton`, `velencei-to`, `ferto` (a `RIVER_PAGES` / `LAKE_PAGES` listák; a helyhatározós állomásnevek az `STATION_LOC` táblában, kézzel). `EXCLUDE`: a generátorban az ellenőrzésen elbukott állomások neve (most üres).
+- **Mondat és változás**: "A Tisza vízállása Szegednél ma 266 cm, 154 cm-rel magasabb, mint egy hete." A változás a `history`-ból a ~7 nappal korábbi mintához képest, csak ha a history legrégebbi mintája legfeljebb 1 órával a cél (utolsó minta - 7 nap) után van; különben a tagmondat elmarad. A tavaknak nincs history-juk, ott csak a mai érték áll. A kijelzett dátum a pillanatkép `generated_at` napja (Budapest-idő), órát nem írunk ki, hogy a második futás ne változtasson semmit; a hydroinfo értékei amúgy is naponta változnak.
+- **Sparkline**: statikus inline SVG (`.spark`, a vonal `--accent`, nincs JS), a history ~64 mintájából.
+- **Adatellenőrzés (2026-11-24)**: a worker pillanatképeit a hydroinfo.hu táblázataival (`tables/ENG/tohid.html`, `tishid_a.html`, `dunhid_a.html`) vetettük össze, minden vizsgált állomás egyezett (Siófok 44, Balatonakali 38, Tihany rév 41, Agárd 16, Fertőrákos 2, Szeged 266, Szolnok 317, Budapest 98, Mohács 89, Szarvas 498, Makó 4, Győr 170, Tiszabecs -76, Őrtilos -120, Drávaszabolcs -33, Nagybajcs 36, Kisköre alsó 300). A Balaton alacsony értéke (44 cm) tehát valódi, nem gyűjtő-hiba. A history-t (heti változás) a hydroinfo nem archiválja nyilvánosan, ezt csak a gyűjtő saját mintái adják.
+- **Workflow**: a `build-pages.yml` a `--fetch-water` kapcsolóval fut (napi cron 05:23 frissíti a vizet), és a `cigand.json` / `cigand-news.json` változására is indul. A `cigand-news.yml` kommit után `gh workflow run build-pages.yml`-t hív (`actions: write` jogosultság, `GH_TOKEN`), mert a `GITHUB_TOKEN`-nel végzett push nem indít másik workflow-t.
+- **Főoldali linkek**: a vízpanel alján (`nav.water-links`, a "honnan vannak a számok?" nyitó előtt) két kis szöveges link: `/vizallas/` és `/cigand/`.
+
+### Funkciók (3. fázis)
+
+- **Mikor áll el / mikor ér ide**: a `fetchUserForecast` kérése kibővült `minutely_15=precipitation`-nel (nincs új hívás; a rácspontos kérések nem kapják). `minutelyOutlook()`: a `current.time` 15 percre lefelé kerekített szelete után az első szelet, ami átbillen a 0,1 mm küszöbön (a `minutely_15` az előző 15 perc összege), a hátralévő perc 15-re kerekítve: "Még kb. 45 percig eshet.", "Kb. 30 perc múlva ideérhet." Hiányzó (nem szám) érték vagy hiányzó szelet: semmi nem íródik ki (4 órán belül nincs változás esőnél: "A következő órákban is eshet.", szárazon semmi). A sor a fő válasz alatti első `.context` sor; ha van, kiváltja az órás "még kb. N óráig tart" és az órás "becslés szerint kb. N óra múlva" sort. Hómódban nincs 15 perces sor. A radar logikához nem nyúl: a hívás a már meglévő `fetchUserForecast`-ban van, a rács-körök, a `radarRevealTier` és a `RADAR_SWEEP_MS` változatlanok.
+- **Hó és ónos eső**: a `current` mezői kibővültek (`precipitation,snowfall,weather_code`, a rácskérésekben is; az Open-Meteo pontszám-súlyát a változók száma nem módosítja). `precipKind()`: `weather_code` 56, 57, 66, 67 = "ice" ("Ónos eső esik"), `snowfall > 0` = "snow" ("Havazik"), egyébként "rain" (a régi szövegek). A találati pontok `kind` mezőt kapnak (`sortRaining`), így a legközelebbi hely kártyáján is típus szerinti a szöveg.
+- **Hómód `/ho/`**: a generált oldal `window.HOLAZESO_MODE = "ho"`-t állít a `script.js` előtt; `SNOW_MODE` esetén az `isRainingNow` csak `snowfall > 0`-t fogad el (ennyi a különbség a keresésben, a radar és minden más ugyanaz), a szövegek: "Havazik-e X környékén?", "Nálad nem havazik.", "a legközelebbi havazás:". A főoldalon a footer elején a `#snow-link` (`hidden`) csak november 1. és március 31. között (kliensoldali dátum) jelenik meg.
+- **Widget `/widget/`**: a `build_widget_page` egyetlen, önálló HTML-t ír (saját inline CSS/JS, NEM tölti a `script.js`-t és a `style.css`-t), `noindex`, nincs a sitemapben. `?hely=<slug>` (a `places-hu.json`-ból) vagy `?lat&lon&name`; egyetlen Open-Meteo `current` hívás: "Ónos eső" / "Havazik" / "Igen" (>= 0,1 mm/óra) / "Nem"; hibánál "?". `prefers-color-scheme` szerint világos/sötét, 320x120-ban elfér. A `_headers` `/widget/*` szabálya `Content-Security-Policy: frame-ancestors *`, így bárhol iframe-be tehető (a többi oldalon nincs framing-tiltás). A településoldalakon a `<details class="embed-box">` "Tedd ki az oldaladra" adja a másolható iframe-kódot.
 
 ## UX-átalakítás (2026. nov.): új statikus fájlok és komponensek
 

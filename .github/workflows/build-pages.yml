@@ -1,0 +1,44 @@
+name: Oldalak generálása
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - places-hu.json
+      - climate-hu.json
+      - tools/**
+      - cigand.json
+      - cigand-news.json
+      - .github/workflows/build-pages.yml
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Oldalak és sitemap generálása (hiányzó klíma és friss vízállás lekérésével)
+        run: python3 tools/build_pages.py --fetch-climate --fetch-water
+      - name: Kommit, ha változott
+        run: |
+          git add -A index.html eso vizallas cigand sitemap.xml climate-hu.json
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898583+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: generált oldalak és sitemap frissítése"
+            git pull --rebase
+            git push
+          fi

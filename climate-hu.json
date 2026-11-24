@@ -1,0 +1,23 @@
+{
+ "period": "2013-2024",
+ "places": {
+  "budapest": {
+   "annual_mm": 688,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 84
+  },
+  "debrecen": {
+   "annual_mm": 640,
+   "rain_days": 111,
+   "wet_month": 6,
+   "wet_month_mm": 76
+  },
+  "szeged": {
+   "annual_mm": 614,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 67
+  }
+ }
+}

@@ -6,3 +6,8 @@
 
 /index.html
   Cache-Control: no-cache
+
+# A beágyazható widget bármely oldalon iframe-ben megjeleníthető (nincs X-Frame-Options).
+/widget/*
+  Content-Security-Policy: frame-ancestors *
+  X-Robots-Tag: noindex

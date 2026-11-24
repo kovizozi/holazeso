@@ -10,6 +10,29 @@ Utolsó frissítés: 2026-11-21 (ld. lent az "UX/UI audit" szakaszokat -
 a 09-12-es KV-migrációs szakasz AZÓTA eltelt, ellenőrizetlen történet, nem
 törölve).
 
+## SEO-PLAN 4. fázis: teljesítmény (2026-11-24)
+
+**KÉSZ a munkafában, nincs commitolva.**
+
+- **`water.js` kiszervezve**: a vízpanel teljes kódja (folyók, tavak, talaj,
+  csatornák, Cigánd, térképek) `/water.js` (219 kB), a `script.js` 330 kB-ról
+  117 kB-ra esett. Lusta betöltés: IntersectionObserver (600 px), `#water-`
+  tartalomjegyzék-link, hashchange vagy hash-es megnyitás. Klasszikus script,
+  a `script.js` globáljait közvetlenül látja (nincs `window.HZ`). Részletek:
+  ARCHITECTURE.md "Vízadat-panel". `?v=` szabály: CLAUDE.md 3. szabály.
+- **Mért (mockolt Open-Meteo, Playwright, 3 futás mediánja)**: átvitt JS
+  a főoldalon görgetés nélkül 339,6 kB -> 126,0 kB (a `count.js` 9,2 kB-tal);
+  a vízpanelhez görgetve 344,7 kB (a `water.js` ekkor jön). CLS (14 mp):
+  főoldal 375 px 1,46 -> 0,154; főoldal 1280 px 0,76 -> 0,17;
+  `/eso/kecskemet/` 375 px 1,39 -> 0,154.
+- **CLS oka és javítása**: a fő ugrás (0,55-0,63) a `.seo-content` eltolódása
+  volt, amikor a script megjelenítette az eredményt; `#app { min-height:
+  100svh }` a hajtás alá tolja. A korábbi 0,297-es Lighthouse-érték ugyanez a
+  családja. **Marad** (~0,10 + ~0,05): a radar fölé beúszó válasz-szöveg
+  layout-ugrása, ami a felfedés koreográfiájának része, lásd ARCHITECTURE.md
+  "Layout-stabilitás (CLS)". A 0,1 alatti célhoz a `.loading`/`.settled`
+  transform-alapúra cserélése kellene (nem tettük).
+
 ## Vízadat-panel: csak magyar helynél, saját hely legfelül (2026-11-21)
 
 **KÉSZ, élesítve** (`c63f2a3`, `69a2d3f`).
@@ -156,8 +179,8 @@ Ami ebben a körben ELKÉSZÜLT:
 
 **Ami még MINDIG nyitva maradt** a 2. kör után:
 
-- **CLS 0,297** a radar-reveal choreográfiánál - ld. fent, szándékosan nem
-  nyúltunk hozzá a védett kódhoz egy becsült refaktorral.
+- **CLS** a radar-reveal choreográfiánál: 0,297 -> mockolva 0,154 a 4. fázis
+  után (ld. a fájl tetején), a maradék a koreográfia velejárója.
 - **D01 teljes köre**: minden EGYES értékhez külön forrás+idő+típus címke
   (az audit eredeti, teljes kérése) - csak a legfontosabb pontatlanságok
   (talaj: "mért" -> "modell-becslés") és egy aggregált időbélyeg készült el,

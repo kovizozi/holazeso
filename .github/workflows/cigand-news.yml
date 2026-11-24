@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: cigand-news
@@ -25,6 +26,8 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: python3 .github/scripts/cigand_news.py
       - name: Kommit, ha változott
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "$(git status --porcelain cigand-news.json)" ]; then
             git config user.name "github-actions[bot]"
@@ -33,4 +36,7 @@ jobs:
             git commit -m "chore: Cigánd-hírek frissítése"
             git pull --rebase
             git push
+            # A GITHUB_TOKEN-nel végzett push nem indítja el más workflow push-triggerét,
+            # ezért a /cigand/ oldal újragenerálását kifejezetten kérjük.
+            gh workflow run build-pages.yml
           fi
