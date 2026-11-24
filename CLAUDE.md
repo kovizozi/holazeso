@@ -17,10 +17,15 @@ Nincs build lépés, nincs csomagkezelő a webhelyhez (`holazeso-v0`), nincs for
 - **Em dash ellenőrzés** (ez a projekt szigorú szabálya, lásd lent): `grep -n "—" script.js index.html style.css README.md ARCHITECTURE.md`
 - **Deploy**: `git push` a `main`-re, a Cloudflare Pages Git-integráció automatikusan deployol. Lásd `README.md` a részletekért.
 - **Push-worker deploy** (a `holazeso-push-worker` külön repóban): `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npx wrangler deploy` abban a mappában.
+- **Adatgyűjtő** (`soil-moisture-mapper`, otthoni gépen): `docker compose up -d --build` abban a mappában; egy kör kézzel: `docker compose run --rm soil-moisture-mapper --once`.
 
 ## Architektúra (röviden - a részletekért lásd ARCHITECTURE.md)
 
-Két különálló projekt: a statikus weboldal (`holazeso-v0`, ez a repó) és egy külön Cloudflare Worker (`holazeso-push-worker`) a push-értesítésekhez. A weboldalnak nincs backendje - a `script.js` közvetlenül hívja az Open-Meteo és BigDataCloud API-kat a böngészőből.
+Három rész. A weboldal (`holazeso-v0`, ez a repó) statikus, de van mögötte egy kis backend:
+- `holazeso-push-worker` (külön repó, Cloudflare Worker + KV): push-értesítések, és a vízadat-panel pillanatképeinek kiszolgálása (`/*-snapshot`).
+- `soil-moisture-mapper` (külön repó, otthoni gépen, Docker): óránként gyűjti a talaj-, folyó- és tóadatokat (Open-Meteo, hydroinfo.hu), és feltölti a workernek.
+
+Az esőkeresést és a "részletek és statisztika" panelt a `script.js` továbbra is közvetlenül a böngészőből kéri le (Open-Meteo, BigDataCloud). A worker CORS-a csak az éles origineket engedi, ezért localhostról a vízadat-panel nem tölt be (ld. ARCHITECTURE.md, "Vízadat-panel").
 
 A válasz-logika nem fix településlistán alapul: a felhasználó koordinátája köré dinamikusan generált keresési rácsban (gyűrűk × irányok) keres esőt, egyre táguló körökben, amíg talál valamit vagy elfogynak a körök. Ezt közben egy SVG radar-animáció vizualizálja (`script.js` "Radar vizualizáció" szakasza), ami **valóban az aktuális adatérkezéshez van kötve**, nem egy kitalált időzítéshez - ez fontos, ne törd el egy "egyszerűsítés" során.
 
