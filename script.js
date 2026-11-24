@@ -3232,7 +3232,7 @@ const WATER_RIVER_NET_SVG = `
   <text x="252" y="196" fill="var(--fg)">Maros</text>
   <text x="146" y="178" text-anchor="end" fill="var(--fg)">Sió</text>
   <text x="62" y="168" text-anchor="end" fill="var(--fg)">Zala</text>
-  <text x="100" y="128" text-anchor="middle" fill="var(--muted)">Balaton</text>
+  <text x="88" y="128" text-anchor="middle" fill="var(--muted)">Balaton</text>
   </g>
 `;
 
@@ -5094,7 +5094,7 @@ function cigandCompareHtml(data, minCellLiters) {
 // NEM mért szint, a bejelentett mennyiségből számolt (a vápa kitöltése csak
 // szemlélteti, hogy a víz a mélyedésben van). A rajzstílus a tó-kártyákét
 // követi: szaggatott "teli" vonal, vonalkázott víz, vékony vonalak.
-function buildCigandSection(svgEl, data) {
+function buildCigandSection(svgEl, data, narrow = false) {
   const f = data.facts;
   const y0 = 340, M = 40; // a tározó fenékszintje; 1 m = 40 egység
   const yAt = m => y0 - m * M;
@@ -5112,7 +5112,7 @@ function buildCigandSection(svgEl, data) {
   const ticks = [0, 1, 2, 3, 4, 5].map(m =>
     `<line x1="30" y1="${yAt(m)}" x2="38" y2="${yAt(m)}" stroke="var(--fg)" stroke-width="1"></line>` +
     t(26, yAt(m) + 4, m, `text-anchor="end"`)).join("");
-  svgEl.innerHTML =
+  const full =
     `<defs>` +
     `<pattern id="cgx-water" width="4.5" height="4.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4.5" stroke="var(--accent)" stroke-width="1.2"></line></pattern>` +
     `<pattern id="cgx-closed" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--muted)" stroke-width="1"></line></pattern>` +
@@ -5162,8 +5162,64 @@ function buildCigandSection(svgEl, data) {
     `<rect x="${barX}" y="516" width="${barW}" height="12" fill="none" stroke="var(--fg)" stroke-width="1"></rect>` +
     `<rect x="${barX}" y="516" width="${nowW.toFixed(1)}" height="12" fill="url(#cgx-water)" stroke="var(--fg)" stroke-width="1"></rect>` +
     t(barX, 548, `${waterNum(f.volume_m3 / 1e6, 0)} a ${waterNum(f.capacity_m3 / 1e6, 0)} millió m³-ből: ${pct} %`, `style="font-weight:600"`);
-  watchFigureScale(svgEl, 720);
+  if (!narrow) {
+    svgEl.innerHTML = full;
+    svgEl.setAttribute("viewBox", "0 0 720 572");
+    svgEl.parentElement.style.setProperty("--ar", "1.259");
+    watchFigureScale(svgEl, 720);
+    return;
+  }
+
+  // Keskeny kijelző: ugyanaz a rajz, de a felirat nélküli grafika arányosan
+  // (a magasság kevésbé) összenyomva, a feliratok pedig képpont-méretben, a
+  // néhány megtartott felirattal; a részletes adatok az ábra alatti listába
+  // kerülnek (ld. cigandSectionListHtml). A vonalkázás mintája a skálázás
+  // inverzével kapja a patternTransformot, hogy ne torzuljon.
+  const W = Math.max(280, Math.round(Math.min(document.documentElement.clientWidth - 42, 480)));
+  const fx = W / 720, fy = fx * 1.28;
+  const X = x => (x * fx).toFixed(1), Y = y => (y * fy).toFixed(1);
+  let art = full
+    .replace(/<text[\s\S]*?<\/text>/g, "")
+    .replace(/<polyline points="480,[^>]*><\/polyline>/g, "")
+    .replace(/<rect x="60" y="516"[^>]*><\/rect>/g, "");
+  const inv = `scale(${(1 / fx).toFixed(3)} ${(1 / fy).toFixed(3)}) `;
+  art = art.replace(/patternTransform="rotate\(/g, `patternTransform="${inv}rotate(`);
+  const labels =
+    t(X(26), Y(yAt(5) - 14), "m", `text-anchor="end" style="font-style:italic"`) +
+    [0, 1, 2, 3, 4, 5].map(m => t(X(26), (Y(yAt(m)) * 1 + 4).toFixed(1), m, `text-anchor="end"`)).join("") +
+    t(X(110), Y(y0 - 70), "Tisza", `style="font-style:italic;font-weight:600"`) +
+    t(X(257), Y(88), "zsilip", `text-anchor="middle" style="font-weight:600"`) +
+    t(X(352), Y(284), `gát ${waterNum(f.dyke_height_m, 1)} m`, `style="font-weight:600"`) +
+    t(X(665), (Number(Y(fullY)) - 6).toFixed(1), `tele: ${waterNum(f.mean_depth_m, 1)} m`, `text-anchor="end" style="font-weight:600"`) +
+    t(X(480), Y(y0 - 12), "vápa", `text-anchor="middle"`) +
+    `<polyline points="${X(480)},${Y(y0 + 12)} ${X(480)},${(Number(Y(y0)) + 30).toFixed(1)}" fill="none" stroke="var(--fg)" stroke-width="0.75"></polyline>` +
+    t(X(480), (Number(Y(y0)) + 44).toFixed(1), `most: kb. ${pct} %`, `text-anchor="middle" style="font-weight:600"`);
+  const barY = Math.round(Number(Y(y0)) + 78), bx0 = 12, bw = W - 24;
+  const nowWn = Math.max(2, bw * f.volume_m3 / f.capacity_m3);
+  const bar =
+    `<rect x="${bx0}" y="${barY}" width="${bw}" height="12" fill="none" stroke="var(--fg)" stroke-width="1"></rect>` +
+    `<rect x="${bx0}" y="${barY}" width="${nowWn.toFixed(1)}" height="12" fill="url(#cgx-water)" stroke="var(--fg)" stroke-width="1"></rect>` +
+    t(bx0, barY + 32, `${waterNum(f.volume_m3 / 1e6, 0)} a ${waterNum(f.capacity_m3 / 1e6, 0)} millió m³-ből: ${pct} %`, `style="font-weight:600"`);
+  const VH = barY + 44;
+  svgEl.setAttribute("viewBox", `0 36 ${W} ${VH - 36}`);
+  svgEl.parentElement.style.setProperty("--ar", (W / (VH - 36)).toFixed(3));
+  svgEl.innerHTML = `<g class="cgx-art" transform="scale(${fx.toFixed(4)} ${fy.toFixed(4)})">${art}</g>${labels}${bar}`;
+  watchFigureScale(svgEl, W);
 }
+
+function cigandSectionListHtml(data) {
+  const f = data.facts;
+  const pct = Math.round((f.volume_m3 / f.capacity_m3) * 100);
+  const cm = Math.round(f.volume_m3 / (f.area_km2 * 1e6) * 100);
+  const row = (k, v, kind) => `<div><dt>${k}</dt><dd>${v} ${cigandTagHtml(kind)}</dd></div>`;
+  return row("zsilip", `${f.gate_width_m} m széles, ${waterNum(f.pillar_m, 1)} m magas pillérek; alsó nyílások a tájvíznek, nagyobb felső zsilipek árvízre (${f.flood_m3s} m³/s-ig)`, "tény") +
+    row("árvédelmi gát", `átlag ${waterNum(f.dyke_height_m, 1)} m magas, összesen ${waterNum(f.dyke_km, 1)} km`, "tény") +
+    row("tele", `${waterNum(f.capacity_m3 / 1e6, 0)} millió m³, átlag ${waterNum(f.mean_depth_m, 1)} m mély, kb. ${waterNum(f.area_km2, 0)} km²`, "tény") +
+    row("most", `közel ${waterNum(f.volume_m3 / 1e6, 0)} millió m³, a tározó ${pct} %-a`, "bejelentett") +
+    row("szétterítve", `egyenletesen kb. ${cm} cm lenne`, "számolt");
+}
+
+
 
 function cigandFaqHtml(data) {
   return (data.faq || []).map(i =>
@@ -5179,9 +5235,12 @@ function cigandTimelineHtml(data) {
 
 // A térkép: a geometria a csatorna-térképpel azonos lapos vetítéssel
 // (fitFlatProjection), víz = vonalvastagság, szaggatás, vonalkázás - szín nincs.
-function buildCigandMap(svgEl, tooltipEl, data, geo) {
-  const [minLon, minLat, maxLon, maxLat] = geo.bounds;
-  const W = 640;
+function buildCigandMap(svgEl, tooltipEl, data, geo, narrow = false) {
+  // Keskeny kijelzőn a térkép a lényegre vágva (tározó, zsilip, Cigánd, a
+  // Tisza e szakasza, a Tiszakarádi-főcsatorna eleje), a viewBox pedig valódi
+  // képpontban van, így a feliratok 12 px-esek maradnak.
+  const [minLon, minLat, maxLon, maxLat] = narrow ? [21.80, 48.235, 21.99, 48.35] : geo.bounds;
+  const W = narrow ? Math.max(280, Math.round(Math.min(document.documentElement.clientWidth - 42, 480))) : 640;
   const H = Math.round(W * (maxLat - minLat) / ((maxLon - minLon) * Math.cos((minLat + maxLat) / 2 * Math.PI / 180)));
   svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svgEl.parentElement.style.setProperty("--ar", (W / H).toFixed(3));
@@ -5226,7 +5285,7 @@ function buildCigandMap(svgEl, tooltipEl, data, geo) {
   hitMarkup += `<path class="cg-hit cg-hit-fill" data-popup="reservoir" d="${resPath}" tabindex="0" role="button" aria-label="a tározó"></path>`;
   hitMarkup += `<circle class="cg-hit cg-hit-fill" data-popup="sluice" cx="${sluice.x.toFixed(1)}" cy="${sluice.y.toFixed(1)}" r="14" tabindex="0" role="button" aria-label="zsilip"></circle>`;
 
-  const placesMarkup = geo.places.map(p => {
+  const placesMarkup = geo.places.filter(p => !narrow || p.n === "Cigánd" || p.n === "Ricse").map(p => {
     const q = xy([p.lon, p.lat]);
     const left = q.x > W - 90;
     return `<circle class="water-map-town" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${(2 / 1).toFixed(1)}"></circle>` +
@@ -5235,15 +5294,19 @@ function buildCigandMap(svgEl, tooltipEl, data, geo) {
   // A "Tisza" felirat a vastag folyóvonal egy pontja mellé kerül (a 21,95 K
   // hosszúság környékén), nem a csatorna mellé.
   const tiszaLabel = (() => {
-    const q = nearest(geo.tisza.flat().map(xy), xy([21.99, 48.2]));
+    const q = nearest(geo.tisza.flat().map(xy), narrow ? xy([21.93, 48.2525]) : xy([21.99, 48.2]));
     return { x: q.x - 6, y: q.y - 12 };
   })();
   const bodrogLabel = xy([21.63, 48.395]);
   const waterLabels =
     `<text class="water-map-label water-map-label-water" x="${tiszaLabel.x.toFixed(1)}" y="${tiszaLabel.y.toFixed(1)}">Tisza</text>` +
-    `<text class="water-map-label water-map-label-water" x="${bodrogLabel.x.toFixed(1)}" y="${bodrogLabel.y.toFixed(1)}">Bodrog</text>` +
+    (narrow ? "" : `<text class="water-map-label water-map-label-water" x="${bodrogLabel.x.toFixed(1)}" y="${bodrogLabel.y.toFixed(1)}">Bodrog</text>`) +
     `<text class="water-map-label water-map-label-water" x="${(rx0 - 8).toFixed(1)}" y="${((ry0 + ry1) / 2).toFixed(1)}" text-anchor="end">tározó</text>`;
   const canalLabels = geo.canals.filter(c => c.id === "tiszakaradi").map(c => {
+    if (narrow) {
+      const q = nearest(c.l[0].map(xy), xy([21.835, 48.282]));
+      return `<text class="water-map-label water-map-label-water cg-canal-label" x="4" y="${(q.y + 22).toFixed(1)}">${c.n}</text>`;
+    }
     const mid = c.l.flat()[Math.floor(c.l.flat().length / 2)];
     const q = xy(mid);
     return `<text class="water-map-label water-map-label-water cg-canal-label" x="${q.x.toFixed(1)}" y="${(q.y + 14).toFixed(1)}" text-anchor="middle">${c.n.replace("-főcsatorna", "")}</text>`;
@@ -5255,7 +5318,7 @@ function buildCigandMap(svgEl, tooltipEl, data, geo) {
   const sx = W - 12 - barW;
   const scale = `<g pointer-events="none"><line x1="${sx.toFixed(1)}" y1="26" x2="${(W - 12).toFixed(1)}" y2="26" stroke="var(--fg)" stroke-width="2"></line><text class="water-map-label" x="${sx.toFixed(1)}" y="20">5 km</text></g>`;
   let inset = "";
-  const ring = selectCountryBorderRing(16, 23, 45.7, 48.6);
+  const ring = narrow ? null : selectCountryBorderRing(16, 23, 45.7, 48.6);
   if (ring) {
     const ih = 40, iw = 72;
     const small = fitFlatProjection(16, 23, 45.7, 48.6, iw, ih);
@@ -5281,9 +5344,13 @@ function buildCigandMap(svgEl, tooltipEl, data, geo) {
     `<path class="cg-dyke" d="${pathOf(geo.dyke)}"></path>` +
     `<path class="cg-flow-in" d="M${tiszaPt.x.toFixed(1)} ${tiszaPt.y.toFixed(1)}L${sluice.x.toFixed(1)} ${sluice.y.toFixed(1)}L${vapaPts[2].x.toFixed(1)} ${vapaPts[2].y.toFixed(1)}"></path>` +
     `<g class="cg-gate" transform="translate(${sluice.x.toFixed(1)} ${sluice.y.toFixed(1)})"><rect class="cg-gate-bar cg-gate-l" x="-6" y="-2.5" width="6" height="5"></rect><rect class="cg-gate-bar cg-gate-r" x="0" y="-2.5" width="6" height="5"></rect></g>` +
-    `<text class="water-map-label cg-gate-label" x="${(sluice.x + 9).toFixed(1)}" y="${(sluice.y - 6).toFixed(1)}">zsilip</text>` +
+    (narrow
+      ? `<text class="water-map-label cg-gate-label" x="${(sluice.x - 10).toFixed(1)}" y="${(sluice.y + 18).toFixed(1)}" text-anchor="end">zsilip</text>`
+      : `<text class="water-map-label cg-gate-label" x="${(sluice.x + 9).toFixed(1)}" y="${(sluice.y - 6).toFixed(1)}">zsilip</text>`) +
     waterLabels + canalLabels + placesMarkup +
-    `<text class="cg-counter" id="cg-counter" x="${((rx0 + rx1) / 2).toFixed(1)}" y="${(ry0 - 28).toFixed(1)}" text-anchor="middle"></text>` +
+    (narrow
+      ? `<text class="cg-counter" id="cg-counter" x="6" y="20"></text>`
+      : `<text class="cg-counter" id="cg-counter" x="${((rx0 + rx1) / 2).toFixed(1)}" y="${(ry0 - 28).toFixed(1)}" text-anchor="middle"></text>`) +
     scale + inset + hitMarkup;
 
   // Buborékok: rámutatásra, koppintásra és fókuszra.
@@ -5336,7 +5403,7 @@ function setupCigandAnimation(svgEl, geoInfo, data) {
   function showStep(n, animate) {
     current = n;
     for (let i = 1; i <= 5; i++) svgEl.classList.toggle(`st-${i}`, i <= n);
-    captionEl.textContent = n ? `${n}. ${CIGAND_STEPS[n - 1]}` : "";
+    captionEl.textContent = n ? `${n}. ${CIGAND_STEPS[n - 1]}` : "indulás előtt: a zsilip zárva";
     dotsEl.querySelectorAll(".cigand-dot").forEach(b => {
       const k = Number(b.dataset.step);
       b.classList.toggle("is-done", k <= n);
@@ -5367,12 +5434,12 @@ function setupCigandAnimation(svgEl, geoInfo, data) {
     };
     timer = setTimeout(next, 250);
   }
-  dotsEl.addEventListener("click", e => {
+  dotsEl.onclick = e => {
     const b = e.target.closest(".cigand-dot");
     if (!b) return;
     stop();
     showStep(Number(b.dataset.step), false);
-  });
+  };
   document.getElementById("cigand-replay").onclick = () => { stepsList.hidden = true; play(); };
 
   if (reduced) {
@@ -5416,14 +5483,30 @@ async function buildCigand(soil, rivers) {
     document.getElementById("cigand-compare").innerHTML = cigandCompareHtml(data, minCell);
     document.getElementById("cigand-caveat").innerHTML =
       `Ez nem árvízi elárasztás: a tározó kb. 2 százalékáról van szó. A víz a vápát és a Tiszakarádi-főcsatornát tölti fel, onnan mellékcsatornákba jut (${data.operator}). Élő mérés nincs róla: a számok bejelentések.`;
-    buildCigandSection(document.getElementById("cigand-section-svg"), data);
     document.getElementById("cigand-faq").innerHTML = cigandFaqHtml(data);
     document.getElementById("cigand-timeline").innerHTML = cigandTimelineHtml(data);
     document.getElementById("cigand-sources").innerHTML = "Források: " +
       data.sources.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`).join(", ") + `. Frissítve: ${data.updated}.`;
 
-    const info = buildCigandMap(document.getElementById("cigand-map"), document.getElementById("cigand-tooltip"), data, geo);
-    setupCigandAnimation(document.getElementById("cigand-map"), info, data);
+    // Keskeny kijelzőn (<= 520 px) külön, valódi képpontban rajzolt, vágott
+    // térkép és metszet; az elrendezés váltásakor (pl. forgatás) újrarajzol.
+    const narrowMq = window.matchMedia("(max-width: 520px)");
+    const drawCigandFigures = () => {
+      const narrow = narrowMq.matches;
+      const mapEl = document.getElementById("cigand-map");
+      const info = buildCigandMap(mapEl, document.getElementById("cigand-tooltip"), data, geo, narrow);
+      setupCigandAnimation(mapEl, info, data);
+      buildCigandSection(document.getElementById("cigand-section-svg"), data, narrow);
+      document.getElementById("cigand-xs-list").innerHTML = cigandSectionListHtml(data);
+      document.getElementById("cigand-xs-list").hidden = !narrow;
+      document.getElementById("cigand-badge").hidden = narrow;
+      document.getElementById("cigand-badge-line").hidden = !narrow;
+    };
+    drawCigandFigures();
+    if (buildCigand.mq) buildCigand.mq.removeEventListener("change", buildCigand.onMq);
+    buildCigand.mq = narrowMq;
+    buildCigand.onMq = drawCigandFigures;
+    narrowMq.addEventListener("change", drawCigandFigures);
 
     // Lejárt esemény: egy soros összefoglaló, az országos szakaszok alatt.
     const body = document.getElementById("cigand-body");
@@ -5499,9 +5582,13 @@ function watchWaterToc() {
   const update = () => {
     // A legfelső, még látható szakasz a jelenlegi.
     const current = targets.find(t => t && visible.has(t));
+    const toc = document.getElementById("water-toc");
     links.forEach((a, i) => {
-      if (targets[i] && targets[i] === current) a.setAttribute("aria-current", "true");
-      else a.removeAttribute("aria-current");
+      if (targets[i] && targets[i] === current) {
+        a.setAttribute("aria-current", "true");
+        // Keskeny kijelzőn a sáv vízszintesen görgethető: az aktív elem középre kerül.
+        if (toc && toc.scrollWidth > toc.clientWidth) toc.scrollTo({ left: a.offsetLeft - (toc.clientWidth - a.offsetWidth) / 2, behavior: "smooth" });
+      } else a.removeAttribute("aria-current");
     });
   };
   waterTocObserver = new IntersectionObserver(entries => {

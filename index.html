@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=49">
+<link rel="stylesheet" href="style.css?v=50">
 </head>
 <body>
 
@@ -236,8 +236,9 @@
             <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
               <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
               <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
-              <span class="cigand-badge">szemléltető ábra, nem élő mérés</span>
+              <span class="cigand-badge" id="cigand-badge">szemléltető ábra, nem élő mérés</span>
               <figcaption>
+                <p class="cigand-badge-line" id="cigand-badge-line" hidden>szemléltető ábra, nem élő mérés</p>
                 <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
                 <div class="cigand-controls">
                   <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
@@ -252,6 +253,7 @@
               <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
               <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
             </figure>
+            <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
 
             <h4 class="cigand-subhead">amit érdemes tudni</h4>
             <div class="cigand-faq" id="cigand-faq"></div>
@@ -491,7 +493,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=77"></script>
+  <script src="script.js?v=78"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

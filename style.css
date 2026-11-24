@@ -2260,3 +2260,59 @@ circle.water-channel-hit {
   outline: 2px solid var(--fg);
   outline-offset: -2px;
 }
+
+/* Cigánd, keskeny kijelző: a "szemléltető ábra" jelzés az ábra alatti sorba
+   kerül, a metszet részletes adatai rövid listában állnak. */
+.cigand-badge[hidden],
+.cigand-badge-line[hidden],
+.cigand-xs-list[hidden] {
+  display: none;
+}
+
+.cigand-badge-line {
+  margin: 0 0 var(--sp-1);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cigand-xs-list {
+  margin: var(--sp-2) 0 0;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cigand-xs-list div {
+  margin: 0 0 var(--sp-1);
+}
+
+.cigand-xs-list dt {
+  display: inline;
+  font-weight: 600;
+}
+
+.cigand-xs-list dt::after {
+  content: ": ";
+}
+
+.cigand-xs-list dd {
+  display: inline;
+  margin: 0;
+}
+
+.cgx-art path,
+.cgx-art line,
+.cgx-art rect {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Keskeny kijelzőn kisebb tér a fejléc fölött és alatt. */
+@media (max-width: 600px) {
+  #app {
+    padding-top: var(--sp-2);
+  }
+
+  .top {
+    margin-bottom: var(--sp-3);
+  }
+}
