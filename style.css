@@ -75,17 +75,56 @@ body.scroll-locked {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-1);
   margin-bottom: var(--sp-5);
 }
 
-/* 44px a WCAG 2.5.8 szerinti minimális célterület - a szöveg mérete/stílusa
-   marad a .link-btn-é, csak a kattintható terület nő körülötte. */
-.top .link-btn {
+/* Ikon-gombok a fejlécben: 44 x 44 px (WCAG 2.5.8 célterület), szín nélkül,
+   az ikon a szöveg színét (currentColor) veszi fel. */
+.icon-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding-inline: 12px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--fg);
+}
+
+.icon-btn svg {
+  display: block;
+}
+
+/* A harang vonalrajz; bekapcsolt értesítésnél kitöltött. */
+.icon-bell {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.icon-btn-on {
+  color: var(--fg);
+}
+
+.icon-btn-on .icon-bell {
+  fill: currentColor;
+}
+
+.top-share {
+  display: inline-flex;
+  align-items: center;
+}
+
+.top-confirm {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .link-btn {
@@ -136,14 +175,6 @@ body.scroll-locked {
 .direction-arrow {
   display: inline-block;
   margin-left: 0.35em;
-}
-
-.map-link {
-  display: inline-block;
-  margin-top: var(--sp-2);
-  color: var(--muted);
-  font-size: 14px;
-  text-decoration: underline;
 }
 
 .place-line {
@@ -282,12 +313,65 @@ button[type="submit"] {
   display: none;
 }
 
+/* Asztali gépen 720 px-ig nő (a viewBox és a képarány változatlan, így a
+   pásztázó vonal és a RADAR_SWEEP_MS geometriája sem csúszik el); mobilon a
+   teljes szélesség, ahogy eddig. A --k (script.js updateRadarScale) a
+   képpont/viewBox-egység arány: a feliratok betűmérete ennek reciprokával
+   van osztva, hogy nagyobb radaron se nőjenek óriásira. */
 #radar-svg {
   display: block;
   margin: 0 auto var(--sp-2);
   width: 100%;
-  max-width: 350px;
+  max-width: 720px;
   height: auto;
+  touch-action: pan-y;
+}
+
+/* A nagyítás-gombok csak a keresés végén jelennek meg. */
+.radar-zoom {
+  display: none;
+  justify-content: center;
+  gap: 1px;
+  margin: 0 auto var(--sp-2);
+}
+
+.loading.settled .radar-zoom {
+  display: flex;
+}
+
+.radar-zoom button {
+  width: 44px;
+  height: 44px;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.radar-zoom button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.radar-place-dot {
+  fill: var(--fg);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.radar-place {
+  fill: var(--fg);
+  opacity: 0.8;
+  font-family: var(--font);
+  font-size: calc(11px / var(--k, 1));
+  paint-order: stroke fill;
+  stroke: var(--bg);
+  stroke-width: calc(3px / var(--k, 1));
+  pointer-events: none;
 }
 
 /* Helymeghatározás közben még nincs mit mutatni a radaron. SVG elemen nincs
@@ -412,10 +496,10 @@ button[type="submit"] {
 .radar-label {
   fill: var(--fg);
   font-family: var(--font);
-  font-size: 20px;
+  font-size: calc(14px / var(--k, 1));
   paint-order: stroke fill;
   stroke: var(--bg);
-  stroke-width: 5;
+  stroke-width: calc(4px / var(--k, 1));
   pointer-events: none;
 }
 
@@ -501,9 +585,11 @@ noscript .about {
 }
 
 /* A "részletek és statisztika" panel az .about-details mintáját követi
-   (ugyanaz az osztály), de a #result-on belül, egy elválasztó felső
+   (ugyanaz az osztály), de a #result-on kívül, egy elválasztó felső
    szegéllyel - mint a .detail-block -, mert itt nem a lábláb aljára, hanem
-   egy új tartalmi szakasz elejére kerül. */
+   egy új tartalmi szakasz elejére kerül. Alapból nyitva van (ld. script.js
+   setStatsOpen), a szöveg-blokkokhoz hasonlóan középre igazított, és kb.
+   46 em-re korlátozott szélességű. */
 .stats-details {
   text-align: center;
   margin-top: var(--sp-4);
@@ -511,24 +597,34 @@ noscript .about {
   border-top: 1px solid var(--border);
 }
 
-/* A kinyitott tartalom balra zárt, mint a lábláb .about szövege: sok, rövid
-   tényadat sorban, nem középre igazított mondat. */
 .stats-body {
+  max-width: 46em;
+  margin: var(--sp-3) auto 0;
   text-align: left;
-  margin-top: var(--sp-3);
 }
 
-.stats-group {
-  margin-top: var(--sp-3);
+/* 2 x 2 kártya asztali gépen, egy oszlop mobilon. */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
 }
 
-.stats-group:first-of-type {
-  margin-top: 0;
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.stats-card {
+  border: 1px solid var(--border);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
 }
 
 .stats-place {
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
   margin: 0 0 var(--sp-3);
 }
 
@@ -536,7 +632,7 @@ noscript .about {
   font-size: 14px;
   font-weight: 600;
   color: var(--muted);
-  margin: 0 0 var(--sp-1);
+  margin: 0 0 var(--sp-2);
 }
 
 .stats-line {
@@ -546,36 +642,179 @@ noscript .about {
   margin: 0.2em 0;
 }
 
+.stats-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: var(--sp-1) 0 0;
+}
+
+.stats-note:empty {
+  display: none;
+}
+
+.stats-big {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 var(--sp-2);
+}
+
+/* Három nagy szám (24 óra, 7 nap, 30 nap), mindegyik alatt a "szokásoshoz
+   képest" sáv: a kitöltés a tényleges, a függőleges jel a szokásos érték. */
+.stats-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.stats-figure-value {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.stats-figure-value small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.stats-figure-label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.stats-usual {
+  display: block;
+  position: relative;
+  height: 6px;
+  margin-top: var(--sp-1);
+  border: 1px solid var(--border);
+}
+
+.stats-usual-fill {
+  display: block;
+  height: 100%;
+  background: var(--fg);
+}
+
+.stats-usual-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fg);
+  box-shadow: 0 0 0 1px var(--bg);
+}
+
+.stats-usual-text {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* Előrejelzés: három oszlop, az esély egy kitöltött oszlop. */
 .stats-days {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  text-align: center;
 }
 
-.stats-days li {
-  font-size: 14px;
-  color: var(--fg);
-  line-height: 1.6;
+.stats-day-name {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stats-day-bar {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 64px;
+  margin: var(--sp-1) auto;
+  border: 1px solid var(--fg);
+}
+
+.stats-day-bar i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--fg);
+}
+
+.stats-day-prob {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.stats-day-mm {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stats-temp-bars svg,
+.stats-scale svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.stats-svg-text {
+  font-family: var(--font);
+  font-size: 11px;
+  fill: var(--muted);
+}
+
+.stats-svg-text-strong {
+  fill: var(--fg);
 }
 
 .stats-chart-wrap {
   position: relative;
-  margin-top: var(--sp-1);
+  margin-top: var(--sp-2);
 }
 
 .stats-bars {
   display: block;
   width: 100%;
-  height: 40px;
+  height: 56px;
 }
 
 /* A látható oszlop (rect, kézzel építve a script.js renderSparkline-ban)
    keskeny; a koppintási célterület a transparent körvonallal szélesebb,
-   ugyanaz a trükk, mint a .radar-dot-nál. */
+   ugyanaz a trükk, mint a .radar-dot-nál. Rámutatva/megnyitva teljes
+   erősségű lesz, hogy látszódjon, melyik napról szól a buborék. */
 .stats-bar {
   cursor: pointer;
   stroke: transparent;
   stroke-width: 3;
+}
+
+.stats-bar:hover,
+.stats-bar-active {
+  opacity: 1;
+}
+
+.stats-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
 }
 
 /* Kis buborék a koppintott oszlop fölött: fordított (fg/bg) szín, mint egy
@@ -587,9 +826,9 @@ noscript .about {
   transform: translateX(-50%);
   background: var(--fg);
   color: var(--bg);
-  font-size: 12px;
-  line-height: 1;
-  padding: 3px 7px;
+  font-size: 14px;
+  line-height: 1.2;
+  padding: 4px var(--sp-1);
   border-radius: 3px;
   white-space: nowrap;
   pointer-events: none;
@@ -609,36 +848,79 @@ noscript .about {
   margin-top: var(--sp-3);
 }
 
-/* UX-audit I01: kompakt belső ugrólista a hosszú vízadat-szakasz tetején. */
-.water-toc {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--sp-1) var(--sp-3);
+/* Bevezető: cím, egy mondat, frissítés ideje. */
+.water-intro {
+  text-align: center;
+}
+
+.water-title {
+  font-size: clamp(28px, 6vw, 40px);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.water-intro-text {
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
   margin-top: var(--sp-2);
 }
 
+/* Helyfoglaló doboz a betöltés alatt: a lap nem ugrik, amikor az ábrák
+   megérkeznek. Szürkeskála, animáció nélkül. */
+.water-skeleton {
+  height: min(60vh, 480px);
+  margin-top: var(--sp-4);
+  background: var(--t0);
+}
+
+.water-skeleton[hidden] {
+  display: none;
+}
+
+/* UX-audit I01: kompakt belső ugrólista a hosszú vízadat-szakasz tetején.
+   Tapad a lap tetejéhez, amíg a vízrészben van az olvasó; a jelenlegi
+   szakasz aria-current-et kap (script.js watchWaterToc). */
+.water-toc {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: safe center;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-1) 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.water-toc::-webkit-scrollbar {
+  display: none;
+}
+
 .water-toc a {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
+  text-decoration: none;
+  padding: 6px 2px;
+}
+
+.water-toc a[aria-current="true"] {
+  color: var(--fg);
+  font-weight: 600;
   text-decoration: underline;
 }
 
-/* Csoportváltás: a saját hely után itt kezdődnek az országos adatok. */
-.water-country-heading {
-  margin-top: var(--sp-4);
+/* A tapadó sáv alá ne csússzon be az ugrópont. */
+.water-section {
+  scroll-margin-top: 55px;
 }
 
-/* Elválasztó vonal csak akkor, ha a saját hely szekció tényleg látszik. */
-.water-section:not([hidden]) + .water-country-heading {
-  margin-top: var(--sp-5);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--border);
-}
-
-/* A saját hely és az országos blokk eleje ne tapadjon a fölötte lévő
-   "frissítve" sorhoz, illetve a tartalomjegyzékhez. */
-#water-updated + .water-section,
+/* A saját hely és az országos blokk eleje ne tapadjon a tartalomjegyzékhez. */
 .water-toc + .water-section {
   margin-top: var(--sp-4);
 }
@@ -649,32 +931,158 @@ noscript .about {
   border-top: 1px solid var(--border);
 }
 
-.water-figure {
-  position: relative;
-  margin: var(--sp-4) 0 0;
+.water-subhead {
+  margin-top: var(--sp-4);
 }
 
-/* Egérrel a dombormű fölé mutatva mutatott leolvasás - ugyanaz a monokróm
-   buborék-stílus, mint a .stats-tooltip-é, csak a pozíciója a kurzor
-   svg-koordinátájához van kötve (ld. script.js buildReliefMap), nem egy
-   oszlop közepéhez. */
+/* Három ábraszélesség (UX-terv 3.2): keskeny 420, közepes 720, széles 960 px.
+   A figure kapja a korlátot (az svg 100%-a ennek), a magasságot pedig a
+   --ar (szélesség/magasság) segítségével a nézet 70%-ára vágjuk, hogy egy
+   térkép a címével és jelmagyarázatával együtt elférjen a képernyőn. */
+.water-figure {
+  position: relative;
+  width: 100%;
+  max-width: min(var(--fig-w, 720px), calc(70vh * var(--ar, 1.6)));
+  margin: var(--sp-4) auto 0;
+}
+
+.fig-narrow { --fig-w: 420px; }
+.fig-medium { --fig-w: 720px; }
+.fig-wide { --fig-w: 960px; }
+
+/* Közös térkép-buborék (script.js mapPopupShow): fordított, monokróm doboz,
+   törzsszöveg-méretű betűvel. A pozícióját a script adja meg. */
 .water-map-tooltip {
   position: absolute;
-  transform: translate(-50%, -100%);
-  margin-top: -8px;
+  z-index: 4;
+  max-width: 260px;
   background: var(--fg);
   color: var(--bg);
-  font-size: 12px;
-  line-height: 1.3;
-  padding: 3px 7px;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: var(--sp-1) var(--sp-2);
   border-radius: 3px;
-  white-space: nowrap;
+  pointer-events: none;
+  text-align: left;
+}
+
+.water-map-tooltip[hidden] {
+  display: none;
+}
+
+.water-map-tooltip strong,
+.water-map-tooltip span {
+  display: block;
+}
+
+.water-figure .water-map-tooltip svg.water-popup-spark {
+  display: block;
+  width: 160px;
+  height: 36px;
+  margin-top: 4px;
+}
+
+/* A térképek feliratai: a betűméret képpontban állandó (--k = képpont /
+   viewBox-egység, script.js watchFigureScale), a háttérszínű körvonal tartja
+   olvashatóan a szürke raszter fölött. */
+.water-map-label {
+  font-family: var(--font);
+  font-size: calc(12px / var(--k, 1));
+  fill: var(--fg);
+  paint-order: stroke fill;
+  stroke: var(--bg);
+  stroke-width: calc(3px / var(--k, 1));
+  stroke-linejoin: round;
   pointer-events: none;
 }
 
-.water-figure-narrow svg {
-  max-width: 420px;
-  margin: 0 auto;
+.water-map-label-water {
+  font-style: italic;
+}
+
+.water-map-label-here {
+  font-weight: 700;
+}
+
+@media (max-width: 500px) {
+  .water-map-label-minor {
+    display: none;
+  }
+}
+
+.water-cell-box {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.water-marker:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* A talajtérkép jelmagyarázata: egy középre igazított skála-sor, alatta a
+   jelölők. A .water-figure svg (lent) 100%-os szélessége a figcaption-ön
+   belüli kis ikonokat is megnyújtaná, ezért itt visszavesszük. */
+.water-figure figcaption svg {
+  display: inline-block;
+  width: auto;
+  flex: none;
+}
+
+.water-legend-scale {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.water-legend-markers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-1);
+  font-size: 13px;
+}
+
+.water-legend-markers span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.water-legend-note {
+  margin: var(--sp-1) 0 0;
+  font-size: 13px;
+}
+
+/* "hogyan olvasd?": a hosszú magyarázat a figyelmet nem viszi el. */
+.water-howto {
+  margin-top: var(--sp-1);
+  text-align: center;
+}
+
+.water-howto summary {
+  display: inline-block;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: underline;
+  list-style: none;
+}
+
+.water-howto summary::-webkit-details-marker {
+  display: none;
+}
+
+.water-howto .about {
+  text-align: left;
+  color: var(--muted);
 }
 
 .water-figure svg {
@@ -943,12 +1351,16 @@ noscript .about {
   }
 }
 
+/* A négy vonal-típus vastagsággal ÉS szaggatással különbözik, hogy szín
+   nélkül is (a jelmagyarázatban is) elkülöníthető legyen: folyó = vastag
+   tömör, csatorna = hosszú szaggatás, belvízelvezető = rövid szaggatás
+   (halványabb), árok = pontsor (szürke). */
 .water-channel-canal {
   fill: none;
   stroke: var(--fg);
-  stroke-width: 1;
+  stroke-width: 0.9;
+  stroke-dasharray: 5 2;
   stroke-linejoin: round;
-  stroke-linecap: round;
   pointer-events: none;
 }
 
@@ -956,9 +1368,9 @@ noscript .about {
   fill: none;
   stroke: var(--fg);
   stroke-width: 0.6;
+  stroke-dasharray: 1.6 1.6;
   stroke-linejoin: round;
-  stroke-linecap: round;
-  opacity: 0.6;
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -966,16 +1378,41 @@ noscript .about {
   fill: none;
   stroke: var(--muted);
   stroke-width: 0.4;
-  stroke-dasharray: 1 1.5;
+  stroke-dasharray: 0.4 1.6;
+  stroke-linecap: round;
   pointer-events: none;
 }
 
 .water-channel-river {
   fill: none;
   stroke: var(--fg);
-  stroke-width: 1.3;
+  stroke-width: 1.7;
   stroke-linejoin: round;
   stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* A keresésre kiemelt vízfolyás: vastag, tömör, teljes erősségű. */
+.is-hl {
+  stroke: var(--fg);
+  stroke-width: 3.5px !important;
+  stroke-dasharray: none;
+  opacity: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Megyehatárok a nagyított csatorna-térképen: vékony pontvonal. */
+.water-channel-county {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 0.8px;
+  stroke-dasharray: 1 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.water-map-town {
+  fill: var(--fg);
   pointer-events: none;
 }
 
@@ -1031,7 +1468,34 @@ circle.water-channel-hit {
    Ctrl/Cmd+görgő vagy két ujj kell - ld. script.js buildChannelsMap. */
 #water-channels-map {
   touch-action: pan-y;
+  cursor: pointer;
+}
+
+/* Egy koppintással/kattintással "aktiválod" a térképet: onnantól sima
+   görgővel nagyít, húzással mozgat (Escape vagy a térképen kívüli kattintás
+   elengedi). Aktív állapotban az érintés sem görgeti az oldalt a térkép
+   fölött. */
+#water-channels-map.is-active {
+  touch-action: none;
   cursor: grab;
+  outline: 1px solid var(--fg);
+}
+
+.water-channels-hint {
+  position: absolute;
+  left: var(--sp-2);
+  top: var(--sp-2);
+  margin: 0;
+  padding: 4px var(--sp-2);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.water-channels-hint[hidden] {
+  display: none;
 }
 
 .water-map-zoom-controls {
@@ -1097,21 +1561,61 @@ circle.water-channel-hit {
   overflow: visible;
 }
 
-.water-lake-gauges {
+/* A térképen a vékony vonalak a figure méretével nagyítva látszanak; a
+   24 px-es mintában ugyanazt a mintázatot vastagabban kell mutatni. */
+.water-legend-swatch .water-channel-river { stroke-width: 2.4; }
+.water-legend-swatch .water-channel-canal { stroke-width: 1.6; stroke-dasharray: 6 3; }
+.water-legend-swatch .water-channel-drain { stroke-width: 1.4; stroke-dasharray: 2 2; }
+.water-legend-swatch .water-channel-ditch { stroke-width: 1.6; stroke-dasharray: 0.6 2.4; stroke-linecap: round; }
+
+/* Tó-kártyák: egy sorban azonos felépítésű kártyák (script.js
+   renderLakeCards), mobilon egymás alatt. */
+.water-lake-legend {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  margin-top: var(--sp-4);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.water-lake-gauge-label {
+.water-lake-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.water-lake-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--sp-3);
+  max-width: 960px;
+  margin: var(--sp-3) auto 0;
+}
+
+.water-lake-card {
+  border: 1px solid var(--border);
+  padding: var(--sp-3) var(--sp-2);
+  text-align: center;
+}
+
+.water-lake-card-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--muted);
-  margin: 0 0 var(--sp-1);
+  margin: 0 0 var(--sp-2);
 }
 
-.water-lake-gauge-value {
+.water-lake-card-shape {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 84px;
+  margin: 0 auto var(--sp-2);
+}
+
+.water-lake-card-value {
   font-size: 32px;
   font-weight: 600;
   line-height: 1.15;
@@ -1124,9 +1628,42 @@ circle.water-channel-hit {
   color: var(--muted);
 }
 
-.water-lake-gauge-note {
+.water-lake-gauge {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  margin: var(--sp-1) auto 0;
+}
+
+.water-lake-gauge-text {
+  font-family: var(--font);
+  font-size: calc(12px / var(--k, 1));
+  fill: var(--muted);
+}
+
+.water-lake-card-status {
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
+  margin: var(--sp-1) 0 0;
+}
+
+.water-lake-card-trend {
+  margin-top: var(--sp-1);
+  color: var(--fg);
+}
+
+.water-lake-card-trend svg {
+  display: block;
+  width: 160px;
+  height: 36px;
+  margin: 0 auto;
+}
+
+.water-lake-card-note {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
   margin: var(--sp-1) 0 0;
 }
 
@@ -1135,8 +1672,19 @@ circle.water-channel-hit {
    egyedi nyitása kell, nem egy közös nyitógomb), ezért a nyitott-állapotot
    egy osztály jelzi, nem a natív disclosure-marker. */
 .water-river-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sp-4);
+  align-items: start;
+  max-width: 960px;
   text-align: left;
-  margin-top: var(--sp-3);
+  margin: var(--sp-3) auto 0;
+}
+
+@media (max-width: 700px) {
+  .water-river-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .water-river-row {
@@ -1146,6 +1694,17 @@ circle.water-channel-hit {
 
 .water-river-row:first-child {
   border-top: none;
+}
+
+@media (min-width: 701px) {
+  .water-river-row:nth-child(2) {
+    border-top: none;
+  }
+}
+
+/* Amikor a térképen egy folyóra kattintanak, a hozzá tartozó sorok nyílnak. */
+.water-river-row.flash .water-river-row-head {
+  text-decoration: underline;
 }
 
 .water-river-row-head {
@@ -1226,5 +1785,404 @@ circle.water-channel-hit {
 .water-river-chart-wrap svg {
   display: block;
   width: 100%;
+  max-width: 720px;
   height: auto;
+}
+
+/* Folyóhálózat-térkép (script.js buildRiverNet): a feliratok betűmérete
+   képpontban állandó (--k), a pontos vízhozamot nem ismerő folyók halványak. */
+#water-river-net text {
+  font-size: calc(13px / var(--k, 1));
+  stroke-width: calc(3px / var(--k, 1));
+}
+
+#water-river-net text.is-muted {
+  fill: var(--muted);
+}
+
+#water-river-net path.is-muted {
+  stroke: var(--muted);
+  stroke-dasharray: 4 3;
+}
+
+#water-river-net.has-hl path[data-river]:not(.is-hl) {
+  opacity: 0.3;
+}
+
+.water-river-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.water-river-hit:focus-visible {
+  outline: none;
+  stroke: var(--fg);
+  stroke-opacity: 0.25;
+}
+
+/* ---- Cigánd: aktuális hír a vízpanel tetején (script.js buildCigand) ---- */
+.cigand-tag {
+  display: inline-block;
+  margin: 0 0 var(--sp-1);
+  padding: 2px var(--sp-1);
+  border: 1px solid var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cigand-tag[hidden] {
+  display: none;
+}
+
+.cigand-lead {
+  max-width: 46em;
+  margin: var(--sp-2) auto 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.cigand-summary {
+  font-size: 15px;
+  margin: 0;
+}
+
+.cigand-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-2);
+  max-width: 960px;
+  margin: var(--sp-3) auto 0;
+}
+
+.cigand-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+}
+
+.cigand-tile-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cigand-tile-value {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.cigand-tile-sub {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Minden szám címkét kap: tény / bejelentett / számolt / mért. */
+.cigand-chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cigand-badge {
+  position: absolute;
+  top: var(--sp-1);
+  left: var(--sp-1);
+  padding: 2px var(--sp-1);
+  background: var(--bg);
+  border: 1px dashed var(--muted);
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.cigand-step-caption {
+  min-height: 1.6em;
+  margin: 0;
+  font-size: 16px;
+  color: var(--fg);
+}
+
+.cigand-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-1);
+}
+
+.cigand-dots {
+  display: inline-flex;
+  gap: 0;
+}
+
+/* A pont 44 px-es célterület, a látható jel kicsi (::after). */
+.cigand-dot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.cigand-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 1.5px solid var(--fg);
+  border-radius: 50%;
+}
+
+.cigand-dot.is-done::after {
+  background: var(--fg);
+}
+
+.cigand-dot[aria-current="step"]::after {
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 4.5px var(--fg);
+}
+
+.cigand-steps {
+  max-width: 28em;
+  margin: var(--sp-2) auto 0;
+  padding-left: var(--sp-3);
+  text-align: left;
+  font-size: 15px;
+}
+
+.cigand-subhead {
+  margin: var(--sp-4) 0 var(--sp-2);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cigand-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-3);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.cigand-compare-item {
+  text-align: center;
+}
+
+.cigand-compare-item svg {
+  display: block;
+  width: 48px;
+  height: 32px;
+  margin: 0 auto var(--sp-1);
+  color: var(--fg);
+}
+
+.cigand-compare-item p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cigand-compare-tag {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.cigand-caveat {
+  max-width: 46em;
+  margin: var(--sp-3) auto 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.cigand-timeline {
+  list-style: none;
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 0 0 0 var(--sp-3);
+  border-left: 1px solid var(--fg);
+  position: relative;
+  left: var(--sp-1);
+  width: calc(100% - var(--sp-1));
+  text-align: left;
+}
+
+.cigand-timeline li {
+  position: relative;
+  margin: 0 0 var(--sp-3);
+}
+
+.cigand-timeline li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--sp-3) - 4px);
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  background: var(--fg);
+  border-radius: 50%;
+}
+
+.cigand-tl-date {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cigand-tl-text {
+  display: block;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cigand-tl-text a,
+.cigand-sources a {
+  color: var(--muted);
+}
+
+.cigand-sources {
+  max-width: 46em;
+  margin: var(--sp-2) auto 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* A térkép: a víz vonalvastagsággal, szaggatással és vonalkázással jelenik
+   meg, szín nélkül. Az animáció lépései az svg st-1..st-5 osztályain át
+   hatnak (halmozódnak). */
+#cigand-map text.water-map-label {
+  font-size: calc(12px / var(--k, 1));
+}
+
+.cg-bodrog {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.cg-tisza {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  transition: stroke-width 0.6s ease;
+}
+
+#cigand-map.st-1 .cg-tisza {
+  stroke-width: 6.5px;
+}
+
+.cg-canal-dry {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2px;
+  stroke-dasharray: 2 4;
+}
+
+.cg-canal-wet {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 2px;
+  stroke-dasharray: 7 4;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+#cigand-map.st-5 .cg-canal-wet {
+  opacity: 1;
+  animation: cg-flow 1.2s linear infinite;
+}
+
+.cg-reservoir {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.6px;
+}
+
+.cg-dyke {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 2.4px;
+  stroke-linecap: round;
+}
+
+.cg-flow-in {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 3px;
+  stroke-dasharray: 6 5;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#cigand-map.st-3 .cg-flow-in {
+  opacity: 1;
+  animation: cg-flow 0.9s linear infinite;
+}
+
+@keyframes cg-flow {
+  to { stroke-dashoffset: -22; }
+}
+
+.cg-gate-bar {
+  fill: var(--fg);
+  stroke: var(--bg);
+  stroke-width: 1px;
+  transition: transform 0.6s ease;
+}
+
+#cigand-map.st-2 .cg-gate-l {
+  transform: translateX(-8px);
+}
+
+#cigand-map.st-2 .cg-gate-r {
+  transform: translateX(8px);
+}
+
+.cg-counter {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--fg);
+  paint-order: stroke fill;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
+
+.cg-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.cg-hit-fill {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.cg-hit:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
 }

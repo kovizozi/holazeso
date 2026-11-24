@@ -1,0 +1,50 @@
+{
+  "active": true,
+  "updated": "2026-11-24",
+  "title": "Mi történt Cigándnál?",
+  "label": "most történik · 2026. nov. 21.",
+  "lead": "November 21-én megnyitották a cigándi tározó zsilipjeit, 2008 óta először. Nem árvíz miatt: a megáradt Tisza vizéből közel 2 milliárd litert engednek a kiszáradt Bodrogközbe.",
+  "summary": "Cigánd, 2026. nov. 21.: 2008 óta először nyitották meg a tározó zsilipjeit, közel 2 milliárd liter Tisza-víz kerül a Bodrogközbe.",
+  "facts": {
+    "date": "2026-11-21",
+    "volume_m3": 2000000,
+    "volume_high_m3": 3000000,
+    "capacity_m3": 94000000,
+    "area_km2": 24.7,
+    "built": 2008
+  },
+  "timeline": [
+    {
+      "date": "2008",
+      "text": "Átadták a cigándi árapasztó tározót: 94 millió m³ fér bele, 24,7 km², Cigánd, Nagyrozvágy, Pácin és Ricse területén. Azóta nem használták, árvízkor sem.",
+      "kind": "tény",
+      "source": { "name": "vizugy.hu", "url": "https://www3.vizugy.hu/uploads/csatolmanyok/160/cigand_tajekoztato_szakmai_a5.pdf" }
+    },
+    {
+      "date": "2026 nyár",
+      "text": "Aszály: a Bodrogköz kisebb csatornái kiszáradtak.",
+      "kind": "bejelentett",
+      "source": { "name": "Borsodi Hír", "url": "https://borsodihir.hu/hir/ujra-elettel-telik-meg-a-bodrogkoz" }
+    },
+    {
+      "date": "2026. nov. 21.",
+      "text": "Megnyitották a tározó zsilipjeit, a megáradt Tisza vizét víz-visszatartásra használják. A miniszter közel 2 millió köbmétert mondott, a miniszterelnök egy videóban 2-3 milliót.",
+      "kind": "bejelentett",
+      "source": { "name": "Agrárszektor", "url": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" }
+    },
+    {
+      "date": "2026. nov. 23.",
+      "text": "Kapcsolódó bodrogközi intézkedés, nem a cigándi víz hatása: a közel 12 km-es, teljesen kiszáradt Felsőberecki-főcsatorna gravitációs utánpótlást kap, a Vissi-Holt-Bodrog szintje egy hét alatt 129 cm-t emelkedett.",
+      "kind": "bejelentett",
+      "source": { "name": "Pénzcentrum (MTI)", "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" }
+    }
+  ],
+  "sources": [
+    { "name": "Agrárszektor, nov. 22.", "url": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" },
+    { "name": "Portfolio, nov. 21.", "url": "https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248" },
+    { "name": "Magyar Hírlap, nov. 21.", "url": "https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe" },
+    { "name": "Pénzcentrum (MTI), nov. 23.", "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" },
+    { "name": "vizugy.hu, a tározó adatai", "url": "https://www3.vizugy.hu/uploads/csatolmanyok/160/cigand_tajekoztato_szakmai_a5.pdf" },
+    { "name": "OpenStreetMap (térkép)", "url": "https://www.openstreetmap.org/copyright" }
+  ]
+}

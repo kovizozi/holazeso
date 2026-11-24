@@ -6,13 +6,48 @@ menet közben fedeztünk fel. A `README.md` a "hogyan futtasd/deployold"
 kérdésekre válaszol, ez a fájl a "hogyan működik belülről és mire figyelj"
 kérdésekre.
 
-## Áttekintés: két különálló projekt
+## Áttekintés: három rész
 
-- **`holazeso-v0/`** (ez a repó): a statikus weboldal. GitHub → Cloudflare
-  Pages, Git-integrációval automatikus deploy minden `main` push-ra.
-- **`holazeso-push-worker/`** (külön repó, külön Cloudflare Worker): a
-  push-értesítés háttérrendszere. Ez az egyetlen rész, ami "backend"-nek
-  számít; mindkettő a `Kovizozi@gmail.com's Account` Cloudflare fiók alatt fut.
+Az oldal maga statikus, de mögötte van egy kis backend, két darabból:
+
+- **`holazeso-v0/`** (ez a repó): a statikus weboldal (HTML/CSS/JS, build
+  nélkül). GitHub → Cloudflare Pages, Git-integrációval automatikus deploy
+  minden `main` push-ra. Az esőkeresést, a "részletek és statisztika"
+  panelt és a saját hely talajprofilját a böngésző közvetlenül kéri le
+  (Open-Meteo, BigDataCloud).
+- **`holazeso-push-worker/`** (külön repó, Cloudflare Worker + KV): a
+  backend publikus része. Két feladata van:
+  1. push-értesítések: `/subscribe`, `/unsubscribe`, és egy percenkénti cron,
+     ami az Open-Meteótól lekéri a feliratkozók helyének csapadékát;
+  2. a vízadat-panel adatainak kiszolgálása: a `/*-snapshot` végpontok a
+     KV-ben tárolt pillanatképeket adják vissza a böngészőnek (`GET`), és
+     fogadják a frissítést az otthoni jobtól (`POST`, Bearer token).
+  Deploy kézzel: `npx wrangler deploy`.
+- **`soil-moisture-mapper`** (külön repó, otthoni gépen, Docker
+  containerben): a backend adatgyűjtő része. Óránként lekéri az országos
+  talajnedvesség-rácsot (Open-Meteo, ~350 pont) és lekaparja a hydroinfo.hu
+  folyó- és tó-vízállás tábláit, majd a pillanatképeket `POST`-olja a
+  workernek. A csatorna-térkép (`app/channels.py`) és a domborzat
+  (`app/elevation.py`) egyszeri, kézzel futtatott szkript. Azért fut
+  otthon és nem a böngészőben, mert egy országos lekérés látogatónként
+  felélné az Open-Meteo kvótát, a hydroinfo.hu-nak pedig nincs CORS-a.
+
+Adatfolyam a vízadatokhoz:
+
+```
+hydroinfo.hu, Open-Meteo
+        │  óránként
+        ▼
+soil-moisture-mapper (otthon, Docker) ──POST, Bearer──▶ push-worker KV
+                                                          │ GET (CORS: csak éles origin)
+                                                          ▼
+                                                  böngésző (script.js)
+```
+
+Ha az otthoni gép áll, az oldal tovább működik: a vízadat-panel az utolsó
+feltöltött pillanatképet mutatja, a "frissítve" sor jelzi, mennyire régi.
+A Pages és a Worker a `Kovizozi@gmail.com's Account` Cloudflare fiók alatt
+fut.
 
 ## A esőkereső algoritmus (`script.js`)
 
@@ -143,7 +178,7 @@ látszik; a FLIP-animációt a `slideRadar` intézi):
    nálad esik, a "hol esik pontosan" kérdés értelmetlen.
 2. **"De hol esik pontosan?"** Csak az első válasz kimondása UTÁN indul, és
    csak akkor, ha nálad nem esik. Innen tágul kifelé a keresés, amíg talál,
-   majd névfeloldás után kiírja a helyet, a távolságot és az útvonalat. Ha
+   majd névfeloldás után kiírja a helyet, a távolságot és az irányt. Ha
    sehol nem talált, a válasz "Sehol".
 
 Az első szakasz válasza szándékosan nem függ a távoli kereséstől: enélkül nem
@@ -339,3 +374,15 @@ tartalom kliens-oldalon, a felhasználó helyzete alapján generálódik, ezért
 keresőrobot szempontjából nincs "indexelhető" tartalma az egyes
 válaszoknak (ez a projekt jellegéből adódik, nem hiba); a SEO itt a
 márka/domain felismerhetőségéről szól, nem tartalom-rangsorolásról.
+
+## UX-átalakítás (2026. nov.): új statikus fájlok és komponensek
+
+- `places-hu.json`: kb. 140 magyar település (n, lat, lon, r = rang 1-3). A radar, a talajtérkép és a csatorna-térkép feliratai és a talajcellák nevei használják (`loadPlaces`).
+- `counties-hu.json`: megyehatárok (geoBoundaries, CC BY 4.0, egyszerűsítve), a nagyított csatorna-térképen pontvonal.
+- `cigand.json` (kézzel karbantartott: tények, időrend, források, `active`, `updated`) és `cigand-geo.json` (OpenStreetMap-kivonat, egyszer előállítva): a vízpanel tetején álló Cigánd-blokk (`buildCigand`). `active: false` esetén egy soros összefoglalóvá zsugorodik és az országos szakaszok alá költözik. A negyedik, mért csempe csak akkor jelenik meg, ha a rivers-snapshotban van "Dombrád" állomás.
+- Ábraszélességek: `.fig-narrow/.fig-medium/.fig-wide` (420/720/960 px) és a `--ar` képarány a magasságot a nézet 70%-ára korlátozza.
+- Közös buborék: `mapPopupShow` / `popupSparklineSvg` (talajtérkép, folyóhálózat, csatorna-térkép, Cigánd-térkép).
+- A radar nagyítása (`radarZoomTo`) csak a keresés VÉGE után a megjelenített sugarat (`radarMaxRadiusKm`) változtatja; a `RADAR_SWEEP_MS`-t és a pásztázó animációt nem érinti. A feliratok méretét a `--k` (képpont/viewBox-egység) tartja állandóan.
+- A csatorna-térkép egy kattintásra aktiválódik (`is-active`), utána a sima görgő nagyít; Escape vagy kívülre kattintás elengedi.
+- A 0 literes (adat nélküli) talajcellák nincs-adatnak számítanak a talajtérképen és a fejsorban.
+- A Tisza-tó nincs a tó-kártyák között (nincs valódi tó-mérce); a Velencei-tó körvonala kézzel rajzolt séma.

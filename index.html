@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=48">
 </head>
 <body>
 
@@ -72,9 +72,21 @@
     <section id="result" hidden aria-live="polite">
 
       <div class="top">
-        <button id="notify-toggle" class="link-btn" type="button">értesíts, ha esni kezd</button>
-        <button id="share-location" class="link-btn" type="button">megosztható link</button>
-        <button id="change-location" class="link-btn" type="button">helyszín módosítása</button>
+        <!-- Három ikon-gomb (44 x 44 px célterület), felirat helyett aria-label
+             és title. A harang kitöltött állapota a bekapcsolt értesítést
+             jelzi (script.js updateNotifyButton). -->
+        <button id="notify-toggle" class="icon-btn" type="button" aria-label="értesíts, ha esni kezd" title="értesíts, ha esni kezd" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="icon-bell" d="M12 3.5a5.5 5.5 0 0 0-5.5 5.5v3.2L5 15.5v1h14v-1l-1.5-3.3V9A5.5 5.5 0 0 0 12 3.5Z M10 19a2 2 0 0 0 4 0" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+        </button>
+        <span class="top-share">
+          <span id="share-confirm" class="top-confirm" role="status" aria-live="polite"></span>
+          <button id="share-location" class="icon-btn" type="button" aria-label="megosztható link" title="megosztható link">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5.5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="18.5" r="2.5"></circle><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"></path></svg>
+          </button>
+        </span>
+        <button id="change-location" class="icon-btn" type="button" aria-label="helyszín módosítása" title="helyszín módosítása">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0 1 13 0c0 4.9-6.5 11-6.5 11Z"></path><circle cx="12" cy="10" r="2.3"></circle></svg>
+        </button>
       </div>
 
       <div class="block hero-block">
@@ -101,6 +113,7 @@
         <image id="radar-image" x="0" y="0" width="350" height="220"></image>
         <g id="radar-borders"></g>
         <g id="radar-water"></g>
+        <g id="radar-places"></g>
         <g id="radar-tiers"></g>
         <circle cx="175" cy="110" r="3" fill="var(--fg)"></circle>
         <line id="radar-sweep" x1="175" y1="110" x2="175" y2="-97" stroke="var(--fg)" stroke-width="1.5" opacity="0.55"></line>
@@ -108,6 +121,13 @@
              hogy a pontok és a pásztázó vonal fölé kerüljön. -->
         <g id="radar-labels"></g>
       </svg>
+      <!-- Nagyítás: csak a keresés VÉGE után látszik (CSS: .loading.settled), a
+           pásztázó animáció alatt nem nyúlunk a radarhoz. -->
+      <div id="radar-zoom" class="radar-zoom" role="group" aria-label="radar nagyítása">
+        <button id="radar-zoom-in" type="button" aria-label="nagyítás" title="nagyítás">+</button>
+        <button id="radar-zoom-out" type="button" aria-label="kicsinyítés" title="kicsinyítés">&minus;</button>
+        <button id="radar-zoom-reset" type="button" aria-label="eredeti nézet" title="eredeti nézet">&#8962;</button>
+      </div>
       <p id="loading-text">töltés…</p>
     </div>
 
@@ -123,38 +143,44 @@
         <p id="stats-place" class="stats-place"></p>
         <p id="stats-status" class="context">töltés…</p>
 
-        <section class="stats-group" id="stats-precip">
-          <h3 class="stats-heading">Csapadék</h3>
-          <p class="stats-line" id="stats-precip-event"></p>
-          <p class="stats-line" id="stats-precip-24h"></p>
-          <p class="stats-line" id="stats-precip-7d"></p>
-          <p class="stats-line" id="stats-precip-30d"></p>
-          <!-- A diagram oszlopai kattinthatók/koppinthatók: egy oszlopra
-               kattintva a buborék megmutatja az adott nap dátumát és
-               csapadékát (lásd script.js renderSparkline). -->
-          <div class="stats-chart-wrap">
-            <svg id="stats-precip-chart" class="stats-bars" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
-            <div id="stats-precip-tooltip" class="stats-tooltip" hidden></div>
-          </div>
-        </section>
+        <div class="stats-grid">
+          <section class="stats-card" id="stats-precip">
+            <h3 class="stats-heading">Csapadék</h3>
+            <p class="stats-line" id="stats-precip-event"></p>
+            <div class="stats-figures">
+              <div class="stats-figure" id="stats-precip-24h"></div>
+              <div class="stats-figure" id="stats-precip-7d"></div>
+              <div class="stats-figure" id="stats-precip-30d"></div>
+            </div>
+            <p class="stats-note" id="stats-precip-note"></p>
+            <!-- A diagram oszlopai kattinthatók/koppinthatók: egy oszlopra
+                 kattintva a buborék megmutatja az adott nap dátumát és
+                 csapadékát (lásd script.js renderSparkline). -->
+            <div class="stats-chart-wrap">
+              <svg id="stats-precip-chart" class="stats-bars" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
+              <div id="stats-precip-tooltip" class="stats-tooltip" hidden></div>
+            </div>
+            <div class="stats-chart-axis" id="stats-precip-axis" aria-hidden="true"></div>
+          </section>
 
-        <section class="stats-group" id="stats-forecast">
-          <h3 class="stats-heading">Előrejelzés</h3>
-          <ul class="stats-days" id="stats-forecast-days"></ul>
-        </section>
+          <section class="stats-card" id="stats-forecast">
+            <h3 class="stats-heading">Előrejelzés</h3>
+            <ul class="stats-days" id="stats-forecast-days"></ul>
+          </section>
 
-        <section class="stats-group" id="stats-temp">
-          <h3 class="stats-heading">Hőmérséklet</h3>
-          <p class="stats-line" id="stats-temp-now"></p>
-          <p class="stats-line" id="stats-temp-minmax"></p>
-          <p class="stats-line" id="stats-temp-frost"></p>
-        </section>
+          <section class="stats-card" id="stats-temp">
+            <h3 class="stats-heading">Hőmérséklet</h3>
+            <p class="stats-big" id="stats-temp-now"></p>
+            <div id="stats-temp-bars" class="stats-temp-bars"></div>
+            <p class="stats-line" id="stats-temp-frost"></p>
+          </section>
 
-        <section class="stats-group" id="stats-water">
-          <h3 class="stats-heading">Víz</h3>
-          <p class="stats-line" id="stats-water-soil"></p>
-          <p class="stats-line" id="stats-water-river" hidden></p>
-        </section>
+          <section class="stats-card" id="stats-water">
+            <h3 class="stats-heading">Víz</h3>
+            <div id="stats-water-soil"></div>
+            <p class="stats-line" id="stats-water-river" hidden></p>
+          </section>
+        </div>
       </div>
     </details>
 
@@ -168,41 +194,89 @@
          statikus markup - ld. a fájl végi "Vízadatok" szekciót. -->
     <section id="water-panel" class="water-details" hidden>
       <div id="water-body" class="water-body">
-        <p id="water-status" class="context">töltés…</p>
-        <p id="water-updated" class="context" hidden></p>
+        <!-- Bevezető: cím, egy mondat arról, mi következik és honnan jön az
+             adat, a frissítés ideje, majd a (görgetéskor tapadó) tartalom-
+             jegyzék. A saját hely szekciója ez után jön. -->
+        <header class="water-intro">
+          <h2 class="water-title">Víz Magyarországon</h2>
+          <p class="about water-intro-text">Mennyi víz van a talajban, milyen magas a vízállás a folyókon és a tavakon, hová futnak a csatornák, és honnan jön, hova megy a víz egy évben. A talajadat Open-Meteo modell-becslés, a vízállás a hydroinfo.hu mérőállomásaiból jön.</p>
+          <p id="water-status" class="context">töltés…</p>
+          <p id="water-updated" class="context" hidden></p>
+        </header>
+        <div id="water-skeleton" class="water-skeleton" aria-hidden="true"></div>
+        <!-- UX-audit I01: a vízadatok hosszúak, ez egy kompakt index hozzájuk,
+             ugyanazokkal a #id-kkel, amik a lenti section-okon megvannak. A
+             tapadó sávban az éppen látott szakasz aria-current-et kap. -->
+        <nav class="water-toc" id="water-toc" aria-label="vízadatok tartalomjegyzéke">
+          <a href="#water-cigand-section" id="water-toc-cigand" hidden>Cigánd</a>
+          <a href="#water-local-section">Itt</a>
+          <a href="#water-soil-section">Talaj</a>
+          <a href="#water-map-section">Térkép</a>
+          <a href="#water-river-net-section">Folyók</a>
+          <a href="#water-channels-section">Csatornák</a>
+          <a href="#water-balance-section">Vízmérleg</a>
+          <a href="#water-lakes-section">Tavak</a>
+        </nav>
 
-        <!-- 1. Személyes: a keresett helyszín talajminta-profilja. Legfelül,
+        <!-- Cigánd: aktuális hír, a tartalmát a cigand.json adja (kézzel
+             karbantartva), a térképét a cigand-geo.json (OpenStreetMap).
+             Aktív eseménynél a vízpanel TETEJÉN áll, lejárt esemény
+             (active: false) egy soros összefoglalóvá zsugorodik, és az
+             országos szakaszok alá költözik (script.js buildCigand). -->
+        <section class="water-section cigand" id="water-cigand-section" hidden>
+          <p class="cigand-tag" id="cigand-tag"></p>
+          <p class="cigand-summary" id="cigand-summary" hidden>
+            <span id="cigand-summary-text"></span>
+            <button type="button" class="link-btn" id="cigand-expand" aria-expanded="false" aria-controls="cigand-body">részletek</button>
+          </p>
+          <div id="cigand-body">
+            <h3 class="question" id="cigand-title"></h3>
+            <p class="cigand-lead" id="cigand-lead"></p>
+            <div class="cigand-tiles" id="cigand-tiles"></div>
+
+            <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
+              <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
+              <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
+              <span class="cigand-badge">szemléltető ábra, nem élő mérés</span>
+              <figcaption>
+                <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
+                <div class="cigand-controls">
+                  <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
+                  <button type="button" class="link-btn" id="cigand-replay">lejátszás újra</button>
+                </div>
+              </figcaption>
+            </figure>
+            <ol class="cigand-steps" id="cigand-steps" hidden></ol>
+
+            <h4 class="cigand-subhead">Mekkora ez valójában?</h4>
+            <div class="cigand-compare" id="cigand-compare"></div>
+            <p class="cigand-caveat" id="cigand-caveat"></p>
+
+            <h4 class="cigand-subhead">Időrend</h4>
+            <ol class="cigand-timeline" id="cigand-timeline"></ol>
+            <p class="cigand-sources" id="cigand-sources"></p>
+          </div>
+        </section>
+
+        <!-- Személyes: a keresett helyszín talajminta-profilja. Legfelül,
              mert ez szól a keresett helyre; az országos adatok utána jönnek. -->
         <section class="water-section" id="water-local-section" hidden>
           <h3 class="question" id="water-local-question"></h3>
           <p class="place-line" id="water-local-total"></p>
           <p class="context" id="water-local-compare"></p>
           <p class="context" id="water-local-profile-text"></p>
-          <figure class="water-figure water-figure-narrow">
+          <figure class="water-figure fig-narrow" style="--ar: 0.668">
             <svg id="water-soil-core" viewBox="10 -4 235 352" preserveAspectRatio="xMidYMid meet"></svg>
           </figure>
         </section>
 
-        <h2 class="question water-country-heading">mennyi víz van összesen az országban?</h2>
-        <!-- UX-audit I01: a vízadatok kb. 11 500 CSS-pixel hosszúak, nincs
-             bennük semmilyen belső ugrópont - ez egy kompakt index hozzájuk,
-             ugyanazokkal a #id-kkel, amik a lenti section-okon már megvannak. -->
-        <nav class="water-toc" aria-label="vízadatok tartalomjegyzéke">
-          <a href="#water-soil-section">Talaj</a>
-          <a href="#water-map-section">Térkép</a>
-          <a href="#water-rivers-section">Folyók</a>
-          <a href="#water-channels-section">Csatornák</a>
-          <a href="#water-balance-section">Vízmérleg</a>
-          <a href="#water-lakes-section">Tavak</a>
-        </nav>
-
         <!-- 2. Talajvíz: országos összesítés + Balaton-alakú rétegek -->
         <section class="water-section" id="water-soil-section" hidden>
-          <h3 class="question">Mennyi víz van most a talajban?</h3>
+          <h3 class="question">Mennyi víz van most a talajban az országban?</h3>
           <p class="answer" id="water-soil-balaton-count"></p>
           <p class="context" id="water-soil-balaton-label"></p>
           <p class="context" id="water-soil-exact"></p>
-          <figure class="water-figure">
+          <figure class="water-figure fig-medium">
             <div id="water-balaton-stack"></div>
             <figcaption>Egy alak egy Balaton (1,9 km³). Fentről lefelé a talaj rétegei: minél mélyebb, annál vastagabb, ezért ott van a víz java.</figcaption>
           </figure>
@@ -210,14 +284,18 @@
 
         <!-- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak jelölve -->
         <section class="water-section" id="water-map-section" hidden>
-          <h3 class="question">és hol a legtöbb, és mi folyik, mi áll?</h3>
+          <h3 class="question">hol van a legtöbb víz a talajban?</h3>
           <p class="place-line" id="water-map-headline"></p>
           <p class="context" id="water-map-detail"></p>
-          <figure class="water-figure">
+          <figure class="water-figure fig-medium" style="--ar: 1.6">
             <svg id="water-relief-map" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet"></svg>
             <div id="water-map-tooltip" class="water-map-tooltip" hidden></div>
             <figcaption id="water-map-legend"></figcaption>
           </figure>
+          <details class="water-howto">
+            <summary>hogyan olvasd?</summary>
+            <div id="water-map-howto"></div>
+          </details>
         </section>
 
         <!-- 2c. Folyóhálózat: a dombormű fölötti jelölőktől KÜLÖN, önálló
@@ -229,9 +307,10 @@
           <p class="answer">Duna</p>
           <p class="context">kb. 2300 m³ másodpercenként</p>
           <p class="context">két és félszer annyi, mint a Tisza</p>
-          <figure class="water-figure">
+          <figure class="water-figure fig-medium" style="--ar: 1.6">
             <svg id="water-river-net" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid meet"></svg>
-            <figcaption>A vonal vastagsága a vízhozam. Halvány vonal: a folyó határon túli szakasza.</figcaption>
+            <div id="water-river-net-tooltip" class="water-map-tooltip" hidden></div>
+            <figcaption>A vonal vastagsága a vízhozam. Rámutatva a mért vízállás látszik. Halvány vonal: a folyó határon túli szakasza, szaggatott: nincs pontos adat.</figcaption>
           </figure>
           <div class="water-river-net-table">
             <h3>Átlagos vízhozam, m³/s</h3>
@@ -249,12 +328,11 @@
             </ul>
             <p class="about">Még hiányzik a térképről: Bodrog, Berettyó, Kraszna, Kapos, Lajta, Marcal és a kisebb patakok, csatornák. Ezekhez az OpenStreetMap vízfolyás-adatai kellenének.</p>
           </div>
-        </section>
 
-        <!-- 2b. Folyók: önálló szekció, kattintható állomások (az
-             előrejelzés és a múltbeli vízállás grafikonon jelenik meg) -->
-        <section class="water-section" id="water-rivers-section" hidden>
-          <h3 class="question">és a folyók?</h3>
+          <!-- Az élő vízállások: ugyanaz a grafikon nyílik, ha a térképen egy
+               folyóra koppintasz, és ha itt egy sorra. A lista a billentyűzettel
+               és képernyőolvasóval elérhető megfelelője a térképnek. -->
+          <h3 class="question water-subhead">milyen magas most a víz a folyókban?</h3>
           <p class="place-line" id="water-rivers-headline"></p>
           <p class="context" id="water-rivers-detail"></p>
           <div id="water-river-list" class="water-river-list"></div>
@@ -267,11 +345,12 @@
              docstringet. Nem élő adat, alkalmanként, kézzel frissül, ezért
              script.js külön try/catch-ben kéri le (ld. buildWaterPanel). -->
         <section class="water-section" id="water-channels-section" hidden>
-          <h3 class="question">és a folyók, csatornák, árkok, tavak?</h3>
+          <h3 class="question">hol vannak a csatornák, az árkok és a kisebb tavak?</h3>
           <p class="place-line" id="water-channels-headline"></p>
           <p class="context" id="water-channels-detail"></p>
-          <figure class="water-figure">
-            <svg id="water-channels-map" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid meet"></svg>
+          <figure class="water-figure fig-wide" style="--ar: 1.6">
+            <svg id="water-channels-map" viewBox="0 0 400 250" preserveAspectRatio="xMidYMid meet" tabindex="0" aria-label="nagyítható vízfolyás-térkép"></svg>
+            <p id="water-channels-hint" class="water-channels-hint">kattints a térképre a nagyításhoz</p>
             <div class="water-map-zoom-controls">
               <button id="water-channels-zoom-in" type="button" aria-label="nagyítás">+</button>
               <button id="water-channels-zoom-out" type="button" aria-label="kicsinyítés">&minus;</button>
@@ -304,7 +383,7 @@
           <p class="place-line">172 km³ egy évben</p>
           <p class="context">kétharmada folyókon érkezik, egyharmada eső és hó</p>
           <p class="context">a lehullott csapadék kilenctizede elpárolog</p>
-          <figure class="water-figure">
+          <figure class="water-figure fig-medium" style="--ar: 1.362">
             <svg id="water-sankey" class="water-sankey-diagram" viewBox="0 0 640 470" preserveAspectRatio="xMidYMid meet"></svg>
             <!-- UX-audit V01: a sűrű ábra feliratai keskeny képernyőn kb. 6px-re
                  zsugorodnak - ugyanaz az adat itt, listaként, a CSS döntően
@@ -338,8 +417,9 @@
           <p class="place-line" id="water-balance-balaton-count"></p>
           <p class="context">évente ennyi víz halad át az országon</p>
           <p class="context">a Duna egymaga 34 Balatonnyit hoz</p>
-          <figure class="water-figure">
-            <svg id="water-balaton-tiles" viewBox="0 0 600 170" preserveAspectRatio="xMidYMid meet"></svg>
+          <figure class="water-figure fig-narrow" style="--ar: 1.667">
+            <svg id="water-balaton-tiles" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid meet"></svg>
+            <figcaption id="water-balaton-tiles-caption"></figcaption>
           </figure>
         </section>
 
@@ -348,18 +428,21 @@
           <h3 class="question">Mekkora a Balaton vízállása?</h3>
           <p class="answer" id="water-balaton-level"></p>
           <p class="context" id="water-balaton-detail"></p>
-          <figure class="water-figure">
-            <svg id="water-balaton-fill" viewBox="100 140 540 215" preserveAspectRatio="xMidYMid meet"></svg>
-            <figcaption>A tó valódi alakja, a vízszint felnagyítva. 1 cm a Balatonon kb. 5,9 milliárd liter.</figcaption>
-          </figure>
+          <p class="context">1 cm a Balatonon kb. 5,9 milliárd liter</p>
           <p class="question" style="margin-top: var(--sp-3);">és a többi nagy tó?</p>
           <p class="place-line" id="water-lake-worst-headline"></p>
           <p class="context" id="water-lake-worst-detail"></p>
-          <figure class="water-figure">
+          <!-- Egy közös jelmagyarázat a kártyák fölött. -->
+          <p class="water-lake-legend" aria-label="jelmagyarázat">
+            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" fill="var(--fg)"></rect></svg>jelenlegi szint</span>
+            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><defs><pattern id="lake-legend-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--fg)" stroke-width="1"></line></pattern></defs><rect x="2" y="2" width="10" height="10" fill="url(#lake-legend-hatch)" stroke="var(--fg)" stroke-width="0.75"></rect></svg>ideális sáv</span>
+            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 2"></rect></svg>teli meder</span>
+          </p>
+          <div id="water-lake-gauges" class="water-lake-cards"></div>
+          <figure class="water-figure fig-narrow" style="--ar: 2.86">
             <svg id="water-lake-compare" viewBox="0 0 400 140" preserveAspectRatio="xMidYMid meet"></svg>
             <figcaption>Azonos léptékben; a Fertő teljes tava látszik, déli része magyar.</figcaption>
           </figure>
-          <div id="water-lake-gauges" class="water-lake-gauges"></div>
         </section>
 
         <details class="about-details" id="water-methodology">
@@ -394,11 +477,11 @@
     <p class="credits">
       holazeso.hu · Adatforrás: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0) ·
       radarkép: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> ·
-      határok: Natural Earth
+      határok: Natural Earth, megyehatárok: <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener">geoBoundaries</a> (CC BY 4.0)
     </p>
   </footer>
 
-  <script src="script.js?v=75"></script>
+  <script src="script.js?v=76"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

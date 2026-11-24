@@ -767,9 +767,14 @@ function foregroundRgb() {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+let radarImageToken = 0;
+
 async function drawRadarImage() {
   const el = document.getElementById("radar-image");
   el.removeAttribute("href");
+  // Gyors egymás utáni nagyításnál a régebbi kép később is megérkezhet: csak
+  // a legutolsó kérés rajzolhat.
+  const imageToken = ++radarImageToken;
   if (!bordersVisible || !radarFrame || !radarOrigin || !radarMaxRadiusKm) return;
 
   const zoom = radarImageZoom(radarOrigin.lat, radarMaxRadiusKm);
@@ -799,7 +804,7 @@ async function drawRadarImage() {
     }
   }
   await Promise.all(loads);
-  if (!bordersVisible) return; // közben új keresés indulhatott
+  if (!bordersVisible || imageToken !== radarImageToken) return; // közben új keresés/nagyítás indulhatott
 
   const source = stitchedCtx.getImageData(0, 0, stitched.width, stitched.height);
   const out = document.createElement("canvas");
@@ -910,9 +915,165 @@ function radarDrawWaterGeo() {
   }
 }
 
+// Nagyvárosok feliratai a radaron, hogy az országhatár alakját nem ismerő is
+// el tudjon igazodni (places-hu.json, ld. loadPlaces). A nagyítással egyre
+// kisebb települések is kiíródnak; az egymást fedőket kihagyjuk.
+function radarDrawPlaces() {
+  const layer = document.getElementById("radar-places");
+  layer.innerHTML = "";
+  if (!bordersVisible || !placesList.length || !radarOrigin || !radarMaxRadiusKm) return;
+
+  const maxRank = radarMaxRadiusKm >= 150 ? 1 : radarMaxRadiusKm >= 60 ? 2 : 3;
+  const k = radarScaleK();
+  const reachKm = radarMaxRadiusKm * RADAR_CORNER_FACTOR;
+  const candidates = [];
+  for (const p of placesList) {
+    if (p.r > maxRank) continue;
+    const dist = distanceKm(radarOrigin.lat, radarOrigin.lon, p.lat, p.lon);
+    if (dist > reachKm || dist < radarMaxRadiusKm * 0.03) continue;
+    const pos = radarProject(bearingBetween(radarOrigin.lat, radarOrigin.lon, p.lat, p.lon), dist, radarMaxRadiusKm);
+    if (pos.x < 4 || pos.x > RADAR_W - 4 || pos.y < 8 || pos.y > RADAR_H - 4) continue;
+    candidates.push({ p, pos });
+  }
+  candidates.sort((a, b) => a.p.r - b.p.r);
+
+  // A felirat kb. 11 px-es betű: a szélessége viewBox-egységben a k-val osztva.
+  const placed = [];
+  const MAX_LABELS = 14;
+  for (const c of candidates) {
+    if (placed.length >= MAX_LABELS) break;
+    const w = (c.p.n.length * 6.2 + 8) / k, h = 14 / k;
+    const onRight = c.pos.x > RADAR_W - w - 10;
+    const x0 = onRight ? c.pos.x - w : c.pos.x;
+    const box = { x0, x1: x0 + w, y0: c.pos.y - h, y1: c.pos.y + 3 / k };
+    if (placed.some(b => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) continue;
+    placed.push(box);
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", c.pos.x.toFixed(1));
+    dot.setAttribute("cy", c.pos.y.toFixed(1));
+    dot.setAttribute("r", (1.6 / k).toFixed(2));
+    dot.classList.add("radar-place-dot");
+    layer.appendChild(dot);
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", (c.pos.x + (onRight ? -3 : 3) / k).toFixed(1));
+    text.setAttribute("y", (c.pos.y - 3 / k).toFixed(1));
+    text.setAttribute("text-anchor", onRight ? "end" : "start");
+    text.classList.add("radar-place");
+    text.textContent = c.p.n;
+    layer.appendChild(text);
+  }
+}
+
+// A radar képpont-léptéke: hány képernyő-képpont jut egy viewBox-egységre.
+// Nagyobb képernyőn az SVG szövege is nagyobbra nőne (a #radar-svg max-width
+// 720 px, a viewBox 350 egység), ezért a feliratok méretét ennek reciprokával
+// osztjuk (--k), így a betűméret mindenhol ugyanannyi képpont marad.
+function radarScaleK() {
+  const svg = document.getElementById("radar-svg");
+  const width = parseFloat(getComputedStyle(svg).width);
+  return width > 0 ? width / RADAR_W : 1;
+}
+
+function updateRadarScale() {
+  document.getElementById("radar-svg").style.setProperty("--k", radarScaleK().toFixed(3));
+}
+
+if ("ResizeObserver" in window) {
+  new ResizeObserver(() => {
+    updateRadarScale();
+    if (bordersVisible) radarDrawPlaces();
+  }).observe(document.getElementById("radar-svg"));
+}
+
+// ---- Nagyítás a keresés VÉGE után ----
+// Csak a megjelenített sugarat (radarMaxRadiusKm) változtatjuk: a határok,
+// folyók, városfeliratok és a RainViewer-kép ugyanazzal a függvénnyel
+// rajzolódnak újra, mint a keresés végén, a korábbi körök pontjait pedig a
+// már meglévő tier.scale mechanizmus (CSS transform) igazítja. A keresést, a
+// pásztázó vonalat és a RADAR_SWEEP_MS-t nem érintjük.
+const RADAR_ZOOM_MIN_LEVEL = -1;
+const RADAR_ZOOM_MAX_LEVEL = 3;
+const RADAR_ZOOM_MIN_RADIUS_KM = 12;
+let radarBaseRadiusKm = 0;
+let radarZoomLevel = 0;
+
+function radarZoomTo(level) {
+  if (!radarBaseRadiusKm || !bordersVisible) return;
+  const clamped = Math.max(RADAR_ZOOM_MIN_LEVEL, Math.min(RADAR_ZOOM_MAX_LEVEL, level));
+  const radius = radarBaseRadiusKm / 2 ** clamped;
+  if (radius < RADAR_ZOOM_MIN_RADIUS_KM) return;
+  if (clamped === radarZoomLevel) return;
+  radarZoomLevel = clamped;
+  clearRadarPlace();
+  radarMaxRadiusKm = radius;
+  radarDrawBorders();
+  radarDrawWaterGeo();
+  radarDrawPlaces();
+  drawRadarImage().catch(err => console.error(err));
+  radarTierGroups.forEach(tier => {
+    tier.scale = tier.maxRadiusKm / radius;
+    tier.el.style.transform = `scale(${tier.scale})`;
+  });
+  updateRadarZoomButtons();
+}
+
+function updateRadarZoomButtons() {
+  const minRadius = radarBaseRadiusKm / 2 ** (radarZoomLevel + 1);
+  document.getElementById("radar-zoom-in").disabled =
+    radarZoomLevel >= RADAR_ZOOM_MAX_LEVEL || minRadius < RADAR_ZOOM_MIN_RADIUS_KM;
+  document.getElementById("radar-zoom-out").disabled = radarZoomLevel <= RADAR_ZOOM_MIN_LEVEL;
+  document.getElementById("radar-zoom-reset").disabled = radarZoomLevel === 0;
+}
+
+function radarZoomResetState() {
+  radarBaseRadiusKm = 0;
+  radarZoomLevel = 0;
+}
+
+document.getElementById("radar-zoom-in").addEventListener("click", () => radarZoomTo(radarZoomLevel + 1));
+document.getElementById("radar-zoom-out").addEventListener("click", () => radarZoomTo(radarZoomLevel - 1));
+document.getElementById("radar-zoom-reset").addEventListener("click", () => radarZoomTo(0));
+
+// Görgővel (Ctrl/Cmd, hogy az oldal görgetését ne vegye el) és két ujjas
+// csippentéssel is nagyítható; egy ujjal az oldal görög tovább (CSS
+// touch-action: pan-y).
+{
+  const svg = document.getElementById("radar-svg");
+  svg.addEventListener("wheel", event => {
+    if (!bordersVisible || !radarBaseRadiusKm || !(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    radarZoomTo(radarZoomLevel + (event.deltaY < 0 ? 1 : -1));
+  }, { passive: false });
+
+  const pointers = new Map();
+  let pinchStartDist = 0;
+  let pinchStartLevel = 0;
+  svg.addEventListener("pointerdown", event => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchStartDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchStartLevel = radarZoomLevel;
+    }
+  });
+  svg.addEventListener("pointermove", event => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size !== 2 || !pinchStartDist) return;
+    const [a, b] = [...pointers.values()];
+    const ratio = Math.hypot(a.x - b.x, a.y - b.y) / pinchStartDist;
+    radarZoomTo(pinchStartLevel + Math.round(Math.log2(ratio)));
+  });
+  const endPointer = event => { pointers.delete(event.pointerId); pinchStartDist = 0; };
+  svg.addEventListener("pointerup", endPointer);
+  svg.addEventListener("pointercancel", endPointer);
+}
+
 function radarReset() {
   document.getElementById("radar-tiers").innerHTML = "";
+  document.getElementById("radar-places").innerHTML = "";
   radarTierGroups = [];
+  radarZoomResetState();
   clearRadarPlace();
 }
 
@@ -1328,7 +1489,7 @@ function startLookup(userLoc, hit) {
 
 function showNearestRain(nearest, place, userLoc) {
   // A kiírt kártya a MEGNEVEZETT helyről szól, ezért annak saját
-  // koordinátáihoz kell számolni a távolságot/irányt/útvonalat - a névadó
+  // koordinátáihoz kell számolni a távolságot/irányt - a névadó
   // pont a keresés során eltolódhatott az esős ponttól, így a kettő nem
   // feltétlenül ugyanaz.
   const isForeign = place.countryCode && userLoc.countryCode && place.countryCode !== userLoc.countryCode;
@@ -1336,8 +1497,6 @@ function showNearestRain(nearest, place, userLoc) {
     ? (isForeign ? `${place.name}, ${place.countryName}` : place.name)
     : "egy közeli térségben";
 
-  const targetLat = place.name ? place.lat : nearest.lat;
-  const targetLon = place.name ? place.lon : nearest.lon;
   const displayDistance = place.name
     ? distanceKm(userLoc.lat, userLoc.lon, place.lat, place.lon)
     : nearest.distance;
@@ -1346,7 +1505,6 @@ function showNearestRain(nearest, place, userLoc) {
     : nearest.bearing;
 
   const direction = compassLabel(displayBearing);
-  const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLoc.lat},${userLoc.lon}&destination=${targetLat},${targetLon}`;
   // Az erősség a megtalált esős PONTRA vonatkozik, nem a névadó településre:
   // a kettő eltérhet, ha a legközelebbi esős pontnak nem volt neve.
   const band = typeof nearest.mm === "number" ? intensityBand(nearest.mm) : null;
@@ -1357,8 +1515,7 @@ function showNearestRain(nearest, place, userLoc) {
     `<p class="place-line">${placeLabel}</p>
      <p class="context">${Math.round(displayDistance)} km innen
      <span class="direction-arrow" style="transform: rotate(${displayBearing}deg)" title="${direction} irányban" aria-label="${direction} irányban">↑</span></p>
-     ${intensity}
-     <a class="map-link" href="${mapsUrl}" target="_blank" rel="noopener">útvonal</a>`
+     ${intensity}`
   );
 }
 
@@ -1440,6 +1597,23 @@ function formatUsualDiff(actual, usual) {
   return `${Math.abs(diff)}%-kal ${diff > 0 ? "több" : "kevesebb"}, mint szokott`;
 }
 
+// Egy nagy szám a "szokásoshoz képest" sávval: a kitöltés a tényleges érték,
+// a függőleges jel a szokásos (3 éves átlag). Ha nincs szokásos érték, vagy
+// az elhanyagolható (ld. formatUsualDiff), csak a szám marad.
+function statsFigureHtml(label, mm, usualMm) {
+  let html = `<span class="stats-figure-value">${formatMm(mm)}<small> mm</small></span>` +
+    `<span class="stats-figure-label">${label}</span>`;
+  if (typeof usualMm === "number" && usualMm > 0.5) {
+    const top = Math.max(mm, usualMm, 0.1);
+    const diff = formatUsualDiff(mm, usualMm);
+    html += `<span class="stats-usual" role="img" aria-label="${diff}">` +
+      `<span class="stats-usual-fill" style="width:${(mm / top * 100).toFixed(1)}%"></span>` +
+      `<span class="stats-usual-mark" style="left:${(usualMm / top * 100).toFixed(1)}%"></span></span>` +
+      `<span class="stats-usual-text">szokásos: ${formatMm(usualMm)} mm</span>`;
+  }
+  return html;
+}
+
 function fillPrecipStats(stats, usual, todayIdx) {
   const idx = currentHourIndex(stats);
   const hourly = stats.hourly.precipitation;
@@ -1456,26 +1630,28 @@ function fillPrecipStats(stats, usual, todayIdx) {
   }
 
   const sum24h = idx === -1 ? null : hourly.slice(Math.max(0, idx - 23), idx + 1).reduce((a, b) => a + b, 0);
-  document.getElementById("stats-precip-24h").textContent =
-    sum24h === null ? "" : `Elmúlt 24 órában: ${formatMm(sum24h)} mm`;
-
   const daily = stats.daily.precipitation_sum;
   const sum7d = daily.slice(Math.max(0, todayIdx - 6), todayIdx + 1).reduce((a, b) => a + b, 0);
   const sum30d = daily.slice(Math.max(0, todayIdx - 29), todayIdx + 1).reduce((a, b) => a + b, 0);
-  const diff7 = usual && formatUsualDiff(sum7d, usual.usual7d);
-  const diff30 = usual && formatUsualDiff(sum30d, usual.usual30d);
 
-  document.getElementById("stats-precip-7d").textContent =
-    `Elmúlt 7 napban: ${formatMm(sum7d)} mm${diff7 ? ` (${diff7})` : ""}`;
-  document.getElementById("stats-precip-30d").textContent =
-    `Elmúlt 30 napban: ${formatMm(sum30d)} mm${diff30 ? ` (${diff30}, az elmúlt ${USUAL_PRECIP_YEARS_BACK} év ilyenkor átlagához képest)` : ""}`;
+  document.getElementById("stats-precip-24h").innerHTML =
+    sum24h === null ? "" : statsFigureHtml("24 óra", sum24h, null);
+  document.getElementById("stats-precip-7d").innerHTML =
+    statsFigureHtml("7 nap", sum7d, usual ? usual.usual7d : null);
+  document.getElementById("stats-precip-30d").innerHTML =
+    statsFigureHtml("30 nap", sum30d, usual ? usual.usual30d : null);
+  document.getElementById("stats-precip-note").textContent = usual
+    ? `A szokásos érték az elmúlt ${USUAL_PRECIP_YEARS_BACK} év ilyenkori átlaga.`
+    : "";
 
   const from = Math.max(0, todayIdx - 29);
-  renderSparkline(
-    document.getElementById("stats-precip-chart"),
-    stats.daily.time.slice(from, todayIdx + 1),
-    daily.slice(from, todayIdx + 1)
-  );
+  const dates = stats.daily.time.slice(from, todayIdx + 1);
+  renderSparkline(document.getElementById("stats-precip-chart"), dates, daily.slice(from, todayIdx + 1));
+  // Dátumok a tengelyen: az első, a középső és az utolsó nap.
+  const axis = document.getElementById("stats-precip-axis");
+  axis.innerHTML = dates.length
+    ? `<span>${formatStatsDate(dates[0])}</span><span>${formatStatsDate(dates[Math.floor(dates.length / 2)])}</span><span>${formatStatsDate(dates[dates.length - 1])}</span>`
+    : "";
 }
 
 // Kézzel épített, monokróm mini oszlopdiagram a radar-rajzoláshoz hasonló
@@ -1521,9 +1697,11 @@ function toggleSparklineTooltip(index, dateIso, mm, barCount) {
     hideSparklineTooltip();
     return;
   }
+  hideSparklineTooltip();
   openTooltipBarIndex = index;
+  const bars = document.getElementById("stats-precip-chart").querySelectorAll(".stats-bar");
+  if (bars[index]) bars[index].classList.add("stats-bar-active");
   const tooltip = document.getElementById("stats-precip-tooltip");
-  const wrap = document.getElementById("stats-precip-chart").parentElement;
   const leftPercent = ((index + 0.5) / barCount) * 100;
   tooltip.textContent = `${formatStatsDate(dateIso)}: ${formatMm(mm)} mm`;
   tooltip.style.left = `${leftPercent}%`;
@@ -1532,6 +1710,8 @@ function toggleSparklineTooltip(index, dateIso, mm, barCount) {
 
 function hideSparklineTooltip() {
   openTooltipBarIndex = null;
+  const chart = document.getElementById("stats-precip-chart");
+  if (chart) chart.querySelectorAll(".stats-bar-active").forEach(el => el.classList.remove("stats-bar-active"));
   const tooltip = document.getElementById("stats-precip-tooltip");
   if (tooltip) tooltip.hidden = true;
 }
@@ -1554,27 +1734,66 @@ function fillForecastStats(stats, todayIdx) {
       HU_WEEKDAYS[new Date(stats.daily.time[dayIdx]).getUTCDay()];
     const prob = stats.daily.precipitation_probability_max[dayIdx];
     const sum = stats.daily.precipitation_sum[dayIdx];
-    const probText = typeof prob === "number" ? `${Math.round(prob)}% eséllyel, ` : "";
+    const hasProb = typeof prob === "number";
     const li = document.createElement("li");
-    li.textContent = `${label}: ${probText}kb. ${formatMm(sum)} mm`;
+    li.innerHTML =
+      `<span class="stats-day-name">${label}</span>` +
+      `<span class="stats-day-bar" role="img" aria-label="${hasProb ? `${Math.round(prob)}% eséllyel` : "az esély nem ismert"}">` +
+      (hasProb ? `<i style="height:${Math.max(0, Math.min(100, prob))}%"></i>` : "") + `</span>` +
+      `<span class="stats-day-prob">${hasProb ? `${Math.round(prob)}%` : "?"}</span>` +
+      `<span class="stats-day-mm">kb. ${formatMm(sum)} mm</span>`;
     list.appendChild(li);
   }
 }
 
+// Mai és holnapi min-max egy közös hőmérséklet-skálán, a fagypont
+// (0 °C) jelölt vonalával. Az SVG szövegei 1 egység = ~1 képpont méretűek
+// (a kártya kb. 300 px széles), ezért a betűméret nem torzul.
+function renderTempBars(container, rows) {
+  const valid = rows.filter(r => typeof r.min === "number" && typeof r.max === "number");
+  if (!valid.length) {
+    container.innerHTML = "";
+    return;
+  }
+  const lo = Math.min(...valid.map(r => r.min)), hi = Math.max(...valid.map(r => r.max));
+  const showZero = lo <= 1 && hi >= -1;
+  const scaleLo = (showZero ? Math.min(lo, 0) : lo) - 1;
+  const scaleMax = (showZero ? Math.max(hi, 0) : hi) + 1;
+  const trackX0 = 62, trackX1 = 238, W = 300, rowH = 30, topPad = 14;
+  const H = topPad + valid.length * rowH + 4;
+  const xFor = t => trackX0 + ((t - scaleLo) / (scaleMax - scaleLo)) * (trackX1 - trackX0);
+  let body = "";
+  valid.forEach((r, i) => {
+    const y = topPad + i * rowH + rowH / 2;
+    const x0 = xFor(r.min), x1 = Math.max(xFor(r.max), x0 + 2);
+    body += `<text class="stats-svg-text" x="0" y="${(y + 4).toFixed(1)}">${r.label}</text>` +
+      `<line x1="${trackX0}" y1="${y}" x2="${trackX1}" y2="${y}" stroke="var(--border)" stroke-width="1"></line>` +
+      `<rect x="${x0.toFixed(1)}" y="${y - 4}" width="${(x1 - x0).toFixed(1)}" height="8" fill="var(--fg)"></rect>` +
+      `<text class="stats-svg-text stats-svg-text-strong" x="${(x0 - 5).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${formatC(r.min)}°</text>` +
+      `<text class="stats-svg-text stats-svg-text-strong" x="${(x1 + 5).toFixed(1)}" y="${(y + 4).toFixed(1)}">${formatC(r.max)}°</text>`;
+  });
+  let zero = "";
+  if (showZero) {
+    const zx = xFor(0);
+    zero = `<line x1="${zx.toFixed(1)}" y1="${topPad - 4}" x2="${zx.toFixed(1)}" y2="${H - 2}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="2 2"></line>` +
+      `<text class="stats-svg-text" x="${zx.toFixed(1)}" y="9" text-anchor="middle">0° fagypont</text>`;
+  }
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${valid.map(r => `${r.label}: ${formatC(r.min)} és ${formatC(r.max)} °C között`).join(", ")}">${zero}${body}</svg>`;
+}
+
 function fillTempStats(stats, todayIdx) {
   document.getElementById("stats-temp-now").textContent =
-    `Most: ${formatC(stats.current.temperature_2m)} °C`;
+    `${formatC(stats.current.temperature_2m)} °C`;
 
   const todayMin = stats.daily.temperature_2m_min[todayIdx];
   const todayMax = stats.daily.temperature_2m_max[todayIdx];
   const tomorrowIdx = todayIdx + 1;
   const tomorrowMin = stats.daily.temperature_2m_min[tomorrowIdx];
   const tomorrowMax = stats.daily.temperature_2m_max[tomorrowIdx];
-  const tomorrowText = tomorrowMax === undefined
-    ? ""
-    : `, holnap: ${formatC(tomorrowMin)}–${formatC(tomorrowMax)} °C`;
-  document.getElementById("stats-temp-minmax").textContent =
-    `Ma: ${formatC(todayMin)}–${formatC(todayMax)} °C${tomorrowText}`;
+  renderTempBars(document.getElementById("stats-temp-bars"), [
+    { label: "Ma", min: todayMin, max: todayMax },
+    { label: "Holnap", min: tomorrowMin, max: tomorrowMax },
+  ]);
 
   const frostToday = todayMin <= 0;
   const frostTomorrow = tomorrowMin !== undefined && tomorrowMin <= 0;
@@ -1591,6 +1810,32 @@ function fillTempStats(stats, todayIdx) {
   else if (frostTomorrow) notes.push("fagyveszély holnap éjjel");
   frostEl.hidden = notes.length === 0;
   frostEl.textContent = notes.join(", ");
+}
+
+// A talaj felső rétegének állapota egy 3 fokozatú skálán (száraz, nedves,
+// vizes - ugyanazok a határok, mint a SOIL_MOISTURE_BANDS), jelölővel. A
+// szakaszok szélessége a határokkal arányos (0, 0,15, 0,35, 0,5 m³/m³).
+function renderSoilScale(container, soil, trend) {
+  const W = 300, scaleMax = 0.5;
+  const segs = [
+    { from: 0, to: 0.15, label: "száraz" },
+    { from: 0.15, to: 0.35, label: "nedves" },
+    { from: 0.35, to: scaleMax, label: "vizes" },
+  ];
+  const xFor = v => (Math.max(0, Math.min(scaleMax, v)) / scaleMax) * W;
+  const current = soilMoistureLabel(soil);
+  const rects = segs.map(seg => {
+    const x = xFor(seg.from), w = xFor(seg.to) - x;
+    const active = seg.label === current;
+    return `<rect x="${x.toFixed(1)}" y="2" width="${w.toFixed(1)}" height="22" fill="${active ? "var(--fg)" : "none"}" stroke="var(--fg)" stroke-width="1"></rect>` +
+      `<text class="stats-svg-text" x="${(x + w / 2).toFixed(1)}" y="17" text-anchor="middle" style="fill:${active ? "var(--bg)" : "var(--muted)"}">${seg.label}</text>`;
+  }).join("");
+  const mx = xFor(soil);
+  const marker = `<path d="M${(mx - 5).toFixed(1)} 36 L${(mx + 5).toFixed(1)} 36 L${mx.toFixed(1)} 27 Z" fill="var(--fg)"></path>`;
+  const arrow = trend === "nő" ? " ↑" : trend === "csökken" ? " ↓" : trend ? " →" : "";
+  container.className = "stats-scale";
+  container.innerHTML = `<svg viewBox="-1 0 ${W + 2} 40" role="img" aria-label="a talaj felső rétege most ${current}${trend ? `, ${trend}` : ""}">${rects}${marker}</svg>` +
+    `<p class="stats-line">A talaj felső rétege most ${current}${trend ? `, ${trend}${arrow}` : ""}</p>`;
 }
 
 // A folyó-vízhozamot csak akkor mutatjuk, ha a flood-api által visszaadott
@@ -1611,10 +1856,10 @@ function fillWaterStats(stats, flood, point) {
     let trend = "";
     if (typeof prevSoil === "number") {
       const delta = soil - prevSoil;
-      trend = delta > 0.02 ? ", nő" : delta < -0.02 ? ", csökken" : ", stabil";
+      trend = delta > 0.02 ? "nő" : delta < -0.02 ? "csökken" : "stabil";
     }
     soilEl.hidden = false;
-    soilEl.textContent = `A talaj felső rétege most ${soilMoistureLabel(soil)}${trend}`;
+    renderSoilScale(soilEl, soil, trend);
   }
 
   const riverEl = document.getElementById("stats-water-river");
@@ -1719,8 +1964,32 @@ function cancelReveal() {
 function resetStatsPanel() {
   const panel = document.getElementById("stats-panel");
   panel.hidden = true;
-  panel.open = false;
+  setStatsOpen(false);
   hideSparklineTooltip();
+}
+
+// A panel alapból NYITVA van, amint a radar végzett (UX-terv 2.4); ha a
+// felhasználó összecsukja, azt megjegyezzük, és legközelebb csukva marad.
+// A "toggle" esemény a programozott nyitásra/zárásra is lefut - ezeket nem
+// szabad a felhasználó döntéseként elmenteni, ezért megjegyezzük, melyik
+// állapotot állítottuk be mi. (Számláló helyett érték: a böngésző két gyors
+// váltásból egyetlen toggle eseményt küld, a számláló elcsúszna.)
+const STATS_COLLAPSED_KEY = "holazeso_stats_collapsed";
+let statsProgrammaticState = null;
+
+function setStatsOpen(open) {
+  const panel = document.getElementById("stats-panel");
+  if (panel.open === open) return;
+  statsProgrammaticState = open;
+  panel.open = open;
+}
+
+function statsCollapsedByUser() {
+  try {
+    return localStorage.getItem(STATS_COLLAPSED_KEY) === "1";
+  } catch (err) {
+    return false;
+  }
 }
 
 function beginSearchUI() {
@@ -1741,6 +2010,7 @@ function beginSearchUI() {
   document.getElementById("radar-image").removeAttribute("href");
   loadBorders();     // lusta betöltés, a választ sosem várakoztatja
   loadWaterGeo();    // ugyanúgy lusta, ugyanúgy nem várakoztat
+  loadPlaces();      // a radar városfeliratai, ugyanígy
   // A radarkép 10 percenként frissül, ezért keresésenként újrakérjük a
   // katalógust. Ha nem jön meg, a radar egyszerűen kép nélkül működik tovább.
   radarFrameLoading = null;
@@ -1765,12 +2035,19 @@ function revealPhase(phase, delayMs) {
         // jelennek meg. A radarkép hálózatról jön, ezért nem várjuk meg.
         radarEnsureMinRadius();
         bordersVisible = true;
+        radarBaseRadiusKm = radarMaxRadiusKm;
+        radarZoomLevel = 0;
+        updateRadarScale();
+        updateRadarZoomButtons();
         radarDrawBorders();
         radarDrawWaterGeo();
+        loadPlaces().then(() => { if (bordersVisible) radarDrawPlaces(); });
         drawRadarImage().catch(err => console.error(err));
         // A statisztika-panel is csak most, hogy a radar véglegesen betöltött:
-        // zárva marad (a felhasználó nyitja ki), csak a láthatósága nyílik meg.
+        // megjelenik, és nyitva van, hacsak a felhasználó korábban össze nem
+        // csukta (ezt megjegyezzük, ld. STATS_COLLAPSED_KEY).
         document.getElementById("stats-panel").hidden = false;
+        setStatsOpen(!statsCollapsedByUser());
         // A vízadat-panel viszont NEM gombra nyílik: a radar után rögtön
         // megjelenik, nyitva, mert a felhasználó szerint ez folytatja az
         // oldalt, nem egy elrejtendő mellékes részlet.
@@ -1996,7 +2273,11 @@ function urlBase64ToUint8Array(base64String) {
 function updateNotifyButton() {
   const btn = document.getElementById("notify-toggle");
   const enabled = localStorage.getItem("holazeso_notify_enabled") === "1";
-  btn.textContent = enabled ? "értesítés kikapcsolása" : "értesíts, ha esni kezd";
+  const label = enabled ? "értesítés kikapcsolása" : "értesíts, ha esni kezd";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  btn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  btn.classList.toggle("icon-btn-on", enabled);
 }
 
 async function enableNotifications(userLoc) {
@@ -2098,19 +2379,26 @@ document.getElementById("share-location").addEventListener("click", async () => 
   });
   if (currentLoc.countryCode) params.set("cc", currentLoc.countryCode);
   const url = `${location.origin}${location.pathname}?${params.toString()}`;
-  const btn = document.getElementById("share-location");
-  const prevText = btn.textContent;
+  const confirmEl = document.getElementById("share-confirm");
   try {
     await navigator.clipboard.writeText(url);
-    btn.textContent = "link a vágólapon!";
+    confirmEl.textContent = "link másolva";
   } catch (err) {
     console.error(err);
     alert(`Nem sikerült a vágólapra másolni, másold ki kézzel: ${url}`);
   }
-  setTimeout(() => { btn.textContent = prevText; }, 3000);
+  setTimeout(() => { confirmEl.textContent = ""; }, 3000);
 });
 
 document.getElementById("stats-panel").addEventListener("toggle", (event) => {
+  if (statsProgrammaticState !== null && event.target.open === statsProgrammaticState) {
+    statsProgrammaticState = null;
+  } else {
+    statsProgrammaticState = null;
+    try {
+      localStorage.setItem(STATS_COLLAPSED_KEY, event.target.open ? "0" : "1");
+    } catch (err) { /* privát mód: a döntést nem tudjuk megjegyezni, nem baj */ }
+  }
   if (event.target.open && currentLoc) buildStatsPanel(currentLoc);
 });
 // A water-panel már nem <details>, nincs toggle esemény: megjelenését és
@@ -2152,29 +2440,19 @@ const WATER_DEPTH_BANDS = [[0, 1, 0.01], [1, 3, 0.02], [3, 9, 0.06], [9, 27, 0.1
 // Az EGYETLEN Balaton-ikon path (a design-canvasból), amit minden
 // Balaton-ábra használ: a waterBalatonTilesSvg (vízmérleg "hány Balaton"),
 // a renderBalatonStack (talajvíz-rétegek) apró csempeként, és a
-// renderBalatonFill (tavak) felskálázva, mint a nagy tó-alak.
+// renderLakeCards (tavak) a Balaton-kártya körvonalaként.
 const BALATON_TILE_ICON_PATH = "M47.3 21.7 L45.5 23.5 L24 32.7 L22.7 33.7 L21.6 35.1 L18.5 37.4 L17.2 38 L14 38.3 L8 37.2 L4.7 37.1 L2.1 38 L0.8 37.9 L0 36.4 L1.1 32.4 L4.2 32.3 L7.4 33.4 L8.9 33 L9.4 31.5 L10.5 30.2 L12 29.1 L13.3 28.7 L16.2 29 L17.6 29.4 L18.9 30.3 L22.8 27.4 L24.9 26.2 L28.9 25.6 L29.8 25.1 L31.3 22.8 L32.3 21.5 L33.1 21.1 L34.1 20.9 L43.6 17.1 L44.9 15.5 L45.4 15.8 L48 18.1 L49.1 18.2 L49.8 17 L49.3 15.5 L48.2 14.3 L47 13.6 L47 12.9 L54.5 8.6 L56.9 6.8 L57.9 5.6 L59 4 L59.8 2.2 L60.1 0.4 L60.8 0 L62.4 0.3 L65.8 1.5 L67.1 2.3 L68.8 3.6 L70.1 5.2 L70.1 6.4 L69 8.3 L67.6 11.6 L66.3 12.9 L63.2 14.7 L52.6 18.4 L52.1 18.5 L51.1 18.2 L50.7 18.7 L49.6 20.4 L47.3 21.7Z";
 
-// A nagy tó-feltöltés ábra (renderBalatonFill) KORÁBBAN egy külön, részletes
-// (Natural Earth-ből vágott) körvonalat használt - ez a design-canvastól
-// eltérő, erősen átlós kontúr volt, aminek vízszintes "vízszint-vágása"
-// (clipPath) a tó jobb/északi végét teljesen üresen hagyta még magas
-// vízállásnál is ("a Balaton vízszintje furcsán néz ki" - felhasználói
-// visszajelzés, élő screenshoton ellenőrizve). A design-canvas maga a kis,
-// egyszerűsített ikon-körvonalat (BALATON_TILE_ICON_PATH) skálázza fel a
-// nagy ábrához is (translate(7,2) scale(5.5) egy 400x228-as rajzterületen) -
-// ugyanezt tesszük itt, csak a mi 640-es rajzterületünkre igazítva.
-const BALATON_FILL_TRANSFORM = "translate(130,150) scale(5.1)";
-const BALATON_BBOX = { x: 130, y: 150, width: 357.5, height: 195.3 };
-// A tó hossztengelye átlósan dől (DNy-ÉK), nem vízszintes - egy sima
+// A Balaton hossztengelye átlósan dől (DNy-ÉK), nem vízszintes - egy sima
 // vízszintes vágás ezért a tó ÉK-i végét MINDIG üresen hagyná, bármekkora
 // a vízszint (élő screenshoton ellenőrizve: "Balaton vízszintje furcsán
-// néz ki"). A feltöltő téglalapot ezért a tó dőlésszögével forgatjuk el,
-// hogy a vízszint-vonal a hossztengelyre MERŐLEGESEN haladjon végig a
-// tavon, a DNy-i végtől (Keszthely) az ÉK-i végig (Siófok/Balatonkenese).
+// néz ki"). A tó-kártya (renderLakeCards) feltöltő téglalapját ezért a tó
+// dőlésszögével forgatjuk el, hogy a vízszint-vonal a hossztengelyre
+// MERŐLEGESEN haladjon végig a tavon. Az értékek a BALATON_TILE_ICON_PATH
+// saját koordinátáiban vannak (az ikon kb. 70 x 38 egység).
 const BALATON_TILT_DEG = 66;
-const BALATON_TILT_PIVOT = { x: 308.8, y: 256.1 };
-const BALATON_TILT_HALF_SPAN = 196;
+const BALATON_TILT_PIVOT = { x: 35.06, y: 20.8 };
+const BALATON_TILT_HALF_SPAN = 38.4;
 
 // Kis, azonos-léptékű körvonalak (ugyanabból a design-canvasból) a "többi
 // nagy tó" összevető ábrájához: Balaton, Fertő, Tisza-tó, egy 400x140-es
@@ -2183,6 +2461,31 @@ const LAKE_COMPARE_PATHS = {
   balaton: { d: "M142 65.2 L136.5 70.4 L72 98.1 L68.2 101.2 L64.8 105.2 L55.4 112.1 L51.7 113.9 L41.9 114.9 L24.1 111.5 L14.2 111.3 L6.2 114 L2.4 113.6 L0 109.1 L3.4 97.1 L12.6 96.9 L22.2 100.3 L26.7 98.9 L28.1 94.5 L31.6 90.5 L35.9 87.4 L40 86.2 L48.6 86.9 L52.8 88.3 L56.6 90.9 L68.3 82.1 L74.8 78.7 L86.8 76.9 L89.4 75.4 L93.9 68.4 L96.8 64.6 L99.3 63.2 L102.2 62.7 L130.9 51.2 L134.7 46.6 L136.2 47.5 L143.9 54.2 L147.2 54.7 L149.3 50.9 L147.8 46.5 L144.5 42.8 L140.9 40.9 L140.9 38.7 L163.6 25.9 L170.7 20.3 L173.8 16.7 L176.9 11.9 L179.4 6.5 L180.2 1.2 L182.4 0 L187.3 0.9 L197.3 4.5 L201.4 6.9 L206.4 10.9 L210.2 15.5 L210.4 19.3 L207.1 24.9 L202.8 34.7 L198.9 38.7 L189.6 44.1 L157.8 55.2 L156.2 55.4 L153.4 54.7 L152.1 56.1 L148.8 61.3 L142 65.2Z", transform: "" },
   ferto: { d: "M24.6 31.9 L17.6 43.9 L13.9 51.7 L12.5 55.4 L10.5 65.6 L11.4 74.7 L16 74.5 L20.5 72.5 L24.8 77.1 L26 82.4 L24.7 85.7 L23.2 87.2 L20.2 84.5 L17.3 83.8 L12.1 81.7 L8.8 73.4 L6.1 65.8 L3.3 64.6 L3.7 70.3 L2.4 74.2 L0 70.2 L1 64.1 L3.8 61.9 L4.6 59.6 L2.8 57.2 L2.6 49.1 L5.2 39.5 L7.6 33.2 L8.6 23.3 L9.7 17.5 L12.7 11.4 L18.4 4.8 L26.2 1.6 L32.9 0 L36 2.4 L35.7 9.6 L33.4 18.6 L29.9 25.1 L27.9 27.9 L24.6 31.9Z", transform: "translate(250,10)" },
   tiszato: { d: "M0 25.5 L3.9 13.1 L7.6 5.2 L10.2 2.9 L14.7 0.1 L19.6 0 L20.6 4.1 L20.7 7.1 L18 11.4 L14.7 15.7 L11.9 20.8 L8.6 25 L2.1 27.4 L0 25.5Z", transform: "translate(330,70)" },
+};
+
+// A Velencei-tó körvonala EGYSZERŰSÍTETT, kézzel megrajzolt séma (a
+// water-geo.json-ban csak a Balaton van meg): a tó nyugat-keleti, kb. 10 x 2
+// km-es, ez a tó-kártya "alakja". Nem pontos partvonal, csak a kártyák
+// egységes megjelenéséhez kell; az arányokat a valódi hossz/szélesség adja.
+function velenceiOutlinePath() {
+  const pts = [
+    [18.535, 47.214], [18.55, 47.206], [18.57, 47.200], [18.59, 47.197], [18.61, 47.199],
+    [18.63, 47.206], [18.652, 47.218], [18.664, 47.230], [18.652, 47.234], [18.63, 47.230],
+    [18.61, 47.230], [18.585, 47.226], [18.565, 47.222], [18.545, 47.222], [18.532, 47.219],
+  ];
+  const lonKm = Math.cos(47.21 * Math.PI / 180) * 111;
+  const kmToUnits = 6;
+  return pts.map(([lon, lat], i) => {
+    const x = (lon - 18.53) * lonKm * kmToUnits;
+    const y = (47.24 - lat) * 111 * kmToUnits * 0.55; // keskenyebb, mint a térképi arány: séma
+    return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ") + "Z";
+}
+
+const LAKE_CARD_PATHS = {
+  balaton: BALATON_TILE_ICON_PATH,
+  ferto: LAKE_COMPARE_PATHS.ferto.d,
+  velencei: velenceiOutlinePath(),
 };
 
 function waterNum(n, maxDecimals = 1) {
@@ -2427,8 +2730,108 @@ function waterLakeMarker(x, y) {
   return `<path d="M${x.toFixed(1)} ${(y - r).toFixed(1)} L${(x + r).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + r).toFixed(1)} L${(x - r).toFixed(1)} ${y.toFixed(1)} Z" fill="var(--fg)"></path>`;
 }
 
+// ---- Közös térkép-buborék ----
+//
+// Egyetlen buborék-komponens a talajtérképhez, a folyóhálózathoz és a
+// csatorna-térképhez (UX-terv "Tooltips"): ugyanaz a fordított (fg/bg),
+// monokróm doboz, törzsszöveg-méretű betűvel. A buborék a .water-figure
+// ELSŐ szintű gyermeke, a figure pedig pontosan akkora, mint az svg (a
+// szélesség-korlátot a figure kapja, ld. style.css), ezért a pozíció
+// egyszerűen a figure bal-felső sarkához mért pixel.
+function mapPopupShow(popupEl, clientX, clientY, html) {
+  const figure = popupEl.parentElement;
+  const rect = figure.getBoundingClientRect();
+  popupEl.innerHTML = html;
+  popupEl.hidden = false;
+  const w = popupEl.offsetWidth, h = popupEl.offsetHeight;
+  const x = Math.min(Math.max(clientX - rect.left, w / 2), Math.max(rect.width - w / 2, w / 2));
+  const y = clientY - rect.top;
+  // Felül nincs hely: a kurzor ALÁ kerül, nem kilóg a térkép tetején.
+  const below = y - h - 12 < 0;
+  popupEl.style.left = `${x}px`;
+  popupEl.style.top = `${y}px`;
+  popupEl.style.transform = below ? "translate(-50%, 12px)" : "translate(-50%, calc(-100% - 12px))";
+}
+
+function mapPopupHide(popupEl) {
+  if (popupEl) popupEl.hidden = true;
+}
+
+// Mini vonaldiagram a buborékba: values egy számsor, a forecastFrom-tól
+// kezdve szaggatott (előrejelzés). Szín helyett currentColor, hogy a
+// fordított buborékban is olvasható maradjon.
+function popupSparklineSvg(values, forecastFrom = null) {
+  if (!Array.isArray(values) || values.length < 2) return "";
+  const W = 160, H = 36, pad = 3;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = Math.max(max - min, 1e-9);
+  const xFor = i => pad + (i / (values.length - 1)) * (W - 2 * pad);
+  const yFor = v => pad + (H - 2 * pad) - ((v - min) / span) * (H - 2 * pad);
+  const pts = values.map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const split = forecastFrom === null ? values.length : Math.max(1, Math.min(values.length, forecastFrom + 1));
+  let svg = `<svg class="water-popup-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
+  svg += `<polyline points="${pts.slice(0, split).join(" ")}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></polyline>`;
+  if (forecastFrom !== null && split < values.length) {
+    svg += `<polyline points="${pts.slice(split - 1).join(" ")}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" stroke-linejoin="round"></polyline>`;
+  }
+  const nowIdx = forecastFrom === null ? values.length - 1 : forecastFrom;
+  svg += `<circle cx="${xFor(nowIdx).toFixed(1)}" cy="${yFor(values[nowIdx]).toFixed(1)}" r="2.5" fill="currentColor"></circle></svg>`;
+  return svg;
+}
+
+// ---- Közös helynévlista (places-hu.json) és megyehatárok ----
+//
+// Statikus fájlok, egyszer töltődnek be, a böngésző gyorsítótárazza őket
+// (mint a borders.json). A hibájuk sosem buktat el semmit: üres lista marad,
+// és a térképek egyszerűen felirat nélkül rajzolódnak.
+const PLACES_URL = "places-hu.json?v=1";
+const COUNTIES_URL = "counties-hu.json?v=1";
+let placesList = [];
+let placesLoading = null;
+let countyRings = [];
+let countiesLoading = null;
+
+function loadPlaces() {
+  if (placesLoading) return placesLoading;
+  placesLoading = fetch(PLACES_URL)
+    .then(res => res.json())
+    .then(list => { placesList = list; })
+    .catch(err => { console.error(err); placesList = []; });
+  return placesLoading;
+}
+
+function loadCounties() {
+  if (countiesLoading) return countiesLoading;
+  countiesLoading = fetch(COUNTIES_URL)
+    .then(res => res.json())
+    .then(data => { countyRings = data.rings || []; })
+    .catch(err => { console.error(err); countyRings = []; });
+  return countiesLoading;
+}
+
+// A cella nevét a területére eső legnagyobb település adja (rang szerint,
+// aztán a középponthoz közelebbi), ha egyik sem esik bele, a legközelebbi.
+function nearestPlaceName(lat, lon, halfLat, halfLon) {
+  if (!placesList.length) return null;
+  const lonScale = Math.cos(lat * Math.PI / 180);
+  let best = null, bestScore = Infinity;
+  for (const p of placesList) {
+    const dLat = p.lat - lat, dLon = (p.lon - lon) * lonScale;
+    const dist = Math.hypot(dLat, dLon);
+    const inside = Math.abs(p.lat - lat) <= halfLat && Math.abs(p.lon - lon) <= halfLon;
+    const score = (inside ? 0 : 100) + (inside ? p.r * 10 + dist : dist);
+    if (score < bestScore) { bestScore = score; best = p; }
+  }
+  return best ? best.n : null;
+}
+
 function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStations, highlightLoc, waterGeo) {
-  const cells = soilSnapshot.points.filter(p => p.in_hungary);
+  // A Balaton fölötti cellára az Open-Meteo nem ad talajt, a gyűjtő 0 literrel
+  // tárolja. Az ilyen cella nincs-adat: nem számít bele a min/max-ba, a
+  // színskálába, és nem festődik a "legszárazabbnak" - a raszterben a
+  // legközelebbi VALÓDI cella értékét kapja (ld. valueAt).
+  const allCells = soilSnapshot.points.filter(p => p.in_hungary);
+  const cells = allCells.filter(p => p.liters_total > 0);
   if (!cells.length) {
     svgEl.innerHTML = "";
     legendEl.textContent = "a dombormű-adat jelenleg nem érhető el";
@@ -2436,7 +2839,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   }
 
   const step = soilSnapshot.grid_step_deg;
-  const lats = cells.map(p => p.lat), lons = cells.map(p => p.lon);
+  const lats = allCells.map(p => p.lat), lons = allCells.map(p => p.lon);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLon = Math.min(...lons);
   const toRowCol = (lat, lon) => ({ row: (maxLat - lat) / step, col: (lon - minLon) / step });
 
@@ -2444,9 +2847,18 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   const minL = Math.min(...litersValues), maxL = Math.max(...litersValues);
   const fracFor = liters => (maxL <= minL ? 0.5 : (liters - minL) / (maxL - minL));
 
-  const rowsAll = cells.map(p => toRowCol(p.lat, p.lon).row);
-  const colsAll = cells.map(p => toRowCol(p.lat, p.lon).col);
+  const rowsAll = allCells.map(p => toRowCol(p.lat, p.lon).row);
+  const colsAll = allCells.map(p => toRowCol(p.lat, p.lon).col);
   const maxRow = Math.max(...rowsAll), maxCol = Math.max(...colsAll);
+
+  // A raszter minden oldalon egy cellával túlnyúlik a mintapontok
+  // befoglalóján: az igazi országhatár (északkeleti csúcs, déli perem) akár
+  // fél cellányira is kilép a befoglaló téglalapból, és az ott lévő vágó-
+  // alakzat mögött nem lenne semmi. A kinti értékeket a valueAt a legközelebbi
+  // valódi cellából extrapolálja, tehát csak a vászon és a kép origója változik.
+  const PAD = 1;
+  const gridRows = maxRow + 1 + 2 * PAD;
+  const gridCols = maxCol + 1 + 2 * PAD;
 
   // lonFactor: egy hosszúsági fok valódi távolsága a szélességi fokhoz
   // képest, a rács középső szélességi fokán (cos) - ld. a szakasz-fejkomment.
@@ -2454,17 +2866,23 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   // torzítás nélkül; a másik irányban üres margó marad, nem nyúlik szét.
   const midLatRad = (minLat + maxLat) / 2 * Math.PI / 180;
   const lonFactor = Math.cos(midLatRad);
-  const MARGIN_X = 20, MARGIN_TOP = 40, MARGIN_BOTTOM = 20;
-  const availableW = 640 - 2 * MARGIN_X;
-  const availableH = 400 - MARGIN_TOP - MARGIN_BOTTOM;
-  const cellH = Math.min(availableH / (maxRow + 1), availableW / ((maxCol + 1) * lonFactor));
-  const cellW = cellH * lonFactor;
-  const gridPixelWidth = (maxCol + 1) * cellW;
-  const gridPixelHeight = (maxRow + 1) * cellH;
-  const originX = Math.max(MARGIN_X, (640 - gridPixelWidth) / 2);
-  const originY = MARGIN_TOP;
+  // A viewBox magassága a rács alakjához igazodik (nincs üres sáv a térkép
+  // alatt/fölött); az ábra képarányát (--ar) a figure is megkapja, hogy a
+  // magasság-korlát (70vh) a valódi arányból számolódjon.
+  const VB_W = 640;
+  const MARGIN = 10;
+  const cellW = (VB_W - 2 * MARGIN) / gridCols;
+  const cellH = cellW / lonFactor;
+  const gridPixelWidth = gridCols * cellW;
+  const gridPixelHeight = gridRows * cellH;
+  const VB_H = Math.round(gridPixelHeight + 2 * MARGIN);
+  const originX = MARGIN;
+  const originY = MARGIN;
+  svgEl.setAttribute("viewBox", `0 0 ${VB_W} ${VB_H}`);
+  if (svgEl.parentElement) svgEl.parentElement.style.setProperty("--ar", (VB_W / VB_H).toFixed(3));
 
-  const projectRowCol = (row, col) => ({ x: originX + col * cellW, y: originY + row * cellH });
+  // (row, col) = a minta-rács koordinátája; a PAD-nyi ráhagyás beleszámítva.
+  const projectRowCol = (row, col) => ({ x: originX + (col + PAD) * cellW, y: originY + (row + PAD) * cellH });
   const projectLatLon = (lat, lon) => {
     const { row, col } = toRowCol(lat, lon);
     const p = projectRowCol(row, col);
@@ -2509,23 +2927,24 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   // nem a mintarács hiányos szélei. Ezért egy hiányzó rács-pontot a hozzá
   // legközelebbi VALÓDI mintapont értékével helyettesítünk (legközelebbi
   // szomszéd extrapoláció), nem hagyjuk üresen.
-  const cellRowCols = cells.map(cell => ({ ...toRowCol(cell.lat, cell.lon), liters: cell.liters_total }));
-  const valueGrid = new Map();
-  for (const c of cellRowCols) valueGrid.set(`${Math.round(c.row)},${Math.round(c.col)}`, c.liters);
+  const cellRowCols = cells.map(cell => ({ ...toRowCol(cell.lat, cell.lon), cell }));
+  const cellGrid = new Map();
+  for (const c of cellRowCols) cellGrid.set(`${Math.round(c.row)},${Math.round(c.col)}`, c);
   const nearestCache = new Map();
-  const valueAt = (r, c) => {
+  const nearestRealAt = (r, c) => {
     const key = `${r},${c}`;
-    const exact = valueGrid.get(key);
-    if (exact !== undefined) return exact;
+    const exact = cellGrid.get(key);
+    if (exact) return exact;
     if (nearestCache.has(key)) return nearestCache.get(key);
     let best = cellRowCols[0], bestDist = Infinity;
     for (const cand of cellRowCols) {
       const d = (cand.row - r) ** 2 + (cand.col - c) ** 2;
       if (d < bestDist) { bestDist = d; best = cand; }
     }
-    nearestCache.set(key, best.liters);
-    return best.liters;
+    nearestCache.set(key, best);
+    return best;
   };
+  const valueAt = (r, c) => nearestRealAt(r, c).cell.liters_total;
 
   const canvasW = Math.max(1, Math.round(gridPixelWidth));
   const canvasH = Math.max(1, Math.round(gridPixelHeight));
@@ -2537,10 +2956,10 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   const tierStops = [0, 1, 2, 3, 4].map(i => cssVarRgb(`--t${i}`));
 
   for (let y = 0; y < canvasH; y++) {
-    const rowF = y / cellH - 0.5;
+    const rowF = y / cellH - PAD - 0.5;
     const r0 = Math.floor(rowF), r1 = r0 + 1, ty = rowF - r0;
     for (let x = 0; x < canvasW; x++) {
-      const colF = x / cellW - 0.5;
+      const colF = x / cellW - PAD - 0.5;
       const c0 = Math.floor(colF), c1 = c0 + 1, tx = colF - c0;
       const value =
         valueAt(r0, c0) * (1 - ty) * (1 - tx) +
@@ -2590,73 +3009,193 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     if (lakeD) geoMarkup += `<path class="water-map-lake" d="${lakeD}"></path>`;
   }
 
+  // Mérő-jelölők: billentyűzettel is elérhetők (tabindex + aria-label), a
+  // buborék (ld. lent) rámutatásra, koppintásra ÉS fókuszra is megnyílik.
+  const markerIcons = [];
   let markersMarkup = "";
-  for (const station of riverStations) {
+  const addMarker = (station, kind) => {
     const { x, y } = projectLatLon(station.lat, station.lon);
-    markersMarkup += waterRiverMarker(x, y);
-  }
+    const label = kind === "river"
+      ? `${station.river}, ${station.name}: ${waterNum(station.level_cm, 0)} cm`
+      : `${station.lake}, ${station.station}: ${waterNum(station.level_cm, 0)} cm`;
+    markerIcons.push({ title: kind === "river" ? `${station.river} · ${station.name}` : `${station.lake} · ${station.station}`, level: station.level_cm });
+    markersMarkup += `<g class="water-marker" tabindex="0" role="img" data-marker="${markerIcons.length - 1}" aria-label="${label}">` +
+      `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"></circle>` +
+      (kind === "river" ? waterRiverMarker(x, y) : waterLakeMarker(x, y)) + `</g>`;
+  };
+  for (const station of riverStations) addMarker(station, "river");
   for (const station of lakeStations) {
     if (station.station === "Balaton average") continue; // a 3 mérce elég, az átlag külön szekcióban van
-    const { x, y } = projectLatLon(station.lat, station.lon);
-    markersMarkup += waterLakeMarker(x, y);
+    addMarker(station, "lake");
   }
 
+  // A keresett hely kettős gyűrűvel; a neve a felirat-rétegben.
+  let hereXY = null;
   if (highlightLoc) {
-    const { x, y } = projectLatLon(highlightLoc.lat, highlightLoc.lon);
-    markersMarkup += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle>`;
+    hereXY = projectLatLon(highlightLoc.lat, highlightLoc.lon);
+    markersMarkup += `<g class="water-here" role="img" aria-label="${highlightLoc.name || "a keresett helyszín"}">` +
+      `<circle cx="${hereXY.x.toFixed(1)}" cy="${hereXY.y.toFixed(1)}" r="3" fill="var(--fg)"></circle>` +
+      `<circle cx="${hereXY.x.toFixed(1)}" cy="${hereXY.y.toFixed(1)}" r="6.5" fill="none" stroke="var(--fg)" stroke-width="1.5"></circle></g>`;
   }
 
-  svgEl.innerHTML = `<defs>${clipMarkup}</defs>${cellsMarkup}${borderMarkup}${geoMarkup}${markersMarkup}`;
+  // Feliratok: a három víz és néhány nagyváros, hogy a térkép a határ alakját
+  // ismerők nélkül is olvasható legyen. A keresett hely neve ugyanilyen stílusú.
+  let labelsMarkup = "";
+  const addWaterLabel = (text, lat, lon, anchor = "start") => {
+    const { x, y } = projectLatLon(lat, lon);
+    labelsMarkup += `<text class="water-map-label water-map-label-water" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}">${text}</text>`;
+  };
+  addWaterLabel("Duna", 46.45, 18.98);
+  addWaterLabel("Tisza", 46.62, 20.25);
+  addWaterLabel("Balaton", 46.76, 17.65, "middle");
+  const hereName = highlightLoc && highlightLoc.name;
+  const labelledPlaces = [];
+  for (const name of ["Budapest", "Debrecen", "Szeged", "Miskolc", "Pécs", "Győr", "Nyíregyháza", "Szombathely"]) {
+    const place = placesList.find(p => p.n === name);
+    if (!place || name === hereName) continue;
+    const { x, y } = projectLatLon(place.lat, place.lon);
+    if (hereXY && Math.hypot(x - hereXY.x, y - hereXY.y) < 40) continue;
+    const anchor = x > VB_W - 170 ? "end" : "start";
+    const dx = anchor === "end" ? -6 : 6;
+    const minor = ["Miskolc", "Nyíregyháza", "Szombathely", "Győr"].includes(name) ? ` class="water-map-label-minor"` : "";
+    labelledPlaces.push(`<g${minor}><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="var(--fg)"></circle>` +
+      `<text class="water-map-label" x="${(x + dx).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anchor}">${name}</text></g>`);
+  }
+  labelsMarkup += labelledPlaces.join("");
+  if (hereXY && hereName) {
+    const anchor = hereXY.x > VB_W - 170 ? "end" : "start";
+    labelsMarkup += `<text class="water-map-label water-map-label-here" x="${(hereXY.x + (anchor === "end" ? -11 : 11)).toFixed(1)}" y="${(hereXY.y + 4).toFixed(1)}" text-anchor="${anchor}">${hereName}</text>`;
+  }
 
-  // Egérrel rámutatva a leolvasott érték buborékban - a raszter <image>-re
-  // kötve (NEM a teljes svg-re), mert a clip-path a találat-tesztelést is
-  // levágja az ország valódi körvonalára, tehát a buborék magától eltűnik,
-  // amint a kurzor kilép az országhatáron. Ugyanazt a bilineáris
-  // interpolációt futtatjuk le a kurzor pontjában, mint ami a raszter
-  // minden képpontját kiszínezte, hogy a kiírt szám pontosan illeszkedjen
-  // ahhoz, amit a térkép épp ott mutat.
+  svgEl.innerHTML = `<defs>${clipMarkup}</defs>${cellsMarkup}<g id="water-relief-cellbox"></g>${borderMarkup}${geoMarkup}${labelsMarkup}${markersMarkup}`;
+  svgEl.setAttribute("role", "group");
+  svgEl.setAttribute("aria-label", "Magyarország talajnedvesség-térképe, a mérőállomások egyenként elérhetők");
+
+  // --- Rámutatás / koppintás: a cella körvonala + buborék. A talajcellákra a
+  // raszter <image>-én át lehet rámutatni (a clip-path a találat-tesztelést
+  // is levágja az ország körvonalára, tehát a buborék magától eltűnik a
+  // határon kívül). Egér: rámutatás; érintés: koppintás rögzíti, máshová
+  // koppintva (vagy Escape) bezáródik. A cella adata a saját, MINTAVÉTELI
+  // négyzetére vonatkozik (a sima raszter csak a megjelenítés), ezért a
+  // négyzet körvonala is látszik.
   const imageEl = svgEl.querySelector("image");
-  const tooltipEl = document.getElementById("water-map-tooltip");
-  if (imageEl && tooltipEl) {
-    const showReadingAt = event => {
-      const rect = svgEl.getBoundingClientRect();
-      const svgX = (event.clientX - rect.left) * (640 / rect.width);
-      const svgY = (event.clientY - rect.top) * (400 / rect.height);
-      const rowF = (svgY - originY) / cellH - 0.5;
-      const colF = (svgX - originX) / cellW - 0.5;
-      const r0 = Math.floor(rowF), r1 = r0 + 1, ty = rowF - r0;
-      const c0 = Math.floor(colF), c1 = c0 + 1, tx = colF - c0;
-      const value =
-        valueAt(r0, c0) * (1 - ty) * (1 - tx) +
-        valueAt(r0, c1) * (1 - ty) * tx +
-        valueAt(r1, c0) * ty * (1 - tx) +
-        valueAt(r1, c1) * ty * tx;
-      tooltipEl.textContent = `${waterNum(value / 1e9, 1)} milliárd liter`;
-      tooltipEl.style.left = `${(svgX / 640) * 100}%`;
-      tooltipEl.style.top = `${(svgY / 400) * 100}%`;
-      tooltipEl.hidden = false;
-    };
-    imageEl.addEventListener("mousemove", showReadingAt);
-    imageEl.addEventListener("mouseleave", () => { tooltipEl.hidden = true; });
+  const popupEl = document.getElementById("water-map-tooltip");
+  const boxEl = svgEl.querySelector("#water-relief-cellbox");
+  const halfLat = step / 2, halfLon = step / 2;
+  const nameCache = new Map();
+  const cellName = cell => {
+    if (!nameCache.has(cell)) nameCache.set(cell, nearestPlaceName(cell.lat, cell.lon, halfLat, halfLon));
+    return nameCache.get(cell);
+  };
+
+  // A buborék-szöveg külön függvényben, hogy a későbbi idősor (cell.history:
+  // napi átlag-nedvességek, 0-1) egyetlen helyen kapcsolódhasson be - a
+  // gyűjtő most még nem tárol cellánkénti történetet, ezért ma nincs vonal.
+  const cellPopupHtml = cell => {
+    const name = cellName(cell);
+    const title = name ? `${name} környéke` : "mintaterület";
+    const avg = Math.round(waterWeightedAvg(cell.moisture_by_depth) * 100);
+    const history = Array.isArray(cell.history) ? cell.history : null;
+    return `<strong>${title}</strong><span>${waterNum(cell.liters_total / 1e9, 0)} milliárd liter</span><span>átlagosan ${avg}% víztartalom</span>${history ? popupSparklineSvg(history) : ""}`;
+  };
+
+  let pinnedCell = false;
+  const showCellAt = (event, pin) => {
+    const rect = svgEl.getBoundingClientRect();
+    const svgX = (event.clientX - rect.left) * (VB_W / rect.width);
+    const svgY = (event.clientY - rect.top) * (VB_H / rect.height);
+    const r = Math.floor((svgY - originY) / cellH - PAD);
+    const c = Math.floor((svgX - originX) / cellW - PAD);
+    const hit = nearestRealAt(r, c);
+    const cell = hit.cell;
+    const exactAll = allCells.find(p => Math.round(toRowCol(p.lat, p.lon).row) === r && Math.round(toRowCol(p.lat, p.lon).col) === c);
+    const noData = exactAll && !(exactAll.liters_total > 0);
+    const box = projectRowCol(Math.round(hit.row), Math.round(hit.col));
+    const shownBox = noData ? projectRowCol(r, c) : box;
+    boxEl.innerHTML = `<rect class="water-cell-box" x="${shownBox.x.toFixed(1)}" y="${shownBox.y.toFixed(1)}" width="${cellW.toFixed(1)}" height="${cellH.toFixed(1)}"${clipAttr}></rect>`;
+    const html = noData
+      ? `<strong>${nearestPlaceName(exactAll.lat, exactAll.lon, halfLat, halfLon) || "tó"} környéke</strong><span>itt nincs talajadat (nagy víztükör)</span>`
+      : cellPopupHtml(cell);
+    mapPopupShow(popupEl, event.clientX, event.clientY, html);
+    pinnedCell = pin;
+  };
+  const clearCell = () => {
+    boxEl.innerHTML = "";
+    mapPopupHide(popupEl);
+    pinnedCell = false;
+  };
+  if (imageEl && popupEl) {
+    imageEl.addEventListener("pointermove", event => {
+      if (event.pointerType !== "mouse" || pinnedCell) return;
+      showCellAt(event, false);
+    });
+    imageEl.addEventListener("pointerleave", event => {
+      if (event.pointerType === "mouse" && !pinnedCell) clearCell();
+    });
+    imageEl.addEventListener("click", event => {
+      event.stopPropagation();
+      showCellAt(event, true);
+    });
   }
 
-  // A legenda most egy folytonos szürke-fokozatú sáv (nem 5 külön téglalap) -
-  // ugyanazokból a --t0..--t4 színekből épül, mint a raszter maga, tehát a
-  // két nézet (térkép és legenda) garantáltan összhangban marad.
+  // Mérő-jelölők: ugyanaz a buborék (név + szint), idősor nélkül - a tavaknak
+  // nincs története, a folyóké a folyó-térképen (és a listában) látszik.
+  const markerHtml = el => {
+    const m = markerIcons[Number(el.dataset.marker)];
+    return `<strong>${m.title}</strong><span>${waterNum(m.level, 0)} cm</span>`;
+  };
+  const showMarker = (el, clientX, clientY) => {
+    boxEl.innerHTML = "";
+    mapPopupShow(popupEl, clientX, clientY, markerHtml(el));
+  };
+  svgEl.querySelectorAll(".water-marker").forEach(el => {
+    el.addEventListener("pointerenter", event => { if (event.pointerType === "mouse") showMarker(el, event.clientX, event.clientY); });
+    el.addEventListener("pointerleave", event => { if (event.pointerType === "mouse") clearCell(); });
+    el.addEventListener("click", event => { event.stopPropagation(); showMarker(el, event.clientX, event.clientY); pinnedCell = true; });
+    el.addEventListener("focus", () => {
+      const r = el.getBoundingClientRect();
+      showMarker(el, r.left + r.width / 2, r.top);
+    });
+    el.addEventListener("blur", clearCell);
+  });
+  // Egy korábbi build dokumentum-figyelője ne halmozódjon: a legutóbbit
+  // tartjuk meg (a buildWaterPanel minden új keresésnél újrafut).
+  if (buildReliefMap.closer) document.removeEventListener("click", buildReliefMap.closer);
+  buildReliefMap.closer = () => clearCell();
+  document.addEventListener("click", buildReliefMap.closer);
+  svgEl.addEventListener("keydown", event => { if (event.key === "Escape") clearCell(); });
+
+  // A legenda egy középre igazított sor: valódi számok a skála két végén
+  // (a nincs-adat cella nélkül), alatta a jelölők jelmagyarázata - korábban
+  // ez egy hosszú mondatban volt elásva. A színek ugyanabból a --t0..--t4
+  // tokenből jönnek, mint a raszteré, tehát a kettő garantáltan összhangban marad.
   const legendStops = tierStops
     .map((rgb, i) => `<stop offset="${(i / (tierStops.length - 1) * 100).toFixed(0)}%" stop-color="rgb(${rgb.map(Math.round).join(",")})"></stop>`)
     .join("");
+  const ringIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="3.5" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle></svg>`;
+  const diamondIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 3 L11 7 L7 11 L3 7 Z" fill="var(--fg)"></path></svg>`;
+  const hereIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="2" fill="var(--fg)"></circle><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--fg)" stroke-width="1.3"></circle></svg>`;
 
   legendEl.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--muted);">
-      <span>kevesebb</span>
+    <div class="water-legend-scale">
+      <span>${waterNum(minL / 1e9, 0)} mrd l</span>
       <svg width="160" height="12" aria-hidden="true">
         <defs><linearGradient id="water-relief-legend-gradient" x1="0" x2="1" y1="0" y2="0">${legendStops}</linearGradient></defs>
         <rect width="160" height="12" fill="url(#water-relief-legend-gradient)" stroke="var(--border)" stroke-width="0.75"></rect>
       </svg>
-      <span>több</span>
+      <span>${waterNum(maxL / 1e9, 0)} mrd l</span>
     </div>
-    <p style="margin: var(--sp-2) 0 0;">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között) - a talajnedvesség ITT Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet is a szín erőssége mutatja. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-mérőállomás, a teli gyémánt tó - ezek ÉLŐ mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
+    <div class="water-legend-markers">
+      <span>${ringIcon}folyó-mérce</span>
+      <span>${diamondIcon}tó-mérce</span>
+      <span>${hereIcon}a keresett hely</span>
+    </div>
+    <p class="water-legend-note">Egy négyzet kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es mintaterület.</p>`;
+
+  const howtoEl = document.getElementById("water-map-howto");
+  if (howtoEl) {
+    howtoEl.innerHTML = `<p class="about">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel, a színe a területen lévő víz mennyisége (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között). A talajnedvesség itt Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet a szín erőssége mutatja. Egérrel rámutatva, érintőképernyőn rákoppintva megjelenik a mintaterület kerete és a leolvasott érték. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-, a teli gyémánt tó-mérőállomás: ezek élő mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
+  }
 }
 
 // ---- 2c. Folyóhálózat: teljes vonalhálózat, vastagság = vízhozam ----
@@ -2740,8 +3279,13 @@ const WATER_RIVER_NET_SVG = `
 // naplójából visszaolvasott korábbi vízállást (history.jsonl, ld. a
 // rivers-snapshot station.history mezőjét) köti össze egy közös
 // grafikonon, "most" elválasztóval.
+// A térkép egy folyójára kattintva a hozzá tartozó sorok nyílnak ebben a
+// listában (ld. buildRiverNet): a sorokat itt jegyezzük meg folyónév szerint.
+let riverListRows = [];
+
 function buildRiverList(container, stations) {
   container.innerHTML = "";
+  riverListRows = [];
   stations.forEach((station, i) => {
     const row = document.createElement("div");
     row.className = "water-river-row";
@@ -2762,8 +3306,7 @@ function buildRiverList(container, stations) {
     chartWrap.className = "water-river-chart-wrap";
     chartWrap.id = chartId;
     const chartSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    chartSvg.setAttribute("viewBox", "0 0 400 110");
-    chartSvg.setAttribute("preserveAspectRatio", "none");
+    chartSvg.setAttribute("viewBox", "0 0 400 150");
     chartWrap.appendChild(chartSvg);
 
     let built = false;
@@ -2779,7 +3322,155 @@ function buildRiverList(container, stations) {
     row.appendChild(head);
     row.appendChild(chartWrap);
     container.appendChild(row);
+    riverListRows.push({ river: station.river, row, head });
   });
+}
+
+// ---- Folyóhálózat: rámutatás / koppintás ----
+//
+// A WATER_RIVER_NET_SVG statikus: az ország-beli folyók egymás utáni <path>-ok
+// a "folyók az országban" csoportban. Ez a sorrend (a vonalvastagság szerint
+// rendezett fájl, a feliratok koordinátáival egyeztetve) rendeli őket
+// folyókhoz. A második tag az átlagos vízhozam (m³/s, ld. a táblázatot), a
+// harmadik: hiányzik-e a pontos vízhozam-adat (halvány, szaggatott vonal).
+const RIVER_NET_PATHS = [
+  ["Zagyva", null, true], ["Hernád", null, true], ["Körösök", null, true],
+  ["Körösök", null, true], ["Körösök", null, true], ["Zala", null, true],
+  ["Mosoni-Duna", null, true], ["Ipoly", null, true], ["Rába", 27, false],
+  ["Sió", 40, false], ["Sajó", 80, false], ["Szamos", 140, false],
+  ["Mura", 170, false], ["Maros", 190, false], ["Dráva", 600, false],
+  ["Tisza", 890, false], ["Duna", 2300, false],
+];
+
+// A térképi folyónév -> a mérőállomások folyóneve a rivers-snapshotban.
+const RIVER_NET_GAUGE_NAME = { "Körösök": "Hármas-Körös" };
+// Hová nézzen a buborék idősora: a tározó alatti Kisköre alsó mérce helyett
+// a szolnoki (ld. a WATER_LAKE_BANDS megjegyzését a Tisza-tóról).
+const RIVER_NET_PRIMARY_STATION = { "Tisza": "Szolnok" };
+
+// A WATER_RIVER_NET_SVG-t a folyó-útvonalak data-river indexével adja vissza.
+function riverNetMarkup() {
+  const start = WATER_RIVER_NET_SVG.indexOf("<!-- folyók az országban");
+  const namesAt = WATER_RIVER_NET_SVG.indexOf("<!-- nevek");
+  let index = 0;
+  const middle = WATER_RIVER_NET_SVG.slice(start, namesAt)
+    .replace(/<path stroke-width=/g, () => `<path data-river="${index++}" stroke-width=`);
+  return WATER_RIVER_NET_SVG.slice(0, start) + middle + WATER_RIVER_NET_SVG.slice(namesAt);
+}
+
+// Naponta egy érték (az adott nap utolsó mérése) a rivers-snapshot óránkénti
+// naplójából, az utolsó 8 napra, aztán a "most" és az előrejelzés: ebből
+// lesz a buborék kis vonaldiagramja.
+function riverSparkSeries(station) {
+  const byDay = new Map();
+  for (const h of station.history || []) {
+    const day = new Date(h.at).toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
+    byDay.set(day, h.level_cm);
+  }
+  const todayKey = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
+  byDay.delete(todayKey);
+  const past = [...byDay.values()].slice(-8);
+  return { values: [...past, station.level_cm, ...(station.forecast_cm || [])], nowIndex: past.length };
+}
+
+function riverNetPopupHtml(riverName, discharge, stations) {
+  let html = `<strong>${riverName}</strong>`;
+  if (discharge) html += `<span>átlagos vízhozam: kb. ${waterNum(discharge, 0)} m³/s</span>`;
+  if (!stations.length) return html + `<span>nincs mérőállomás az oldalon</span>`;
+  for (const st of stations) html += `<span>${st.name}: ${waterNum(st.level_cm, 0)} cm</span>`;
+  const primaryName = RIVER_NET_PRIMARY_STATION[riverName];
+  const primary = stations.find(st => st.name === primaryName) ||
+    stations.find(st => st.role === "interior") || stations[0];
+  const { values, nowIndex } = riverSparkSeries(primary);
+  return html + popupSparklineSvg(values, nowIndex) +
+    `<span>${primary.name}: 8 nap és 6 napos előrejelzés</span>`;
+}
+
+function buildRiverNet(svgEl, popupEl, stations) {
+  svgEl.innerHTML = riverNetMarkup();
+  const paths = [...svgEl.querySelectorAll("path[data-river]")];
+  const mutedNames = new Set();
+  RIVER_NET_PATHS.forEach(([name, , muted], i) => {
+    const el = paths[i];
+    if (!el) return;
+    el.dataset.riverName = name;
+    if (muted) { el.classList.add("is-muted"); mutedNames.add(name); }
+  });
+  svgEl.querySelectorAll("text").forEach(t => {
+    if (mutedNames.has(t.textContent.trim())) t.classList.add("is-muted");
+  });
+
+  // Az érzékelő-réteg: a vékony vonalakra is könnyű legyen rámutatni, és
+  // Tab-bal elérhető, olvasható aria-label-lel.
+  let hits = "";
+  paths.forEach((el, i) => {
+    const [name, discharge] = RIVER_NET_PATHS[i] || [];
+    if (!name) return;
+    const gauges = stations.filter(st => st.river === (RIVER_NET_GAUGE_NAME[name] || name));
+    const label = gauges.length
+      ? `${name}: ${gauges.map(g => `${g.name} ${waterNum(g.level_cm, 0)} cm`).join(", ")}`
+      : `${name}${discharge ? `, átlagosan kb. ${waterNum(discharge, 0)} köbméter másodpercenként` : ""}`;
+    hits += `<path class="water-river-hit" data-hit="${i}" d="${el.getAttribute("d")}" tabindex="0" role="button" aria-label="${label}"></path>`;
+  });
+  svgEl.insertAdjacentHTML("beforeend", `<g>${hits}</g>`);
+
+  const highlight = name => {
+    svgEl.classList.toggle("has-hl", !!name);
+    paths.forEach(el => el.classList.toggle("is-hl", !!name && el.dataset.riverName === name));
+  };
+  const show = (i, clientX, clientY) => {
+    const [name, discharge] = RIVER_NET_PATHS[i];
+    const gauges = stations.filter(st => st.river === (RIVER_NET_GAUGE_NAME[name] || name));
+    highlight(name);
+    mapPopupShow(popupEl, clientX, clientY, riverNetPopupHtml(name, discharge, gauges));
+  };
+  const clear = () => { highlight(null); mapPopupHide(popupEl); };
+  const openInList = i => {
+    const [name] = RIVER_NET_PATHS[i];
+    const gaugeName = RIVER_NET_GAUGE_NAME[name] || name;
+    const rows = riverListRows.filter(r => r.river === gaugeName);
+    if (!rows.length) return;
+    rows.forEach(r => { if (!r.row.classList.contains("open")) r.head.click(); });
+    rows[0].row.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  svgEl.querySelectorAll(".water-river-hit").forEach(hit => {
+    const i = Number(hit.dataset.hit);
+    hit.addEventListener("pointermove", event => { if (event.pointerType === "mouse") show(i, event.clientX, event.clientY); });
+    hit.addEventListener("pointerleave", event => { if (event.pointerType === "mouse") clear(); });
+    hit.addEventListener("click", event => {
+      event.stopPropagation();
+      show(i, event.clientX, event.clientY);
+      openInList(i);
+    });
+    hit.addEventListener("focus", () => {
+      const r = hit.getBoundingClientRect();
+      show(i, r.left + r.width / 2, r.top + r.height / 2);
+    });
+    hit.addEventListener("blur", clear);
+    hit.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openInList(i); }
+      if (event.key === "Escape") clear();
+    });
+  });
+  if (buildRiverNet.closer) document.removeEventListener("click", buildRiverNet.closer);
+  buildRiverNet.closer = clear;
+  document.addEventListener("click", buildRiverNet.closer);
+}
+
+// Egy svg-figure képpont/viewBox-egység arányának (--k) követése, hogy a
+// feliratok betűmérete képpontban állandó maradjon (ld. .water-map-label).
+const figureScaleObservers = new Map();
+function watchFigureScale(svgEl, viewBoxWidth) {
+  const apply = () => {
+    const w = svgEl.getBoundingClientRect().width;
+    if (w > 0) svgEl.style.setProperty("--k", (w / viewBoxWidth).toFixed(3));
+  };
+  apply();
+  if (!("ResizeObserver" in window)) return;
+  if (figureScaleObservers.has(svgEl)) figureScaleObservers.get(svgEl).disconnect();
+  const observer = new ResizeObserver(apply);
+  observer.observe(svgEl);
+  figureScaleObservers.set(svgEl, observer);
 }
 
 // Rövid "nov. 13." formátum, ugyanúgy mint formatStatsDate - itt viszont
@@ -2796,8 +3487,16 @@ function renderRiverChart(wrapEl, station, chartId) {
   const series = [...historyVals, station.level_cm, ...forecastVals];
   const todayIdx = historyVals.length;
 
+  // A grafikon a MEGJELENÍTETT képpont-szélességre készül (1 egység = 1
+  // képpont), nem nyújtott viewBox-ra: korábban a szöveg is torzult, és
+  // nagy képernyőn óriásira nőtt. A max-width (CSS) 720 px.
+  const W = Math.max(280, Math.min(720, Math.round(wrapEl.clientWidth || 400)));
+  const H = 170;
+  svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svgEl.removeAttribute("preserveAspectRatio");
+
   if (series.length < 2) {
-    svgEl.innerHTML = `<text x="10" y="55" font-size="12" fill="var(--muted)">még nincs elég adat a grafikonhoz</text>`;
+    svgEl.innerHTML = `<text x="8" y="40" font-size="13" fill="var(--muted)">még nincs elég adat a grafikonhoz</text>`;
     return;
   }
 
@@ -2815,36 +3514,48 @@ function renderRiverChart(wrapEl, station, chartId) {
     return d;
   };
 
+  // A hydroinfo.hu értékei naponta változnak, a gyűjtő viszont óránként
+  // naplóz: a múltat ezért idő-arányos x-tengelyen, egyetlen vonalként
+  // rajzoljuk (nem egy pont minden órás mintán - ez ~200 egymásra rajzolt
+  // pötty volt). Az előrejelzés napi, ott kis pont jelöli a napokat.
+  const tOf = i => dateFor(i).getTime();
+  const tNow = today.getTime();
+  const dayMs = 86400000;
+  const tFor = i => (i < todayIdx ? tOf(i) : tNow + (i - todayIdx) * dayMs);
+  const tMin = tFor(0), tMax = tFor(series.length - 1);
+
   const minV = Math.min(...series), maxV = Math.max(...series);
   const span = Math.max(maxV - minV, 1);
-  const padX = 8, padYTop = 14, padYBottom = 14, axisW = 28;
-  const w = 400 - padX * 2 - axisW, h = 110 - padYTop - padYBottom - 12;
-  const xFor = i => padX + axisW + (i / (series.length - 1)) * w;
-  const yFor = v => padYTop + h - ((v - minV) / span) * h;
+  const padL = 40, padR = 14, padTop = 22, padBottom = 28;
+  const w = W - padL - padR, h = H - padTop - padBottom;
+  const xFor = t => padL + ((t - tMin) / Math.max(tMax - tMin, 1)) * w;
+  const yFor = v => padTop + h - ((v - minV) / span) * h;
 
-  const pastPoints = series.slice(0, todayIdx + 1).map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`);
-  const futurePoints = series.slice(todayIdx).map((v, i) => `${xFor(todayIdx + i).toFixed(1)},${yFor(v).toFixed(1)}`);
-  const todayX = xFor(todayIdx).toFixed(1);
+  const pastPoints = series.slice(0, todayIdx + 1).map((v, i) => `${xFor(tFor(i)).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const futurePoints = series.slice(todayIdx).map((v, i) => `${xFor(tFor(todayIdx + i)).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const todayX = xFor(tNow).toFixed(1);
 
-  let dots = "";
-  for (let i = 0; i < series.length; i++) {
-    dots += `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(series[i]).toFixed(1)}" r="1.5" fill="var(--muted)"></circle>`;
+  let forecastDots = "";
+  for (let i = todayIdx + 1; i < series.length; i++) {
+    forecastDots += `<circle cx="${xFor(tFor(i)).toFixed(1)}" cy="${yFor(series[i]).toFixed(1)}" r="2.5" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.2"></circle>`;
   }
 
   svgEl.setAttribute("role", "img");
   svgEl.setAttribute("aria-label",
     `${station.river} ${station.name}, vízállás centiméterben, ${formatShortDate(dateFor(0))}-tól ${formatShortDate(dateFor(series.length - 1))}-ig - a pontos értékek a lenti táblázatban`);
+  const axisY = padTop + h;
   svgEl.innerHTML = `
-    <text x="${(padX + axisW - 6).toFixed(1)}" y="${(yFor(maxV) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${waterNum(maxV, 0)}</text>
-    <text x="${(padX + axisW - 6).toFixed(1)}" y="${(yFor(minV) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${waterNum(minV, 0)}</text>
-    <line x1="${todayX}" y1="${padYTop}" x2="${todayX}" y2="${(padYTop + h).toFixed(1)}" stroke="var(--border)" stroke-width="1"></line>
-    <text x="${todayX}" y="${(padYTop - 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="middle">most</text>
-    <polyline points="${pastPoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5"></polyline>
-    <polyline points="${futurePoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.5" stroke-dasharray="3 3"></polyline>
-    ${dots}
-    <circle cx="${todayX}" cy="${yFor(station.level_cm).toFixed(1)}" r="2.5" fill="var(--fg)"></circle>
-    <text x="${(padX + axisW).toFixed(1)}" y="${(padYTop + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)">${history.length > 0 ? formatShortDate(dateFor(0)) : ""}</text>
-    <text x="${(padX + axisW + w).toFixed(1)}" y="${(padYTop + h + 12).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${formatShortDate(dateFor(series.length - 1))}</text>`;
+    <text x="${padL - 6}" y="${(yFor(maxV) + 4).toFixed(1)}" font-size="12" fill="var(--muted)" text-anchor="end">${waterNum(maxV, 0)}</text>
+    <text x="${padL - 6}" y="${(yFor(minV) + 4).toFixed(1)}" font-size="12" fill="var(--muted)" text-anchor="end">${waterNum(minV, 0)}</text>
+    <line x1="${padL}" y1="${axisY}" x2="${padL + w}" y2="${axisY}" stroke="var(--border)" stroke-width="1"></line>
+    <line x1="${todayX}" y1="${padTop - 4}" x2="${todayX}" y2="${axisY}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 3"></line>
+    <polyline points="${pastPoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.6" stroke-linejoin="round"></polyline>
+    <polyline points="${futurePoints.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"></polyline>
+    ${forecastDots}
+    <circle cx="${todayX}" cy="${yFor(station.level_cm).toFixed(1)}" r="3.5" fill="var(--fg)"></circle>
+    <text x="${todayX}" y="${(padTop - 8).toFixed(1)}" font-size="12" font-weight="600" fill="var(--fg)" text-anchor="middle">most: ${waterNum(station.level_cm, 0)} cm</text>
+    <text x="${padL}" y="${axisY + 18}" font-size="12" fill="var(--muted)">${history.length > 0 ? formatShortDate(dateFor(0)) : ""}</text>
+    <text x="${padL + w}" y="${axisY + 18}" font-size="12" fill="var(--muted)" text-anchor="end">${forecastVals.length ? `${formatShortDate(dateFor(series.length - 1))} (előrejelzés vége)` : formatShortDate(dateFor(series.length - 1))}</text>`;
 
   // Ugyanaz az adat táblázatként is - billentyűzettel/képernyőolvasóval
   // elérhető, és pontos érték olvasható ki belőle, nem csak a vonal alakja.
@@ -3008,7 +3719,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   // hosszú folyó/főcsatorna ne nyomja az egész típus többi tagját a
   // minimumra). A teljes (nem csak látható) feature-halmazon SZÁMOLVA EGYSZER,
   // hogy egy adott vonal vastagsága zoomra/pannelésre ne ugráljon.
-  const BASE_STROKE_WIDTH = { canal: 1, drain: 0.6, ditch: 0.4, river: 1.3 };
+  const BASE_STROKE_WIDTH = { canal: 0.9, drain: 0.6, ditch: 0.4, river: 1.7 };
   const kmLogRangeByType = {};
   for (const f of featuresWithBounds) {
     if (f.type === "lake") continue; // a tó mérete a kiterjedésén látszik, nem a vonalvastagságán
@@ -3123,16 +3834,130 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   function showTooltip(fid, clientX, clientY) {
     const f = visible[fid];
     if (!f) return;
-    const rect = svgEl.getBoundingClientRect();
-    tooltipEl.textContent = f.name
-      ? `${f.name} (${CHANNEL_TYPE_LABEL[f.type]}, ${waterNum(f.km, 1)} km)`
-      : `${CHANNEL_TYPE_LABEL[f.type]}, ${waterNum(f.km, 1)} km`;
-    tooltipEl.style.left = `${((clientX - rect.left) / rect.width) * 100}%`;
-    tooltipEl.style.top = `${((clientY - rect.top) / rect.height) * 100}%`;
-    tooltipEl.hidden = false;
+    const title = f.name || CHANNEL_TYPE_LABEL[f.type];
+    mapPopupShow(tooltipEl, clientX, clientY,
+      `<strong>${title}</strong><span>${CHANNEL_TYPE_LABEL[f.type]}, ${waterNum(f.km, 1)} km</span>`);
   }
   function hideTooltip() {
-    if (tooltipEl) tooltipEl.hidden = true;
+    mapPopupHide(tooltipEl);
+  }
+
+  // Aktiválás: egy kattintás/koppintás után a sima görgő nagyít, a húzás
+  // mozgat (ld. style.css #water-channels-map.is-active) - addig az oldal
+  // görög tovább a térkép fölött is. Escape vagy a térképen kívüli kattintás
+  // elengedi. Az első aktiválásig egy rövid felirat jelzi a lehetőséget.
+  let active = false;
+  const hintEl = document.getElementById("water-channels-hint");
+  function setActive(on) {
+    active = on;
+    svgEl.classList.toggle("is-active", on);
+    if (on && hintEl) hintEl.hidden = true;
+  }
+  if (hintEl) hintEl.hidden = false;
+
+  // A keresésre ugrott vízfolyás neve: kiemelve rajzoljuk (ld. render()).
+  let highlightName = null;
+
+  // A viewBox-egység -> képpont arány (--k): a feliratok méretét ezzel
+  // osztva képpontban állandó marad a betű.
+  const pxPerUnit = () => (svgEl.getBoundingClientRect().width / WIDTH) || 1;
+
+  function labelsMarkup(project, zoomRatio, activeTypes) {
+    const k = pxPerUnit();
+    const boxes = [];
+    const fits = box => !boxes.some(b => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
+    let out = "";
+
+    // Folyók és főcsatornák neve: a nézetben lévő, névvel ellátott legnagyobb
+    // vonalak, a vonal közepén, a vonal irányába forgatva (de sosem fejjel lefelé).
+    if (zoomRatio >= 2) {
+      const best = new Map();
+      for (const f of visible) {
+        if (!f.name || (f.type !== "river" && f.type !== "canal")) continue;
+        const name = RIVER_NAME_SYNONYMS[f.name] || f.name;
+        if (!best.has(name) || best.get(name).km < f.km) best.set(name, f);
+      }
+      const named = [...best.entries()].sort((a, b) => b[1].km - a[1].km).slice(0, 14);
+      for (const [name, f] of named) {
+        // A nézetben lévő csúcsok közül a nézet középpontjához legközelebbi.
+        let pick = -1, pickDist = Infinity;
+        const cx = WIDTH / 2, cy = HEIGHT / 2;
+        for (let i = 1; i < f.ring.length - 1; i++) {
+          const { x, y } = project(f.ring[i][1], f.ring[i][0]);
+          if (x < 8 || x > WIDTH - 8 || y < 8 || y > HEIGHT - 8) continue;
+          const d = Math.hypot(x - cx, y - cy);
+          if (d < pickDist) { pickDist = d; pick = i; }
+        }
+        if (pick < 0) continue;
+        const p = project(f.ring[pick][1], f.ring[pick][0]);
+        const a = project(f.ring[pick - 1][1], f.ring[pick - 1][0]);
+        const b = project(f.ring[pick + 1][1], f.ring[pick + 1][0]);
+        let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+        if (angle > 90) angle -= 180;
+        if (angle < -90) angle += 180;
+        const w = (name.length * 6 + 6) / k, h = 12 / k;
+        const box = { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y - h, y1: p.y + h / 2 };
+        if (!fits(box)) continue;
+        boxes.push(box);
+        out += `<text class="water-map-label water-map-label-water" x="${p.x.toFixed(1)}" y="${(p.y - 2 / k).toFixed(1)}" text-anchor="middle" transform="rotate(${angle.toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})">${name}</text>`;
+      }
+    }
+
+    // Városok: rang szerint fokozatosan (1: megyeszékhelyek, 2: nagyobb
+    // városok, 3: kisebb városok).
+    if (placesList.length) {
+      const maxRank = zoomRatio >= 4 ? 3 : zoomRatio >= 2 ? 2 : 1;
+      const towns = placesList
+        .filter(p => p.r <= maxRank)
+        .map(p => ({ p, pos: project(p.lat, p.lon) }))
+        .filter(t => t.pos.x > 4 && t.pos.x < WIDTH - 4 && t.pos.y > 8 && t.pos.y < HEIGHT - 4)
+        .sort((a, b) => a.p.r - b.p.r);
+      let shown = 0;
+      for (const t of towns) {
+        if (shown >= 40) break;
+        const w = (t.p.n.length * 6.2 + 8) / k, h = 14 / k;
+        const onRight = t.pos.x > WIDTH - w - 8;
+        const x0 = onRight ? t.pos.x - w : t.pos.x;
+        const box = { x0, x1: x0 + w, y0: t.pos.y - h, y1: t.pos.y + 3 / k };
+        if (!fits(box)) continue;
+        boxes.push(box);
+        shown += 1;
+        out += `<circle class="water-map-town" cx="${t.pos.x.toFixed(1)}" cy="${t.pos.y.toFixed(1)}" r="${(2 / k).toFixed(2)}"></circle>` +
+          `<text class="water-map-label" x="${(t.pos.x + (onRight ? -3 : 3) / k).toFixed(1)}" y="${(t.pos.y - 3 / k).toFixed(1)}" text-anchor="${onRight ? "end" : "start"}">${t.p.n}</text>`;
+      }
+    }
+    return out;
+  }
+
+  // Méretarány-vonal a bal alsó sarokban: egy "szép" kerek hossz (km), ami kb.
+  // 80-120 képpont széles.
+  function scaleBarMarkup(project) {
+    const k = pxPerUnit();
+    const kmPerUnit = 111 / project.scale;
+    const targetKm = (90 / k) * kmPerUnit;
+    const nice = [1, 2, 5, 10, 20, 50, 100, 200].reduce((best, v) => Math.abs(v - targetKm) < Math.abs(best - targetKm) ? v : best);
+    const w = nice / kmPerUnit;
+    const x0 = 10 / k, y = HEIGHT - 12 / k;
+    return `<g class="water-map-scale" pointer-events="none"><line x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x0 + w).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--fg)" stroke-width="${(2 / k).toFixed(2)}"></line>` +
+      `<text class="water-map-label" x="${x0.toFixed(1)}" y="${(y - 5 / k).toFixed(1)}">${nice} km</text></g>`;
+  }
+
+  // Kis országtérkép a jobb alsó sarokban, a jelenlegi nézet téglalapjával.
+  function insetMarkup(project, zoomRatio) {
+    if (zoomRatio < 1.3 || !borderRing) return "";
+    const k = pxPerUnit();
+    const boxW = 72 / k, boxH = (72 * (fullBounds.maxLat - fullBounds.minLat) / ((fullBounds.maxLon - fullBounds.minLon) * Math.cos(47 * Math.PI / 180))) / k;
+    const small = fitFlatProjection(fullBounds.minLon, fullBounds.maxLon, fullBounds.minLat, fullBounds.maxLat, boxW, boxH);
+    const ox = WIDTH - boxW - 8 / k, oy = HEIGHT - boxH - 8 / k;
+    let d = "";
+    borderRing.forEach(([lon, lat], i) => {
+      const p = small(lat, lon);
+      d += `${i === 0 ? "M" : "L"}${(ox + p.x).toFixed(1)} ${(oy + p.y).toFixed(1)}`;
+    });
+    const tl = small(view.maxLat, view.minLon), br = small(view.minLat, view.maxLon);
+    return `<g pointer-events="none"><rect x="${(ox - 3 / k).toFixed(1)}" y="${(oy - 3 / k).toFixed(1)}" width="${(boxW + 6 / k).toFixed(1)}" height="${(boxH + 6 / k).toFixed(1)}" fill="var(--bg)" opacity="0.8"></rect>` +
+      `<path d="${d}Z" fill="none" stroke="var(--fg)" stroke-width="${(1 / k).toFixed(2)}"></path>` +
+      `<rect x="${(ox + tl.x).toFixed(1)}" y="${(oy + tl.y).toFixed(1)}" width="${Math.max(br.x - tl.x, 1).toFixed(1)}" height="${Math.max(br.y - tl.y, 1).toFixed(1)}" fill="var(--fg)" fill-opacity="0.25" stroke="var(--fg)" stroke-width="${(1.2 / k).toFixed(2)}"></rect></g>`;
   }
 
   function render() {
@@ -3217,6 +4042,21 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
       markup += `<defs><clipPath id="water-channels-elevation-clip"><path d="${borderD}Z"></path></clipPath></defs>`;
       markup += `<image class="water-channel-elevation" href="${elevationDataUrl}" x="${topLeft.x.toFixed(1)}" y="${topLeft.y.toFixed(1)}" width="${(bottomRight.x - topLeft.x).toFixed(1)}" height="${(bottomRight.y - topLeft.y).toFixed(1)}" preserveAspectRatio="none" clip-path="url(#water-channels-elevation-clip)"></image>`;
     }
+    // Megyehatárok: vékony pontvonal, kicsit nagyítva már (az áttekintő nézet
+    // maradjon tiszta). A saját megyehatár-fájl (counties-hu.json) a
+    // megyéket zárt gyűrűként adja, az országhatárral egybeeső szakaszok
+    // egymásra rajzolódnak.
+    if (zoomRatio >= 1.5 && countyRings.length) {
+      let countyD = "";
+      for (const ring of countyRings) {
+        ring.forEach(([lon, lat], i) => {
+          const { x, y } = project(lat, lon);
+          countyD += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+        });
+        countyD += "Z";
+      }
+      markup += `<path class="water-channel-county" d="${countyD}"></path>`;
+    }
     if (borderD) {
       markup += `<path class="water-channel-border" d="${borderD}Z"></path>`;
     }
@@ -3232,10 +4072,16 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
         } else {
           const width = strokeWidthFor(f.type, f.km);
           const widthAttr = width !== null ? ` style="stroke-width:${width.toFixed(2)}"` : "";
-          markup += `<path class="water-channel-${type}" data-fid="${idx}"${widthAttr} d="${item.d}"></path>`;
+          const hl = highlightName && f.name && (RIVER_NAME_SYNONYMS[f.name] || f.name) === highlightName ? " is-hl" : "";
+          markup += `<path class="water-channel-${type}${hl}" data-fid="${idx}"${widthAttr} d="${item.d}"></path>`;
         }
       });
     }
+    // Feliratok: városok (a nagyítással egyre kisebbek is), a nagyobb folyók és
+    // főcsatornák neve a vonaluk mentén; az egymást fedőket kihagyjuk.
+    markup += labelsMarkup(project, zoomRatio, activeTypes);
+    markup += scaleBarMarkup(project) + insetMarkup(project, zoomRatio);
+
     // A találat-céllapok (átlátszó, szélesebb vonal/kör) legfelül, MINDEN
     // látható vonalra - ugyanaz a trükk, mint a .water-cell-touch/
     // .water-marker-touch-nál, hogy a vékony árok-vonalakra (és az apró
@@ -3252,18 +4098,15 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     svgEl.innerHTML = markup;
   }
 
-  function endPointer(event) {
-    activePointers.delete(event.pointerId);
-    if (activePointers.size === 0) svgEl.style.cursor = "grab";
-  }
-
-  // Sima görgővel a térkép fölött is az OLDAL görögjön tovább (UX-audit
-  // U03) - a térkép nagyítása ezentúl Ctrl/Cmd+görgő (a trackpad-csippentés
-  // is így küldi a wheel eseményt), a +/- gombok értelemszerűen továbbra is
-  // működnek preventDefault nélkül is.
+  // Amíg a térkép nincs aktiválva (kattintás/koppintás), a sima görgő az
+  // OLDALT görgeti (UX-audit U03: korábban a térkép elnyelte a görgetést);
+  // aktiválás után a görgő nagyít. A Ctrl/Cmd+görgő (a trackpad-csippentés is
+  // így jön) mindig nagyít.
   svgEl.addEventListener("wheel", event => {
-    if (!event.ctrlKey && !event.metaKey) return;
+    const wants = active || event.ctrlKey || event.metaKey;
+    if (!wants) return;
     event.preventDefault();
+    if (hintEl) hintEl.hidden = true;
     const rect = svgEl.getBoundingClientRect();
     const px = (event.clientX - rect.left) * (WIDTH / rect.width);
     const py = (event.clientY - rect.top) * (HEIGHT / rect.height);
@@ -3271,18 +4114,33 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, lon, lat);
   }, { passive: false });
 
+  // Az aktív állapot elengedése: Escape, vagy a térképen (figure-en) kívüli
+  // kattintás/koppintás. Egy korábbi build figyelői ne halmozódjanak.
+  if (buildChannelsMap.releasers) {
+    document.removeEventListener("pointerdown", buildChannelsMap.releasers.down);
+    document.removeEventListener("keydown", buildChannelsMap.releasers.key);
+  }
+  buildChannelsMap.releasers = {
+    down: event => {
+      if (!svgEl.parentElement.contains(event.target)) { setActive(false); hideTooltip(); }
+    },
+    key: event => { if (event.key === "Escape") { setActive(false); hideTooltip(); } },
+  };
+  document.addEventListener("pointerdown", buildChannelsMap.releasers.down);
+  document.addEventListener("keydown", buildChannelsMap.releasers.key);
+
+  let tapStart = null; // {x, y, target}: a koppintás/kattintás felismeréséhez
   svgEl.addEventListener("pointerdown", event => {
     // Mindenkit nyilvántartunk (kell a második ujj érkezésekor a
-    // csippentés-számításhoz), de EGY érintő ujjat egérfogásként még nem
-    // kezelünk - az az oldal normál görgetése marad (touch-action: pan-y a
-    // CSS-ben, UX-audit U03). A térkép húzása touch-on csak két ujjal
-    // (csippentés közben, ld. pointermove), egérrel egy gombnyomással indul.
+    // csippentés-számításhoz). Egérrel a húzás azonnal mozgat; EGY érintő ujj
+    // csak aktivált térképnél (különben az oldal görög, touch-action: pan-y).
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    tapStart = activePointers.size === 1 ? { x: event.clientX, y: event.clientY, target: event.target } : null;
     if (event.pointerType === "mouse") {
       svgEl.setPointerCapture(event.pointerId);
       svgEl.style.cursor = "grabbing";
       hideTooltip();
-    } else if (activePointers.size === 2) {
+    } else if (activePointers.size === 2 || active) {
       for (const id of activePointers.keys()) svgEl.setPointerCapture(id);
       hideTooltip();
     }
@@ -3290,19 +4148,20 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
 
   svgEl.addEventListener("pointermove", event => {
     if (!activePointers.has(event.pointerId)) {
-      if (event.target.tagName === "path" && event.target.dataset.fid !== undefined) {
+      if (event.pointerType === "mouse" && event.target.tagName === "path" && event.target.dataset.fid !== undefined) {
         showTooltip(Number(event.target.dataset.fid), event.clientX, event.clientY);
-      } else {
+      } else if (event.pointerType === "mouse") {
         hideTooltip();
       }
       return;
     }
     const prev = activePointers.get(event.pointerId);
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (tapStart && Math.hypot(event.clientX - tapStart.x, event.clientY - tapStart.y) > 5) tapStart = null;
     const rect = svgEl.getBoundingClientRect();
 
     if (activePointers.size === 1) {
-      if (event.pointerType !== "mouse") return; // egy ujjal az oldal görög, nem a térkép mozog
+      if (event.pointerType !== "mouse" && !active) return; // aktiválatlanul egy ujjal az oldal görög
       const dxPx = (event.clientX - prev.x) * (WIDTH / rect.width);
       const dyPx = (event.clientY - prev.y) * (HEIGHT / rect.height);
       panByPixels(dxPx, dyPx);
@@ -3325,10 +4184,45 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     }
   });
 
+  // Koppintás/kattintás (nem húzás): aktiválja a térképet, és ha vízfolyásra
+  // esett, megmutatja a buborékját (érintőképernyőn nincs rámutatás).
+  function endPointer(event) {
+    const wasTap = tapStart && activePointers.size === 1;
+    activePointers.delete(event.pointerId);
+    if (activePointers.size === 0) svgEl.style.cursor = "";
+    if (wasTap && event.type === "pointerup") {
+      setActive(true);
+      const target = tapStart.target;
+      if (target && target.tagName === "path" && target.dataset.fid !== undefined) {
+        showTooltip(Number(target.dataset.fid), event.clientX, event.clientY);
+      } else {
+        hideTooltip();
+      }
+    }
+    tapStart = null;
+  }
   svgEl.addEventListener("pointerup", endPointer);
   svgEl.addEventListener("pointercancel", endPointer);
-  svgEl.addEventListener("pointerleave", () => {
-    if (activePointers.size === 0) hideTooltip();
+  svgEl.addEventListener("pointerleave", event => {
+    if (event.pointerType === "mouse" && activePointers.size === 0) hideTooltip();
+  });
+
+  // Billentyűzet: Enter/Szóköz aktivál, utána +/- nagyít, a nyilak mozgatnak.
+  svgEl.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setActive(true);
+      return;
+    }
+    const c = { lon: (view.minLon + view.maxLon) / 2, lat: (view.minLat + view.maxLat) / 2 };
+    if (event.key === "+" || event.key === "=") zoomBy(ZOOM_STEP, c.lon, c.lat);
+    else if (event.key === "-") zoomBy(1 / ZOOM_STEP, c.lon, c.lat);
+    else if (event.key === "ArrowLeft") panByPixels(24, 0);
+    else if (event.key === "ArrowRight") panByPixels(-24, 0);
+    else if (event.key === "ArrowUp") panByPixels(0, 24);
+    else if (event.key === "ArrowDown") panByPixels(0, -24);
+    else return;
+    event.preventDefault();
   });
 
   const zoomInBtn = document.getElementById("water-channels-zoom-in");
@@ -3337,7 +4231,9 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
   const viewCenter = () => ({ lon: (view.minLon + view.maxLon) / 2, lat: (view.minLat + view.maxLat) / 2 });
   if (zoomInBtn) zoomInBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(ZOOM_STEP, c.lon, c.lat); });
   if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => { const c = viewCenter(); zoomBy(1 / ZOOM_STEP, c.lon, c.lat); });
-  if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { view = { ...fullBounds }; render(); });
+  if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => { view = { ...fullBounds }; highlightName = null; render(); });
+  // A gombok használata is "használatba vétel": a felirat már nem kell.
+  for (const btn of [zoomInBtn, zoomOutBtn]) if (btn) btn.addEventListener("click", () => { if (hintEl) hintEl.hidden = true; });
 
   // UX-audit A01 (teljes kör): a térkép maga (5000+ feature) eddig csak
   // egérrel/érintéssel volt böngészhető. Itt NÉV szerint csoportosítjuk a
@@ -3383,6 +4279,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     // disabledTypes) - a keresés célja pont az, hogy MEGMUTASSA, nem hogy
     // elrejtett maradjon egy korábbi szűrés miatt.
     for (const t of item.types) disabledTypes.delete(t);
+    highlightName = item.name;
     const lonPad = Math.max((item.maxLon - item.minLon) * 0.3, MIN_VIEW_DEG / 2);
     const latPad = Math.max((item.maxLat - item.minLat) * 0.3, MIN_VIEW_DEG / 2);
     setView(item.minLon - lonPad, item.maxLon + lonPad, item.minLat - latPad, item.maxLat + latPad);
@@ -3541,7 +4438,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     <button type="button" class="water-legend-item" data-type="${type}" aria-pressed="true">
       <svg class="water-legend-swatch" viewBox="0 0 24 6" aria-hidden="true"><line x1="0" y1="3" x2="24" y2="3" class="water-channel-${type}"></line></svg>${CHANNEL_TYPE_LABEL[type]}
     </button>`).join("");
-  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások/tavak. Görgővel/csippentéssel nagyítható, húzással mozgatható - minél közelebb nagyítasz, annál több vízfolyás látszik. Rámutatva (vagy rákoppintva) a vízfolyás/tó neve és hossza jelenik meg. A fenti jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.${elevationDataUrl ? " A háttér domborzat-árnyékolás (Copernicus DEM GLO-30)." : ""}`;
+  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások és tavak; a teli pont egy kis tó. Kattints a térképre, utána a görgő nagyít, a húzás mozgat (Escape: elengedi); érintőképernyőn csippentéssel nagyítható. Minél közelebb nagyítasz, annál több vízfolyás, város és megyehatár látszik. Rámutatva (vagy rákoppintva) a vízfolyás neve és hossza jelenik meg. A jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.${elevationDataUrl ? " A háttér domborzat-árnyékolás (Copernicus DEM GLO-30)." : ""}`;
 
   legendEl.addEventListener("click", event => {
     const btn = event.target.closest(".water-legend-item");
@@ -3622,34 +4519,37 @@ function renderSoilCoreProfile(svgEl, moistureByDepth) {
       <text x="48" y="${(yy + 4).toFixed(1)}" font-size="13" fill="var(--muted)" text-anchor="end">${cm} cm</text>`;
   }).join("");
 
-  // A felső rétegek (0-1, 1-3 cm) olyan vékonyak a valódi mélységarányos
-  // rajzon, hogy a középpontjukhoz igazított két soros felirat (cím + %)
-  // átlapolná egymást. A dobozok y-pozíciója marad valódi arányos, de a
-  // feliratoké lentről-fentről eltolható, legalább MIN_LABEL_GAP távolságra
-  // egymástól, vezetővonallal kötve vissza a doboz tényleges közepéhez.
+  // A felső rétegek (0-1, 1-3, 3-9 cm) együtt is csak kb. 52 egység magasak:
+  // három külön, egymást keresztező vezetővonalas felirat helyett EGY közös
+  // felirat ("0-9 cm") jelenik meg, a rétegek vastagsággal súlyozott átlagával.
+  // A dobozok maguk továbbra is valódi mélység-arányosak.
+  const groups = [];
+  let cursor = 0;
+  while (cursor < boxes.length) {
+    let end = cursor;
+    while (end + 1 < boxes.length && boxes[end + 1].h < 30 && boxes[cursor].h < 30) end += 1;
+    const slice = boxes.slice(cursor, end + 1);
+    const weights = slice.map((_, k) => WATER_DEPTH_BANDS[cursor + k][2]);
+    const wsum = weights.reduce((a, b) => a + b, 0);
+    const avg = slice.reduce((sum, _, k) => sum + moistureByDepth[cursor + k] * weights[k], 0) / wsum;
+    groups.push({ lo: slice[0].lo, hi: slice[slice.length - 1].hi, mid: (slice[0].y + slice[slice.length - 1].y + slice[slice.length - 1].h) / 2, pct: Math.round(avg * 100) });
+    cursor = end + 1;
+  }
   const MIN_LABEL_GAP = 36;
   let prevLabelY = -Infinity;
-  const labelYs = boxes.map(box => {
-    const trueMid = box.y + box.h / 2;
-    const y = Math.max(trueMid, prevLabelY + MIN_LABEL_GAP);
-    prevLabelY = y;
-    return y;
+  groups.forEach(g => {
+    g.labelY = Math.max(g.mid, prevLabelY + MIN_LABEL_GAP);
+    prevLabelY = g.labelY;
   });
 
-  const leaders = boxes.map((box, i) => {
-    const trueMid = box.y + box.h / 2;
-    const labelY = labelYs[i];
-    return Math.abs(labelY - trueMid) < 0.5
-      ? `<polyline points="130,${trueMid.toFixed(1)} 150,${trueMid.toFixed(1)}"></polyline>`
-      : `<polyline points="130,${trueMid.toFixed(1)} 138,${trueMid.toFixed(1)} 150,${labelY.toFixed(1)}"></polyline>`;
-  }).join("");
+  const leaders = groups.map(g =>
+    Math.abs(g.labelY - g.mid) < 0.5
+      ? `<polyline points="130,${g.mid.toFixed(1)} 150,${g.mid.toFixed(1)}"></polyline>`
+      : `<polyline points="130,${g.mid.toFixed(1)} 138,${g.mid.toFixed(1)} 150,${g.labelY.toFixed(1)}"></polyline>`).join("");
 
-  const labels = boxes.map((box, i) => {
-    const labelY = labelYs[i];
-    const pct = Math.round(moistureByDepth[i] * 100);
-    return `<text x="156" y="${(labelY - 3).toFixed(1)}" font-size="14" fill="var(--fg)" font-weight="600">${box.lo}–${box.hi} cm</text>
-      <text x="156" y="${(labelY + 14).toFixed(1)}" font-size="14" fill="var(--muted)">${pct}% víz</text>`;
-  }).join("");
+  const labels = groups.map(g =>
+    `<text x="156" y="${(g.labelY - 3).toFixed(1)}" font-size="14" fill="var(--fg)" font-weight="600">${g.lo}–${g.hi} cm</text>
+      <text x="156" y="${(g.labelY + 14).toFixed(1)}" font-size="14" fill="var(--muted)">${g.pct}% víz</text>`).join("");
 
   svgEl.innerHTML = `<defs>${waterHatchDefs()}</defs>${rects}${ticks}<g stroke="var(--fg)" stroke-width="0.75" fill="none">${leaders}</g>${labels}`;
 }
@@ -3742,110 +4642,525 @@ const WATER_SANKEY_SVG = `
   </g>`;
 
 function waterBalatonTilesSvg(count) {
-  const tileW = 40, tileH = 24, rowCount = 600 / tileW; // 15 csempe/sor
+  const tileW = 40, tileH = 24, rowCount = 10; // 10 csempe/sor: a darabszám egy pillantásra leolvasható
   const fullRows = Math.floor(count / rowCount);
   const remainder = count - fullRows * rowCount;
   const fullHeight = fullRows * tileH;
   const remWidth = remainder * tileW;
   let markup = `<defs><pattern id="wbal-tile" width="${tileW}" height="${tileH}" patternUnits="userSpaceOnUse"><path transform="translate(2.5,2.5) scale(0.5)" fill="var(--fg)" d="${BALATON_TILE_ICON_PATH}"></path></pattern></defs>`;
-  markup += `<rect x="0" y="0" width="600" height="${fullHeight}" fill="url(#wbal-tile)"></rect>`;
+  markup += `<rect x="0" y="0" width="${rowCount * tileW}" height="${fullHeight}" fill="url(#wbal-tile)"></rect>`;
   if (remWidth > 0) markup += `<rect x="0" y="${fullHeight}" width="${remWidth.toFixed(1)}" height="${tileH}" fill="url(#wbal-tile)"></rect>`;
   return markup;
 }
 
 // ---- 5. Tavak részletesen ----
 
-function renderBalatonFill(svgEl, levelCm) {
-  // A feltöltő téglalap a BALATON_TILT_DEG szöggel elforgatva, a tó
-  // tengelye mentén tölt fel (ld. a BALATON_TILT_* konstansok fenti
-  // kommentjét) - 0 cm-nél a DNy-i végén kívül, 120 cm-nél a teljes tavat
-  // lefedi. A jobb oldali olvasó-skála viszont EGYENES marad (nem forog),
-  // az a sima cm-tengely, nem a tó alakja.
-  const fillSpanCm = BALATON_TILT_HALF_SPAN * 2;
-  const pxPerCmTilted = fillSpanCm / 120;
-  const zeroYTilted = BALATON_TILT_PIVOT.y + BALATON_TILT_HALF_SPAN;
-  const fillTopY = zeroYTilted - levelCm * pxPerCmTilted;
-  const summerLimitY = zeroYTilted - 120 * pxPerCmTilted;
-  const winterLimitY = zeroYTilted - 110 * pxPerCmTilted;
-  const rotate = `rotate(${BALATON_TILT_DEG} ${BALATON_TILT_PIVOT.x} ${BALATON_TILT_PIVOT.y})`;
-
-  const axisX = BALATON_BBOX.x + BALATON_BBOX.width + 75;
-  const axisYFor0cm = BALATON_BBOX.y + BALATON_BBOX.height;
-  const axisPxPerCm = BALATON_BBOX.height / 120;
-  const tickY = cm => (axisYFor0cm - cm * axisPxPerCm).toFixed(1);
-
-  svgEl.innerHTML = `
-    <defs><clipPath id="wbfill-outline"><path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}"></path></clipPath></defs>
-    <path transform="${BALATON_FILL_TRANSFORM}" d="${BALATON_TILE_ICON_PATH}" fill="none" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 3" stroke-linejoin="round"></path>
-    <g clip-path="url(#wbfill-outline)">
-      <g transform="${rotate}">
-        <rect x="${(BALATON_TILT_PIVOT.x - 1000).toFixed(1)}" y="${fillTopY.toFixed(1)}" width="2000" height="2000" fill="var(--fg)"></rect>
-      </g>
-    </g>
-    <g transform="${rotate}" stroke="var(--muted)" stroke-width="1">
-      <line x1="${(BALATON_TILT_PIVOT.x - 250).toFixed(1)}" y1="${summerLimitY.toFixed(1)}" x2="${(BALATON_TILT_PIVOT.x + 250).toFixed(1)}" y2="${summerLimitY.toFixed(1)}" stroke-dasharray="3 3"></line>
-      <line x1="${(BALATON_TILT_PIVOT.x - 250).toFixed(1)}" y1="${winterLimitY.toFixed(1)}" x2="${(BALATON_TILT_PIVOT.x + 250).toFixed(1)}" y2="${winterLimitY.toFixed(1)}" stroke-dasharray="1 3"></line>
-    </g>
-    <g stroke="var(--fg)" stroke-width="1">
-      <line x1="${axisX}" y1="${tickY(0)}" x2="${axisX}" y2="${tickY(120)}"></line>
-      <line x1="${axisX - 4}" y1="${tickY(0)}" x2="${axisX + 4}" y2="${tickY(0)}"></line>
-      <line x1="${axisX - 4}" y1="${tickY(40)}" x2="${axisX + 4}" y2="${tickY(40)}"></line>
-      <line x1="${axisX - 4}" y1="${tickY(110)}" x2="${axisX + 4}" y2="${tickY(110)}"></line>
-      <line x1="${axisX - 4}" y1="${tickY(120)}" x2="${axisX + 4}" y2="${tickY(120)}"></line>
-    </g>
-    <g font-size="12" fill="var(--muted)">
-      <text x="${axisX + 10}" y="${(+tickY(0) + 4).toFixed(1)}">0</text>
-      <text x="${axisX + 10}" y="${(+tickY(40) + 4).toFixed(1)}">40</text>
-      <text x="${axisX + 10}" y="${(+tickY(120) + 4).toFixed(1)}">120 nyár</text>
-      <text x="${axisX + 10}" y="${(+tickY(110) + 4).toFixed(1)}">110 tél</text>
-    </g>
-    <text x="${axisX + 10}" y="${(+tickY(levelCm) + 4).toFixed(1)}" font-size="13" font-weight="600" fill="var(--fg)">${waterNum(levelCm, 0)} cm</text>`;
-}
-
-// A Tisza-tónak NINCS itt sávja: a "Kisköre alsó" folyó-mérce (amiből a
-// vízállása jön) saját, a hivatalos 735±5 cm-es üzemvízszint-skálától
-// FÜGGETLEN 0-ponttal rendelkezik - élőben látott érték: -352 cm, miközben
-// a tényleges tározó közel volt az üzemvízszinthez. A két skálát egy
-// sávban mutatni félrevezető lenne, ezért csak a nyers mérceadat + egy
-// erre figyelmeztető szöveg marad (ld. a hívás noteExtra paramétere).
+// Szabályozási (ideális) sáv tavanként, a mérce saját cm-skáláján. A
+// Tisza-tó SZÁNDÉKOSAN nincs itt és a tó-kártyák között sem: a "Kisköre alsó"
+// a Tisza FOLYAMI mércéje a tározó alatt, saját, a hivatalos 735±5 cm-es
+// üzemvízszint-skálától független 0-ponttal (élőben látott érték: -352 cm,
+// miközben a tényleges tározó közel volt az üzemvízszinthez) - egy ilyen
+// kártya félrevezető lenne, az üres mérce pedig csak zaj. Amíg nincs valódi
+// tó-mérce, a Tisza-tó csak a méretösszehasonlító ábrán szerepel.
 const WATER_LAKE_BANDS = {
+  "Balaton": { lowCm: 110, highCm: 120, axisMin: 0, axisMax: 140 },
   "Velencei-tó": { lowCm: 140, highCm: 170, axisMin: 0, axisMax: 200 },
-  "Tisza-tó": { lowCm: null, highCm: null, axisMin: 0, axisMax: 0 },
-  "Fertő": { lowCm: null, highCm: null, axisMin: -50, axisMax: 50 },
+  "Fertő": { lowCm: null, highCm: null, axisMin: 0, axisMax: 0 },
 };
 
-function renderLakeGauge(container, name, levelCm, noteExtra, displayName = name) {
-  const band = WATER_LAKE_BANDS[name];
-  const wrap = document.createElement("div");
-  const valueText = levelCm === null ? "jelenleg nem elérhető" : `${waterNum(levelCm, 0)} cm`;
-  let gaugeSvg = "";
-  if (band.lowCm !== null && levelCm !== null) {
-    const span = band.axisMax - band.axisMin;
-    const toX = cm => ((cm - band.axisMin) / span) * 400;
-    const bandX = toX(band.lowCm), bandW = toX(band.highCm) - bandX;
-    const fillW = Math.max(0, Math.min(400, toX(levelCm)));
-    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${displayName}: ${valueText}">
-      <rect x="${bandX.toFixed(1)}" y="4" width="${bandW.toFixed(1)}" height="16" fill="var(--bg)" stroke="var(--fg)" stroke-width="0.75" stroke-dasharray="2 2"></rect>
-      <rect x="0" y="8" width="${fillW.toFixed(1)}" height="8" fill="var(--fg)"></rect>
-      <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1"></line>
-      <g font-size="12" fill="var(--muted)">
-        <text x="0" y="38">${band.axisMin}</text>
-        <text x="${bandX.toFixed(1)}" y="38" text-anchor="middle">${band.lowCm}</text>
-        <text x="${(bandX + bandW).toFixed(1)}" y="38" text-anchor="middle">${band.highCm}</text>
-      </g>
-    </svg>`;
-  } else {
-    gaugeSvg = `<svg viewBox="0 0 400 44" style="display:block;width:100%;height:auto;margin-top:var(--sp-2)" role="img" aria-label="${displayName}: nincs megadva szabályozási sáv">
-      <line x1="0" y1="20" x2="400" y2="20" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"></line>
-    </svg>`;
+// Egy path "d" szövegének befoglaló téglalapja (csak abszolút M/L parancsok,
+// ahogy a LAKE_COMPARE_PATHS és a BALATON_TILE_ICON_PATH is épül).
+function pathBounds(d) {
+  const nums = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(m => [Number(m[1]), Number(m[2])]);
+  const xs = nums.map(n => n[0]), ys = nums.map(n => n[1]);
+  return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+// A tó-kártya körvonala: szaggatott körvonal = a teli meder, a kitöltés az
+// aktuális szint a szabályozási sávhoz (a sáv felső széléhez) képest. A
+// Balaton a hossztengelye mentén tölt (ld. BALATON_TILT_DEG), a többi
+// alulról. Sáv nélküli tónál (Fertő) nincs kitöltés, mert nincs mihez mérni.
+function lakeShapeSvg(lakeKey, fraction, ariaLabel) {
+  const isBalaton = lakeKey === "balaton";
+  const d = LAKE_CARD_PATHS[lakeKey];
+  const b = pathBounds(d);
+  const pad = Math.max(b.w, b.h) * 0.04;
+  const view = `${(b.x - pad).toFixed(1)} ${(b.y - pad).toFixed(1)} ${(b.w + 2 * pad).toFixed(1)} ${(b.h + 2 * pad).toFixed(1)}`;
+  const clipId = `lake-card-clip-${lakeKey}`;
+  let fill = "";
+  if (fraction !== null) {
+    if (isBalaton) {
+      const span = BALATON_TILT_HALF_SPAN * 2;
+      const topY = BALATON_TILT_PIVOT.y + BALATON_TILT_HALF_SPAN - fraction * span;
+      fill = `<g clip-path="url(#${clipId})"><g transform="rotate(${BALATON_TILT_DEG} ${BALATON_TILT_PIVOT.x} ${BALATON_TILT_PIVOT.y})">` +
+        `<rect x="${BALATON_TILT_PIVOT.x - 300}" y="${topY.toFixed(2)}" width="600" height="600" fill="var(--fg)"></rect></g></g>`;
+    } else {
+      const topY = b.y + b.h * (1 - fraction);
+      fill = `<g clip-path="url(#${clipId})"><rect x="${b.x - pad}" y="${topY.toFixed(2)}" width="${b.w + 2 * pad}" height="${b.h + 2 * pad}" fill="var(--fg)"></rect></g>`;
+    }
   }
-  const valueClass = levelCm === null ? "water-lake-gauge-value water-lake-gauge-value-missing" : "water-lake-gauge-value";
-  wrap.innerHTML = `
-    <p class="water-lake-gauge-label">${displayName}</p>
-    <p class="${valueClass}">${valueText}</p>
-    ${gaugeSvg}
-    <p class="water-lake-gauge-note">${noteExtra}</p>`;
-  container.appendChild(wrap);
+  return `<svg class="water-lake-card-shape" viewBox="${view}" role="img" aria-label="${ariaLabel}">` +
+    `<defs><clipPath id="${clipId}"><path d="${d}"></path></clipPath></defs>` +
+    `<path d="${d}" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" stroke-linejoin="round"></path>` +
+    fill + `</svg>`;
+}
+
+// Közös vízszintes mérce minden tóhoz: tengely, vonalkázott ideális sáv, a
+// jelenlegi szint jelölője. A skála-értékek (a tengely két vége, a sáv két
+// széle) kimaradnak, ha egymáshoz vagy a jelölőhöz túl közel esnek, hogy ne
+// írjanak egymásra (korábban a "40" tengelyjegy és a "38 cm" felirat
+// egybefolyt). A viewBox 240 egység széles, a kártya kb. ennyi képpont: a
+// betűméret --k-val állandó (ld. watchFigureScale).
+function lakeGaugeSvg(lakeKey, band, levelCm, ariaLabel) {
+  const W = 240, padX = 12, axisY = 22;
+  const span = band.axisMax - band.axisMin;
+  const xFor = cm => padX + ((Math.max(band.axisMin, Math.min(band.axisMax, cm)) - band.axisMin) / span) * (W - 2 * padX);
+  const hatchId = `lake-hatch-${lakeKey}`;
+  const bandX = xFor(band.lowCm), bandW = xFor(band.highCm) - bandX;
+  const markerX = xFor(levelCm);
+  const MIN_GAP = 22;
+  const ticks = [];
+  for (const cm of [band.axisMin, band.lowCm, band.highCm, band.axisMax]) {
+    const x = xFor(cm);
+    if (Math.abs(x - markerX) < MIN_GAP) continue;
+    if (ticks.some(t => Math.abs(t.x - x) < MIN_GAP)) continue;
+    ticks.push({ x, cm });
+  }
+  const tickMarkup = ticks.map(t =>
+    `<line x1="${t.x.toFixed(1)}" y1="${axisY}" x2="${t.x.toFixed(1)}" y2="${axisY + 4}" stroke="var(--muted)" stroke-width="1"></line>` +
+    `<text class="water-lake-gauge-text" x="${t.x.toFixed(1)}" y="${axisY + 6}" text-anchor="middle" dy="0.9em">${t.cm}</text>`).join("");
+  return `<svg class="water-lake-gauge" viewBox="0 0 ${W} 44" role="img" aria-label="${ariaLabel}">` +
+    `<defs><pattern id="${hatchId}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--fg)" stroke-width="1"></line></pattern></defs>` +
+    `<rect x="${bandX.toFixed(1)}" y="${axisY - 9}" width="${bandW.toFixed(1)}" height="9" fill="url(#${hatchId})" stroke="var(--fg)" stroke-width="0.75"></rect>` +
+    `<line x1="${padX}" y1="${axisY}" x2="${W - padX}" y2="${axisY}" stroke="var(--fg)" stroke-width="1"></line>` +
+    tickMarkup +
+    `<path d="M${(markerX - 5).toFixed(1)} ${axisY - 14} L${(markerX + 5).toFixed(1)} ${axisY - 14} L${markerX.toFixed(1)} ${axisY - 5} Z" fill="var(--fg)"></path>` +
+    `</svg>`;
+}
+
+// A tavak egy sorban, azonos kártyákon (UX-terv 5.1): körvonal, szint cm-ben,
+// közös mérce, egy állapotsor. Ahol nincs ideális sáv (Fertő), a kártya sáv
+// nélkül, egy halvány megjegyzéssel jelenik meg. A 7 napos trend-vonal
+// (station.history: számok vagy {level_cm} elemek) a tó-pillanatképben még
+// nincs - amint a gyűjtő történetet ad, itt automatikusan megjelenik.
+function renderLakeCards(container, cards) {
+  container.innerHTML = "";
+  for (const card of cards) {
+    const band = WATER_LAKE_BANDS[card.name];
+    const hasBand = band && band.lowCm !== null;
+    const level = card.levelCm;
+    const el = document.createElement("article");
+    el.className = "water-lake-card";
+
+    let fraction = null;
+    if (hasBand && level !== null) {
+      fraction = Math.max(0, Math.min(1, (level - band.axisMin) / (band.highCm - band.axisMin)));
+    }
+    let status = "";
+    if (level === null) status = "jelenleg nem elérhető";
+    else if (!hasBand) status = "";
+    else if (level < band.lowCm) status = `${waterNum(band.lowCm - level, 0)} cm-rel az ideális sáv alatt`;
+    else if (level > band.highCm) status = `${waterNum(level - band.highCm, 0)} cm-rel az ideális sáv felett`;
+    else status = "az ideális sávban";
+
+    const valueText = level === null ? "nincs adat" : `${waterNum(level, 0)} cm`;
+    const history = Array.isArray(card.history)
+      ? card.history.map(h => (typeof h === "number" ? h : h.level_cm)).filter(v => typeof v === "number")
+      : [];
+    el.innerHTML =
+      `<h4 class="water-lake-card-name">${card.name}</h4>` +
+      lakeShapeSvg(card.shapeKey, fraction, `${card.name} körvonala, kitöltve az aktuális szint arányában`) +
+      `<p class="water-lake-card-value${level === null ? " water-lake-gauge-value-missing" : ""}">${valueText}</p>` +
+      (hasBand && level !== null ? lakeGaugeSvg(card.shapeKey, band, level, `${card.name}: ${valueText}, ideális sáv ${band.lowCm} és ${band.highCm} cm között`) : "") +
+      (status ? `<p class="water-lake-card-status">${status}</p>` : "") +
+      (history.length > 1 ? `<div class="water-lake-card-trend">${popupSparklineSvg(history)}</div>` : "") +
+      (!hasBand ? `<p class="water-lake-card-note">ehhez a tóhoz nincs megadva ideális sáv</p>` : "") +
+      (card.note ? `<p class="water-lake-card-note">${card.note}</p>` : "");
+    container.appendChild(el);
+    const gauge = el.querySelector(".water-lake-gauge");
+    if (gauge) watchFigureScale(gauge, 240);
+  }
+}
+
+// ---- Cigánd: a tározó megnyitása (aktuális hír) ----
+//
+// A tartalom a kézzel karbantartott cigand.json-ból jön (tények, időrend,
+// források, az `active` jelző), a térkép geometriája a cigand-geo.json-ból
+// (egyszer, az OpenStreetMapból kivonva). NINCS élő adat a beáramlásról:
+// minden szám bejelentés vagy számolt érték, ezt a címkék (tény /
+// bejelentett / számolt / mért) és a "szemléltető ábra" felirat mondja ki.
+// A negyedik, MÉRT csempe (a Tisza szintje Cigánd közelében) csak akkor
+// jelenik meg, ha a rivers-snapshotban van "Dombrád" nevű állomás - a
+// gyűjtő bővítése nélkül egyszerűen hiányzik.
+const CIGAND_URL = "cigand.json?v=1";
+const CIGAND_GEO_URL = "cigand-geo.json?v=1";
+const CIGAND_STEP_MS = 2000;
+const CIGAND_STEPS = [
+  "megárad a Tisza",
+  "nyílik a zsilip",
+  "a víz beáramlik",
+  "megtelik a mélyedés",
+  "tovább a csatornákba",
+];
+let cigandData = null;
+let cigandGeo = null;
+let cigandAnim = null; // az éppen futó animáció vezérlője (leállításhoz)
+
+async function loadCigand() {
+  if (!cigandData) {
+    const [facts, geo] = await Promise.all([
+      fetch(CIGAND_URL).then(r => r.json()),
+      fetch(CIGAND_GEO_URL).then(r => r.json()),
+    ]);
+    cigandData = facts;
+    cigandGeo = geo;
+  }
+  return { data: cigandData, geo: cigandGeo };
+}
+
+function cigandStopAnimation() {
+  if (cigandAnim) cigandAnim.stop();
+  cigandAnim = null;
+}
+
+// Egyszerű időzítéses átmenet: fn(0..1), a végén a callback.
+function cigandTween(ms, fn, done) {
+  let raf = 0, cancelled = false;
+  const start = performance.now();
+  const tick = now => {
+    if (cancelled) return;
+    const t = Math.min(1, (now - start) / ms);
+    fn(t);
+    if (t < 1) raf = requestAnimationFrame(tick);
+    else if (done) done();
+  };
+  raf = requestAnimationFrame(tick);
+  return () => { cancelled = true; cancelAnimationFrame(raf); };
+}
+
+function cigandTagHtml(kind) {
+  return `<span class="cigand-chip">${kind}</span>`;
+}
+
+function cigandTilesHtml(data, rivers) {
+  const f = data.facts;
+  const year = Number((data.updated || "").slice(0, 4)) || new Date().getFullYear();
+  const pct = Math.round((f.volume_m3 / f.capacity_m3) * 100);
+  const tiles = [
+    { label: "mennyi víz", value: "közel 2 milliárd liter", sub: `${waterNum(f.volume_m3 / 1e6, 0)} millió m³; a kormányfő ${waterNum(f.volume_m3 / 1e6, 0)}-${waterNum(f.volume_high_m3 / 1e6, 0)} milliót mondott`, kind: "bejelentett" },
+    { label: "mióta nem használták", value: `${year - f.built} év`, sub: `${f.built}-ban adták át`, kind: "tény" },
+    { label: "a tározó ekkora részét tölti ki", value: `kb. ${pct} %`, sub: `${waterNum(f.capacity_m3 / 1e6, 0)} millió m³ fér bele`, kind: "számolt" },
+  ];
+  // A mért csempe: csak ha a gyűjtő ad Dombrád állomást (ld. a fejkommentet).
+  const gauge = (rivers || []).find(s => s.name === "Dombrád");
+  if (gauge) {
+    let arrow = "";
+    const past = gauge.history && gauge.history.length > 24 ? gauge.history[gauge.history.length - 25].level_cm : null;
+    if (typeof past === "number") arrow = gauge.level_cm > past ? " ↑" : gauge.level_cm < past ? " ↓" : " →";
+    tiles.push({ label: "a Tisza most", value: `${waterNum(gauge.level_cm, 0)} cm${arrow}`, sub: "Dombrád, hydroinfo.hu", kind: "mért" });
+  }
+  return tiles.map(t =>
+    `<div class="cigand-tile"><span class="cigand-tile-label">${t.label}</span>` +
+    `<span class="cigand-tile-value">${t.value}</span><span class="cigand-tile-sub">${t.sub}</span>${cigandTagHtml(t.kind)}</div>`).join("");
+}
+
+function cigandCompareHtml(data, minCellLiters) {
+  const f = data.facts;
+  const pools = Math.round(f.volume_m3 / 2500 / 50) * 50;
+  const cm = Math.round(f.volume_m3 / (f.area_km2 * 1e6) * 100);
+  const icons = {
+    pool: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="4" width="44" height="24" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M6 14 q4 -4 8 0 t8 0 t8 0 t8 0 M6 21 q4 -4 8 0 t8 0 t8 0 t8 0" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>`,
+    depth: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="4" width="44" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"></rect><rect x="2" y="25" width="44" height="3" fill="currentColor"></rect></svg>`,
+    cell: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="2" width="44" height="28" fill="none" stroke="currentColor" stroke-width="1.5"></rect><rect x="2" y="2" width="2" height="28" fill="currentColor"></rect></svg>`,
+  };
+  const items = [
+    { icon: icons.pool, text: `kb. ${waterNum(pools, 0)} olimpiai medence` },
+    { icon: icons.depth, text: `kb. ${cm} cm vastag réteg, ha az egész tározót elborítaná` },
+  ];
+  if (minCellLiters > 0) {
+    const share = (f.volume_m3 * 1000) / minCellLiters * 100;
+    items.push({ icon: icons.cell, text: `kb. ${waterNum(Math.round(share), 0)} % abból, amennyit ma a legszárazabb mintaterület talaja tart (${waterNum(minCellLiters / 1e9, 0)} milliárd liter)` });
+  }
+  return items.map(i => `<div class="cigand-compare-item">${i.icon}<p>${i.text}</p></div>`).join("") +
+    `<p class="cigand-compare-tag">${cigandTagHtml("számolt")}</p>`;
+}
+
+function cigandTimelineHtml(data) {
+  return data.timeline.map(e =>
+    `<li><span class="cigand-tl-date">${e.date}</span><span class="cigand-tl-text">${e.text} ` +
+    `${cigandTagHtml(e.kind)} <a href="${e.source.url}" target="_blank" rel="noopener">${e.source.name}</a></span></li>`).join("");
+}
+
+// A térkép: a geometria a csatorna-térképpel azonos lapos vetítéssel
+// (fitFlatProjection), víz = vonalvastagság, szaggatás, vonalkázás - szín nincs.
+function buildCigandMap(svgEl, tooltipEl, data, geo) {
+  const [minLon, minLat, maxLon, maxLat] = geo.bounds;
+  const W = 640;
+  const H = Math.round(W * (maxLat - minLat) / ((maxLon - minLon) * Math.cos((minLat + maxLat) / 2 * Math.PI / 180)));
+  svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svgEl.parentElement.style.setProperty("--ar", (W / H).toFixed(3));
+  const project = fitFlatProjection(minLon, maxLon, minLat, maxLat, W, H);
+  const xy = ([lon, lat]) => project(lat, lon);
+  const pathOf = (lines, close = false) => lines.map(line =>
+    line.map((p, i) => { const q = xy(p); return `${i === 0 ? "M" : "L"}${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join("") + (close ? "Z" : "")).join("");
+
+  const sluice = xy(geo.sluice);
+  const resPath = pathOf(geo.reservoir, true);
+  const resPts = geo.reservoir.flat().map(xy);
+  const rx0 = Math.min(...resPts.map(p => p.x)), rx1 = Math.max(...resPts.map(p => p.x));
+  const ry0 = Math.min(...resPts.map(p => p.y)), ry1 = Math.max(...resPts.map(p => p.y));
+  const nearest = (pts, to) => pts.reduce((a, b) => Math.hypot(b.x - to.x, b.y - to.y) < Math.hypot(a.x - to.x, a.y - to.y) ? b : a);
+  const tiszaPt = nearest(geo.tisza.flat().map(xy), sluice);
+  const resIn = nearest(resPts, sluice);
+
+  const canalById = Object.fromEntries(geo.canals.map(c => [c.id, c]));
+  const popups = {
+    tisza: { title: "Tisza", text: "Ebből a folyóból engedik a vizet a tározóba." },
+    bodrog: { title: "Bodrog", text: "A Bodrogköz északi-nyugati határa." },
+    reservoir: { title: "Cigánd-Tiszakarádi árapasztó tározó", text: `${waterNum(data.facts.capacity_m3 / 1e6, 0)} millió m³, ${waterNum(data.facts.area_km2, 1)} km², ${data.facts.built}-ban adták át.` },
+    sluice: { title: "zsilip", text: "Nov. 21-én nyitották meg, 2008 óta először." },
+    tiszakaradi: { title: canalById.tiszakaradi.n, text: "A bodrogközi csatornahálózat része." },
+    ricsei: { title: canalById.ricsei.n, text: "A bodrogközi csatornahálózat része." },
+    felsoberecki: { title: canalById.felsoberecki.n, text: "Kapcsolódó bodrogközi intézkedés: közel 12 km, kiszáradt, gravitációs utánpótlást kap (MTI, nov. 23.). Nem állítjuk, hogy cigándi víz." },
+  };
+
+  const wetIds = ["tiszakaradi", "ricsei"]; // általánosan: a víz "tovább a csatornákba", útvonalat nem állítunk
+  let canalsMarkup = "", hitMarkup = "";
+  for (const c of geo.canals) {
+    const d = pathOf(c.l);
+    canalsMarkup += `<path class="cg-canal-dry" d="${d}"></path>`;
+    if (wetIds.includes(c.id)) canalsMarkup += `<path class="cg-canal-wet" d="${d}"></path>`;
+    hitMarkup += `<path class="cg-hit" data-popup="${c.id}" d="${d}" tabindex="0" role="button" aria-label="${popups[c.id].title}"></path>`;
+  }
+  hitMarkup += `<path class="cg-hit" data-popup="tisza" d="${pathOf(geo.tisza)}" tabindex="0" role="button" aria-label="Tisza"></path>`;
+  hitMarkup += `<path class="cg-hit cg-hit-fill" data-popup="reservoir" d="${resPath}" tabindex="0" role="button" aria-label="a tározó"></path>`;
+  hitMarkup += `<circle class="cg-hit cg-hit-fill" data-popup="sluice" cx="${sluice.x.toFixed(1)}" cy="${sluice.y.toFixed(1)}" r="14" tabindex="0" role="button" aria-label="zsilip"></circle>`;
+
+  const placesMarkup = geo.places.map(p => {
+    const q = xy([p.lon, p.lat]);
+    const left = q.x > W - 90;
+    return `<circle class="water-map-town" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${(2 / 1).toFixed(1)}"></circle>` +
+      `<text class="water-map-label" x="${(q.x + (left ? -5 : 5)).toFixed(1)}" y="${(q.y - 4).toFixed(1)}" text-anchor="${left ? "end" : "start"}">${p.n}</text>`;
+  }).join("");
+  // A "Tisza" felirat a vastag folyóvonal egy pontja mellé kerül (a 21,95 K
+  // hosszúság környékén), nem a csatorna mellé.
+  const tiszaLabel = (() => {
+    const q = nearest(geo.tisza.flat().map(xy), xy([21.99, 48.2]));
+    return { x: q.x - 6, y: q.y - 12 };
+  })();
+  const bodrogLabel = xy([21.63, 48.395]);
+  const waterLabels =
+    `<text class="water-map-label water-map-label-water" x="${tiszaLabel.x.toFixed(1)}" y="${tiszaLabel.y.toFixed(1)}">Tisza</text>` +
+    `<text class="water-map-label water-map-label-water" x="${bodrogLabel.x.toFixed(1)}" y="${bodrogLabel.y.toFixed(1)}">Bodrog</text>` +
+    `<text class="water-map-label water-map-label-water" x="${(rx0 - 8).toFixed(1)}" y="${((ry0 + ry1) / 2).toFixed(1)}" text-anchor="end">tározó</text>`;
+  const canalLabels = geo.canals.filter(c => c.id === "tiszakaradi").map(c => {
+    const mid = c.l.flat()[Math.floor(c.l.flat().length / 2)];
+    const q = xy(mid);
+    return `<text class="water-map-label water-map-label-water cg-canal-label" x="${q.x.toFixed(1)}" y="${(q.y + 14).toFixed(1)}" text-anchor="middle">${c.n.replace("-főcsatorna", "")}</text>`;
+  }).join("");
+
+  // Léptékvonal (5 km) és kis hazai áttekintő a sarokban.
+  const kmPerUnit = 111 / project.scale;
+  const barW = 5 / kmPerUnit;
+  const sx = W - 12 - barW;
+  const scale = `<g pointer-events="none"><line x1="${sx.toFixed(1)}" y1="26" x2="${(W - 12).toFixed(1)}" y2="26" stroke="var(--fg)" stroke-width="2"></line><text class="water-map-label" x="${sx.toFixed(1)}" y="20">5 km</text></g>`;
+  let inset = "";
+  const ring = selectCountryBorderRing(16, 23, 45.7, 48.6);
+  if (ring) {
+    const ih = 40, iw = 72;
+    const small = fitFlatProjection(16, 23, 45.7, 48.6, iw, ih);
+    const ox = W - iw - 10, oy = H - ih - 10;
+    const d = ring.map(([lon, lat], i) => { const p = small(lat, lon); return `${i === 0 ? "M" : "L"}${(ox + p.x).toFixed(1)} ${(oy + p.y).toFixed(1)}`; }).join("") + "Z";
+    const spot = small(48.26, 21.9);
+    inset = `<g pointer-events="none"><rect x="${ox - 3}" y="${oy - 3}" width="${iw + 6}" height="${ih + 6}" fill="var(--bg)" opacity="0.85"></rect><path d="${d}" fill="none" stroke="var(--fg)" stroke-width="1"></path><circle cx="${(ox + spot.x).toFixed(1)}" cy="${(oy + spot.y).toFixed(1)}" r="3" fill="var(--fg)"></circle></g>`;
+  }
+
+  const fillTop0 = ry1; // a vonalkázás alulról nő
+  svgEl.innerHTML =
+    `<defs>` +
+    `<clipPath id="cg-res-clip"><path d="${resPath}"></path></clipPath>` +
+    `<clipPath id="cg-fill-clip"><rect id="cg-fill-rect" x="${(rx0 - 2).toFixed(1)}" y="${fillTop0.toFixed(1)}" width="${(rx1 - rx0 + 4).toFixed(1)}" height="0"></rect></clipPath>` +
+    `<pattern id="cg-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--fg)" stroke-width="1.6"></line></pattern>` +
+    `</defs>` +
+    `<path class="cg-bodrog" d="${pathOf(geo.bodrog)}"></path>` +
+    `<path class="cg-tisza" d="${pathOf(geo.tisza)}"></path>` +
+    canalsMarkup +
+    `<path class="cg-reservoir" d="${resPath}"></path>` +
+    `<g clip-path="url(#cg-res-clip)"><rect x="${(rx0 - 2).toFixed(1)}" y="${(ry0 - 2).toFixed(1)}" width="${(rx1 - rx0 + 4).toFixed(1)}" height="${(ry1 - ry0 + 4).toFixed(1)}" fill="url(#cg-hatch)" clip-path="url(#cg-fill-clip)"></rect></g>` +
+    `<path class="cg-dyke" d="${pathOf(geo.dyke)}"></path>` +
+    `<path class="cg-flow-in" d="M${tiszaPt.x.toFixed(1)} ${tiszaPt.y.toFixed(1)}L${sluice.x.toFixed(1)} ${sluice.y.toFixed(1)}L${resIn.x.toFixed(1)} ${resIn.y.toFixed(1)}"></path>` +
+    `<g class="cg-gate" transform="translate(${sluice.x.toFixed(1)} ${sluice.y.toFixed(1)})"><rect class="cg-gate-bar cg-gate-l" x="-9" y="-3.5" width="9" height="7"></rect><rect class="cg-gate-bar cg-gate-r" x="0" y="-3.5" width="9" height="7"></rect></g>` +
+    waterLabels + canalLabels + placesMarkup +
+    `<text class="cg-counter" id="cg-counter" x="${((rx0 + rx1) / 2).toFixed(1)}" y="${(ry0 - 28).toFixed(1)}" text-anchor="middle"></text>` +
+    scale + inset + hitMarkup;
+
+  // Buborékok: rámutatásra, koppintásra és fókuszra.
+  const showPopup = (el, x, y) => {
+    const p = popups[el.dataset.popup];
+    mapPopupShow(tooltipEl, x, y, `<strong>${p.title}</strong><span>${p.text}</span>`);
+  };
+  svgEl.querySelectorAll(".cg-hit").forEach(el => {
+    el.addEventListener("pointermove", e => { if (e.pointerType === "mouse") showPopup(el, e.clientX, e.clientY); });
+    el.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") mapPopupHide(tooltipEl); });
+    el.addEventListener("click", e => { e.stopPropagation(); showPopup(el, e.clientX, e.clientY); });
+    el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); showPopup(el, r.left + r.width / 2, r.top + r.height / 2); });
+    el.addEventListener("blur", () => mapPopupHide(tooltipEl));
+  });
+  if (buildCigandMap.closer) document.removeEventListener("click", buildCigandMap.closer);
+  buildCigandMap.closer = () => mapPopupHide(tooltipEl);
+  document.addEventListener("click", buildCigandMap.closer);
+  watchFigureScale(svgEl, W);
+
+  return { fillTop0, fillRange: (ry1 - ry0) * 0.5, ry1 };
+}
+
+// Az 5 lépéses animáció. A lépés az svg osztályain át hat (st-1..st-5,
+// halmozódnak), a vonalkázás és a számláló requestAnimationFrame-mel nő.
+// Egyszer indul, amikor az ábra láthatóvá válik; a pontok és a "lejátszás
+// újra" gomb kézzel is léptet. Csökkentett mozgásnál a végállapot látszik, a
+// lépések számozott listában.
+function setupCigandAnimation(svgEl, geoInfo, data) {
+  cigandStopAnimation();
+  const captionEl = document.getElementById("cigand-step-caption");
+  const dotsEl = document.getElementById("cigand-dots");
+  const stepsList = document.getElementById("cigand-steps");
+  const counterEl = svgEl.querySelector("#cg-counter");
+  const fillRect = svgEl.querySelector("#cg-fill-rect");
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const volumeText = "közel 2 milliárd liter";
+
+  dotsEl.innerHTML = CIGAND_STEPS.map((name, i) =>
+    `<button type="button" class="cigand-dot" data-step="${i + 1}" aria-label="${i + 1}. lépés: ${name}"></button>`).join("");
+  stepsList.innerHTML = CIGAND_STEPS.map(s => `<li>${s}</li>`).join("");
+
+  let cancelFill = null, timer = null, current = 0;
+  const setFill = t => {
+    fillRect.setAttribute("y", (geoInfo.fillTop0 - geoInfo.fillRange * t).toFixed(1));
+    fillRect.setAttribute("height", (geoInfo.fillRange * t + 1).toFixed(1));
+    const liters = 2 * t;
+    counterEl.textContent = t >= 1 ? volumeText : t > 0 ? `${waterNum(liters, 1)} milliárd liter` : "";
+  };
+
+  function showStep(n, animate) {
+    current = n;
+    for (let i = 1; i <= 5; i++) svgEl.classList.toggle(`st-${i}`, i <= n);
+    captionEl.textContent = n ? `${n}. ${CIGAND_STEPS[n - 1]}${n === 4 ? " (a bejelentett mennyiség szerint)" : n === 5 ? " (a pontos útvonal még nem megerősített)" : ""}` : "";
+    dotsEl.querySelectorAll(".cigand-dot").forEach(b => {
+      const k = Number(b.dataset.step);
+      b.classList.toggle("is-done", k <= n);
+      b.setAttribute("aria-current", k === n ? "step" : "false");
+    });
+    if (cancelFill) { cancelFill(); cancelFill = null; }
+    if (n >= 4) {
+      if (animate && n === 4) cancelFill = cigandTween(CIGAND_STEP_MS * 0.9, setFill);
+      else setFill(1);
+    } else {
+      setFill(0);
+    }
+  }
+
+  function stop() {
+    clearTimeout(timer);
+    if (cancelFill) cancelFill();
+    cancelFill = null;
+  }
+  function play() {
+    stop();
+    showStep(0, false);
+    let n = 0;
+    const next = () => {
+      n += 1;
+      showStep(n, true);
+      if (n < 5) timer = setTimeout(next, CIGAND_STEP_MS);
+    };
+    timer = setTimeout(next, 250);
+  }
+  dotsEl.addEventListener("click", e => {
+    const b = e.target.closest(".cigand-dot");
+    if (!b) return;
+    stop();
+    showStep(Number(b.dataset.step), false);
+  });
+  document.getElementById("cigand-replay").onclick = () => { stepsList.hidden = true; play(); };
+
+  if (reduced) {
+    stepsList.hidden = false;
+    showStep(5, false);
+    cigandAnim = { stop };
+    return;
+  }
+  stepsList.hidden = true;
+  showStep(0, false);
+  let started = false;
+  let observer = null;
+  if ("IntersectionObserver" in window) {
+    observer = new IntersectionObserver(entries => {
+      if (!started && entries.some(e => e.isIntersecting)) {
+        started = true;
+        observer.disconnect();
+        play();
+      }
+    }, { threshold: 0.5 });
+    observer.observe(svgEl);
+  } else {
+    started = true;
+    play();
+  }
+  cigandAnim = { stop: () => { stop(); if (observer) observer.disconnect(); } };
+}
+
+async function buildCigand(soil, rivers) {
+  const section = document.getElementById("water-cigand-section");
+  const tocLink = document.getElementById("water-toc-cigand");
+  try {
+    const { data, geo } = await loadCigand();
+    document.getElementById("cigand-tag").textContent = data.active ? data.label : "";
+    document.getElementById("cigand-tag").hidden = !data.active;
+    document.getElementById("cigand-title").textContent = data.title;
+    document.getElementById("cigand-lead").textContent = data.lead;
+    document.getElementById("cigand-tiles").innerHTML = cigandTilesHtml(data, rivers && rivers.stations);
+    const cells = soil.points.filter(p => p.in_hungary && p.liters_total > 0);
+    const minCell = cells.length ? Math.min(...cells.map(p => p.liters_total)) : 0;
+    document.getElementById("cigand-compare").innerHTML = cigandCompareHtml(data, minCell);
+    document.getElementById("cigand-caveat").innerHTML =
+      "Ez nem árvízi elárasztás: a tározó kb. 2 százalékáról van szó, a víz a kiszáradt csatornákba jut. Élő mérés nincs róla: a számok a kormány bejelentései.";
+    document.getElementById("cigand-timeline").innerHTML = cigandTimelineHtml(data);
+    document.getElementById("cigand-sources").innerHTML = "Források: " +
+      data.sources.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`).join(", ") + `. Frissítve: ${data.updated}.`;
+
+    const info = buildCigandMap(document.getElementById("cigand-map"), document.getElementById("cigand-tooltip"), data, geo);
+    setupCigandAnimation(document.getElementById("cigand-map"), info, data);
+
+    // Lejárt esemény: egy soros összefoglaló, az országos szakaszok alatt.
+    const body = document.getElementById("cigand-body");
+    const summary = document.getElementById("cigand-summary");
+    const expand = document.getElementById("cigand-expand");
+    if (!data.active) {
+      const anchor = document.getElementById("water-methodology");
+      anchor.parentNode.insertBefore(section, anchor);
+      document.getElementById("cigand-summary-text").textContent = data.summary;
+      summary.hidden = false;
+      body.hidden = true;
+      expand.setAttribute("aria-expanded", "false");
+      expand.onclick = () => {
+        const open = body.hidden;
+        body.hidden = !open;
+        expand.setAttribute("aria-expanded", open ? "true" : "false");
+        expand.textContent = open ? "elrejtés" : "részletek";
+      };
+    } else {
+      const firstSection = document.getElementById("water-local-section");
+      firstSection.parentNode.insertBefore(section, firstSection);
+      summary.hidden = true;
+      body.hidden = false;
+    }
+    section.hidden = false;
+    tocLink.hidden = false;
+  } catch (err) {
+    console.error(err);
+    section.hidden = true;
+    tocLink.hidden = true;
+  }
 }
 
 // ---- Fő összerakó: lekéri a három snapshotot, feltölti a szekciókat ----
@@ -3872,20 +5187,55 @@ function findLakeStation(stations, lake, station) {
 // (korábbi helyszínhez tartozó) closure-t sülne el később.
 let channelsObserver = null;
 
+// A betöltés alatt egy helyfoglaló doboz tartja a helyet, hogy a lap ne
+// ugorjon, amikor az ábrák megérkeznek.
+function setWaterLoading(on) {
+  document.getElementById("water-skeleton").hidden = !on;
+}
+
+// Tartalomjegyzék: a jelenleg látott szakasz a tapadó sávban aria-current-et
+// kap. Minden új felépítéskor újraindul (a régi megfigyelő leáll).
+let waterTocObserver = null;
+function watchWaterToc() {
+  if (waterTocObserver) waterTocObserver.disconnect();
+  if (!("IntersectionObserver" in window)) return;
+  const links = [...document.querySelectorAll("#water-toc a")];
+  const targets = links.map(a => document.querySelector(a.getAttribute("href")));
+  const visible = new Set();
+  const update = () => {
+    // A legfelső, még látható szakasz a jelenlegi.
+    const current = targets.find(t => t && visible.has(t));
+    links.forEach((a, i) => {
+      if (targets[i] && targets[i] === current) a.setAttribute("aria-current", "true");
+      else a.removeAttribute("aria-current");
+    });
+  };
+  waterTocObserver = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) visible.add(e.target); else visible.delete(e.target);
+    }
+    update();
+  }, { rootMargin: "-56px 0px -45% 0px" });
+  targets.forEach(t => { if (t) waterTocObserver.observe(t); });
+}
+
 async function buildWaterPanel(point) {
   const statusEl = document.getElementById("water-status");
   statusEl.hidden = false;
   statusEl.textContent = "töltés…";
+  setWaterLoading(true);
 
   try {
     // A saját hely talajprofilja párhuzamosan jön, és a hibája nem buktatja
     // el az országos adatokat (null: a szekció rejtve marad).
-    const [soil, rivers, lakes, , , localMoisture] = await Promise.all([
+    const [soil, rivers, lakes, , , , , localMoisture] = await Promise.all([
       fetchWaterSnapshot("soil-snapshot"),
       fetchWaterSnapshot("rivers-snapshot"),
       fetchWaterSnapshot("lakes-snapshot"),
       loadWaterGeo(), // a legnagyobb folyók/Balaton valódi vonala a dombormű-térképhez (globális `waterGeo`)
       loadBorders(), // az ország valódi körvonala a dombormű-raszter vágásához (globális `borderRings`)
+      loadPlaces(), // helynevek a térképek felirataihoz és a cellák neveihez
+      loadCounties(), // megyehatárok a nagyított csatorna-térképhez
       fetchUserSoilProfile(point).catch(err => { console.error(err); return null; }),
     ]);
 
@@ -3904,6 +5254,9 @@ async function buildWaterPanel(point) {
     } else {
       updatedEl.hidden = true;
     }
+
+    // Cigánd: aktuális hír, a saját hibája nem buktatja el a panelt.
+    await buildCigand(soil, rivers);
 
     // 1. Személyes: legfelül, mert ez szól a keresett helyre; az országos
     // adatok utána jönnek. Ugyanabban a lépésben jelenik meg, mint az
@@ -3947,14 +5300,22 @@ async function buildWaterPanel(point) {
     );
     document.getElementById("water-soil-section").hidden = false;
 
-    // 2. Országtérkép
-    const hungaryCells = soil.points.filter(p => p.in_hungary);
+    // 2. Országtérkép. A Balaton fölötti, adat nélküli (0 literes) cella nem
+    // számít: se a legszárazabb, se a legnedvesebb nem lehet. A fejsor
+    // helynevet ad (a legnagyobb település a cella területén), nem csak számot.
+    const hungaryCells = soil.points.filter(p => p.in_hungary && p.liters_total > 0);
     const maxCell = hungaryCells.reduce((a, b) => (b.liters_total > a.liters_total ? b : a), hungaryCells[0]);
     const minCell = hungaryCells.reduce((a, b) => (b.liters_total < a.liters_total ? b : a), hungaryCells[0]);
+    const cellHalf = soil.grid_step_deg / 2;
+    const cellLabel = c => {
+      const name = nearestPlaceName(c.lat, c.lon, cellHalf, cellHalf);
+      return name ? `${name} környéke` : "egy mintaterület";
+    };
+    const cellPct = c => Math.round(waterWeightedAvg(c.moisture_by_depth) * 100);
     document.getElementById("water-map-headline").textContent =
-      `legtöbb víz: ${waterNum(maxCell.liters_total / 1e9, 0)} milliárd liter egy cellában`;
+      `legnedvesebb: ${cellLabel(maxCell)}`;
     document.getElementById("water-map-detail").textContent =
-      `legkevesebb: ${waterNum(minCell.liters_total / 1e9, 0)} milliárd liter`;
+      `${cellPct(maxCell)}% átlagos víztartalom, legszárazabb: ${cellLabel(minCell)} (${cellPct(minCell)}%)`;
     buildReliefMap(
       document.getElementById("water-relief-map"),
       document.getElementById("water-map-legend"),
@@ -3965,12 +5326,12 @@ async function buildWaterPanel(point) {
       waterGeo
     );
     document.getElementById("water-map-section").hidden = false;
+    watchFigureScale(document.getElementById("water-relief-map"), 640);
 
-    // 2c. Folyóhálózat: statikus, önálló (ld. WATER_RIVER_NET_SVG)
-    document.getElementById("water-river-net").innerHTML = WATER_RIVER_NET_SVG;
-    document.getElementById("water-river-net-section").hidden = false;
-
-    // 2b. Folyók: önálló lista, kattintható állomások
+    // 2b. Folyók: a hálózat-térkép (rámutatásra mért vízállás + idősor) és a
+    // lenti lista EGY szakasz: a térképen egy folyóra kattintva ugyanaz a
+    // grafikon nyílik, mint a listában. A lista a billentyűzettel és
+    // képernyőolvasóval elérhető megfelelő.
     const riverCount = rivers.stations.length;
     const riverNames = [...new Set(rivers.stations.map(s => s.river))];
     document.getElementById("water-rivers-headline").textContent =
@@ -3978,7 +5339,13 @@ async function buildWaterPanel(point) {
     document.getElementById("water-rivers-detail").textContent =
       "élő mérce-adat (hydroinfo.hu) - koppints egy folyóra az előrejelzéshez és a korábbi vízálláshoz";
     buildRiverList(document.getElementById("water-river-list"), rivers.stations);
-    document.getElementById("water-rivers-section").hidden = false;
+    buildRiverNet(
+      document.getElementById("water-river-net"),
+      document.getElementById("water-river-net-tooltip"),
+      rivers.stations
+    );
+    document.getElementById("water-river-net-section").hidden = false;
+    watchFigureScale(document.getElementById("water-river-net"), 400);
 
     // 2d. Csatornák: lásd a buildChannelsMap fölötti kommentet. UX-audit
     // T01 - ez a (nagy payload-ú, ~5000 SVG node-ot építő) térkép a kezdeti
@@ -3997,7 +5364,8 @@ async function buildWaterPanel(point) {
     const loadChannelsSection = async () => {
       try {
         const channels = await fetchWaterSnapshot("channels-snapshot");
-        await Promise.all([loadBorders(), loadElevation()]);
+        await Promise.all([loadBorders(), loadElevation(), loadPlaces(), loadCounties()]);
+        watchFigureScale(document.getElementById("water-channels-map"), 400);
         buildChannelsMap(
           document.getElementById("water-channels-map"),
           document.getElementById("water-channels-legend"),
@@ -4044,47 +5412,43 @@ async function buildWaterPanel(point) {
         ? `${balanceWhole} és fél`
         : waterNum(balanceBalatonCount, 1);
     document.getElementById("water-balaton-tiles").innerHTML = waterBalatonTilesSvg(balanceBalatonCount);
+    document.getElementById("water-balaton-tiles-caption").textContent =
+      `Soronként 10 Balaton: ${Math.floor(balanceBalatonCount / 10)} teli sor` +
+      (balanceBalatonCount % 10 >= 0.05 ? ` és még ${waterNum(balanceBalatonCount % 10, 1)}.` : ".");
     document.getElementById("water-balance-section").hidden = false;
 
-    // 5. Tavak
+    // 5. Tavak. A Balaton átlagos vízállása a fejsorban, a kártyákon a tavak
+    // közös, azonos felépítésű mérce-képe (ld. renderLakeCards). A Tisza-tó
+    // nincs kártyán: nincs valódi tó-mérce hozzá (ld. WATER_LAKE_BANDS).
     const balatonAvg = findLakeStation(lakes.stations, "Balaton", "Balaton average");
     if (balatonAvg) {
       document.getElementById("water-balaton-level").textContent = `${waterNum(balatonAvg.level_cm, 0)} cm`;
       document.getElementById("water-balaton-detail").textContent =
         (balatonAvg.stale
-          ? "a siófoki mércén mért országos átlag (tegnapi adat), "
-          : "a siófoki mércén mért országos átlag, ")
+          ? "átlagos vízállás (tegnapi adat), "
+          : "átlagos vízállás, ")
         + "a mérce saját 0 pontjához képest, nem tengerszinthez";
-      renderBalatonFill(document.getElementById("water-balaton-fill"), balatonAvg.level_cm);
     } else {
       document.getElementById("water-balaton-level").textContent = "jelenleg nem elérhető";
-      document.getElementById("water-balaton-detail").textContent = "a siófoki vízállás most nem tölthető be";
-      document.getElementById("water-balaton-fill").innerHTML = "";
+      document.getElementById("water-balaton-detail").textContent = "a Balaton vízállása most nem tölthető be";
     }
     document.getElementById("water-lake-compare").innerHTML =
       `<g fill="var(--fg)">` +
       Object.values(LAKE_COMPARE_PATHS).map(p => `<path${p.transform ? ` transform="${p.transform}"` : ""} d="${p.d}"></path>`).join("") +
       `</g><g font-size="12" fill="var(--muted)" text-anchor="middle">` +
-      `<text x="105" y="134">Balaton</text><text x="268" y="134">Fertő</text><text x="340" y="114">Tisza-tó</text></g>`;
+      `<text x="105" y="134">Balaton</text><text x="268" y="134">Fertő</text><text x="340" y="134">Tisza-tó</text></g>`;
 
-    const gaugesEl = document.getElementById("water-lake-gauges");
-    gaugesEl.innerHTML = "";
     const velencei = findLakeStation(lakes.stations, "Velencei-tó", "Agárd");
-    renderLakeGauge(gaugesEl, "Velencei-tó", velencei ? velencei.level_cm : null, "ideális legalább 140 cm, felső határ 170 cm");
-    const tiszato = findRiverStation(rivers.stations, "Tisza", "Kisköre alsó");
-    // UX-audit D02: a kártya ne "Tisza-tó"-ként mutassa ezt az értéket - ez
-    // a Tisza folyami mércéje a tározó alatt, NEM a tó saját vízállása (ld.
-    // a fenti WATER_LAKE_BANDS fejkommentet), ezért a displayName ezt a
-    // forrást nevezi meg, nem a tavat.
-    renderLakeGauge(gaugesEl, "Tisza-tó", tiszato ? tiszato.level_cm : null,
-      "a Tisza Kisköre alsó folyami mércéje a tározó alatt, nem a tó üzemvízszintjével egyező skálán - tájékoztató jellegű, nem a tó saját mérce-adata",
-      "Kisköre alsó (folyami mérce)");
     const ferto = findLakeStation(lakes.stations, "Fertő", "Fertőrákos");
-    renderLakeGauge(gaugesEl, "Fertő", ferto ? ferto.level_cm : null, "a fertőrákosi mérce napi vízállása, szabályozási sáv még nincs megadva");
+    renderLakeCards(document.getElementById("water-lake-gauges"), [
+      { name: "Balaton", shapeKey: "balaton", levelCm: balatonAvg ? balatonAvg.level_cm : null, history: balatonAvg && balatonAvg.history },
+      { name: "Velencei-tó", shapeKey: "velencei", levelCm: velencei ? velencei.level_cm : null, history: velencei && velencei.history },
+      { name: "Fertő", shapeKey: "ferto", levelCm: ferto ? ferto.level_cm : null, history: ferto && ferto.history },
+    ]);
 
     // "legrosszabbul álló tó": csak azok közül választunk, amiknek van
-    // megbízható szabályozási sávja (most csak a Velencei-tó) - enélkül a
-    // "legrosszabbul" állítás megtévesztő lenne, mint a Tisza-tónál.
+    // megbízható szabályozási sávja (a Balaton külön, a fejsorban szerepel) -
+    // enélkül a "legrosszabbul" állítás megtévesztő lenne, mint a Tisza-tónál.
     const worstLakeCandidates = [
       { name: "Velencei-tó", levelCm: velencei ? velencei.level_cm : null },
       { name: "Fertő", levelCm: ferto ? ferto.level_cm : null },
@@ -4113,22 +5477,28 @@ async function buildWaterPanel(point) {
     document.getElementById("water-lakes-section").hidden = false;
 
     statusEl.hidden = true;
+    setWaterLoading(false);
+    watchWaterToc();
   } catch (err) {
     console.error(err);
     statusEl.textContent = "a vízadatok most nem érhetők el";
     document.getElementById("water-updated").hidden = true;
+    setWaterLoading(false);
   }
 }
 
 function resetWaterPanel() {
   const panel = document.getElementById("water-panel");
   panel.hidden = true;
-  for (const id of ["water-soil-section", "water-map-section", "water-rivers-section", "water-channels-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
+  cigandStopAnimation();
+  for (const id of ["water-cigand-section", "water-soil-section", "water-map-section", "water-river-net-section", "water-channels-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
     document.getElementById(id).hidden = true;
   }
   document.getElementById("water-status").hidden = false;
   document.getElementById("water-status").textContent = "töltés…";
   document.getElementById("water-updated").hidden = true;
+  setWaterLoading(true);
+  if (waterTocObserver) waterTocObserver.disconnect();
 }
 
 // ---- Indítás ----
