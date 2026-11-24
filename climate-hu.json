@@ -1,11 +1,149 @@
 {
  "period": "2013-2024",
  "places": {
+  "ajka": {
+   "annual_mm": 770,
+   "rain_days": 118,
+   "wet_month": 5,
+   "wet_month_mm": 92
+  },
+  "bacsalmas": {
+   "annual_mm": 612,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 67
+  },
+  "baja": {
+   "annual_mm": 627,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 71
+  },
+  "balassagyarmat": {
+   "annual_mm": 710,
+   "rain_days": 114,
+   "wet_month": 5,
+   "wet_month_mm": 93
+  },
+  "balatonboglar": {
+   "annual_mm": 703,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "balatonfured": {
+   "annual_mm": 719,
+   "rain_days": 113,
+   "wet_month": 5,
+   "wet_month_mm": 88
+  },
+  "balmazujvaros": {
+   "annual_mm": 629,
+   "rain_days": 109,
+   "wet_month": 6,
+   "wet_month_mm": 69
+  },
+  "barcs": {
+   "annual_mm": 771,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 91
+  },
+  "batonyterenye": {
+   "annual_mm": 740,
+   "rain_days": 120,
+   "wet_month": 5,
+   "wet_month_mm": 92
+  },
+  "battonya": {
+   "annual_mm": 655,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 76
+  },
+  "bekes": {
+   "annual_mm": 631,
+   "rain_days": 107,
+   "wet_month": 6,
+   "wet_month_mm": 70
+  },
+  "bekescsaba": {
+   "annual_mm": 631,
+   "rain_days": 108,
+   "wet_month": 6,
+   "wet_month_mm": 71
+  },
+  "berettyoujfalu": {
+   "annual_mm": 632,
+   "rain_days": 111,
+   "wet_month": 5,
+   "wet_month_mm": 73
+  },
+  "bicske": {
+   "annual_mm": 679,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 79
+  },
+  "bonyhad": {
+   "annual_mm": 707,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 85
+  },
   "budapest": {
    "annual_mm": 688,
    "rain_days": 112,
    "wet_month": 5,
    "wet_month_mm": 84
+  },
+  "buk": {
+   "annual_mm": 718,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 92
+  },
+  "cegled": {
+   "annual_mm": 649,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 79
+  },
+  "celldomolk": {
+   "annual_mm": 722,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 90
+  },
+  "csenger": {
+   "annual_mm": 709,
+   "rain_days": 121,
+   "wet_month": 6,
+   "wet_month_mm": 85
+  },
+  "csongrad": {
+   "annual_mm": 606,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 72
+  },
+  "csorna": {
+   "annual_mm": 675,
+   "rain_days": 109,
+   "wet_month": 9,
+   "wet_month_mm": 85
+  },
+  "csurgo": {
+   "annual_mm": 810,
+   "rain_days": 113,
+   "wet_month": 9,
+   "wet_month_mm": 98
+  },
+  "dabas": {
+   "annual_mm": 657,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 76
   },
   "debrecen": {
    "annual_mm": 640,
@@ -13,11 +151,701 @@
    "wet_month": 6,
    "wet_month_mm": 76
   },
+  "dombovar": {
+   "annual_mm": 708,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 87
+  },
+  "dunakeszi": {
+   "annual_mm": 681,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 84
+  },
+  "dunaujvaros": {
+   "annual_mm": 657,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 78
+  },
+  "eger": {
+   "annual_mm": 712,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 87
+  },
+  "enying": {
+   "annual_mm": 685,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 81
+  },
+  "erd": {
+   "annual_mm": 685,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 84
+  },
+  "esztergom": {
+   "annual_mm": 703,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 87
+  },
+  "fehergyarmat": {
+   "annual_mm": 715,
+   "rain_days": 118,
+   "wet_month": 6,
+   "wet_month_mm": 80
+  },
+  "fonyod": {
+   "annual_mm": 718,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "godollo": {
+   "annual_mm": 676,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 84
+  },
+  "gyal": {
+   "annual_mm": 659,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "gyomaendrod": {
+   "annual_mm": 623,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 67
+  },
+  "gyongyos": {
+   "annual_mm": 717,
+   "rain_days": 118,
+   "wet_month": 5,
+   "wet_month_mm": 88
+  },
+  "gyor": {
+   "annual_mm": 658,
+   "rain_days": 107,
+   "wet_month": 9,
+   "wet_month_mm": 78
+  },
+  "gyula": {
+   "annual_mm": 644,
+   "rain_days": 108,
+   "wet_month": 6,
+   "wet_month_mm": 72
+  },
+  "hajduboszormeny": {
+   "annual_mm": 630,
+   "rain_days": 110,
+   "wet_month": 6,
+   "wet_month_mm": 73
+  },
+  "hajdunanas": {
+   "annual_mm": 634,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 71
+  },
+  "hajduszoboszlo": {
+   "annual_mm": 623,
+   "rain_days": 109,
+   "wet_month": 6,
+   "wet_month_mm": 70
+  },
+  "hatvan": {
+   "annual_mm": 663,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "hodmezovasarhely": {
+   "annual_mm": 624,
+   "rain_days": 109,
+   "wet_month": 5,
+   "wet_month_mm": 73
+  },
+  "janoshalma": {
+   "annual_mm": 628,
+   "rain_days": 109,
+   "wet_month": 5,
+   "wet_month_mm": 70
+  },
+  "jaszbereny": {
+   "annual_mm": 658,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 77
+  },
+  "kalocsa": {
+   "annual_mm": 633,
+   "rain_days": 104,
+   "wet_month": 5,
+   "wet_month_mm": 73
+  },
+  "kaposvar": {
+   "annual_mm": 765,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 95
+  },
+  "kapuvar": {
+   "annual_mm": 691,
+   "rain_days": 111,
+   "wet_month": 9,
+   "wet_month_mm": 93
+  },
+  "karcag": {
+   "annual_mm": 630,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 70
+  },
+  "kazincbarcika": {
+   "annual_mm": 711,
+   "rain_days": 113,
+   "wet_month": 5,
+   "wet_month_mm": 88
+  },
+  "kecskemet": {
+   "annual_mm": 651,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 79
+  },
+  "keszthely": {
+   "annual_mm": 752,
+   "rain_days": 113,
+   "wet_month": 5,
+   "wet_month_mm": 88
+  },
+  "kiskoros": {
+   "annual_mm": 633,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 73
+  },
+  "kiskunfelegyhaza": {
+   "annual_mm": 617,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 75
+  },
+  "kiskunhalas": {
+   "annual_mm": 639,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 75
+  },
+  "kisujszallas": {
+   "annual_mm": 611,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 65
+  },
+  "kisvarda": {
+   "annual_mm": 683,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 74
+  },
+  "komlo": {
+   "annual_mm": 742,
+   "rain_days": 113,
+   "wet_month": 5,
+   "wet_month_mm": 95
+  },
+  "kormend": {
+   "annual_mm": 765,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 99
+  },
+  "koszeg": {
+   "annual_mm": 746,
+   "rain_days": 122,
+   "wet_month": 5,
+   "wet_month_mm": 97
+  },
+  "lajosmizse": {
+   "annual_mm": 653,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "lenti": {
+   "annual_mm": 814,
+   "rain_days": 114,
+   "wet_month": 9,
+   "wet_month_mm": 102
+  },
+  "letenye": {
+   "annual_mm": 819,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 97
+  },
+  "mako": {
+   "annual_mm": 614,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 69
+  },
+  "marcali": {
+   "annual_mm": 786,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 90
+  },
+  "mateszalka": {
+   "annual_mm": 706,
+   "rain_days": 119,
+   "wet_month": 6,
+   "wet_month_mm": 79
+  },
+  "mezobereny": {
+   "annual_mm": 631,
+   "rain_days": 107,
+   "wet_month": 6,
+   "wet_month_mm": 70
+  },
+  "mezocsat": {
+   "annual_mm": 626,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 69
+  },
+  "mezokovacshaza": {
+   "annual_mm": 652,
+   "rain_days": 110,
+   "wet_month": 6,
+   "wet_month_mm": 76
+  },
+  "mezokovesd": {
+   "annual_mm": 639,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 70
+  },
+  "mezotur": {
+   "annual_mm": 629,
+   "rain_days": 107,
+   "wet_month": 6,
+   "wet_month_mm": 69
+  },
+  "miskolc": {
+   "annual_mm": 653,
+   "rain_days": 109,
+   "wet_month": 5,
+   "wet_month_mm": 73
+  },
+  "mohacs": {
+   "annual_mm": 628,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 76
+  },
+  "monor": {
+   "annual_mm": 680,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 85
+  },
+  "mor": {
+   "annual_mm": 690,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "morahalom": {
+   "annual_mm": 608,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 67
+  },
+  "mosonmagyarovar": {
+   "annual_mm": 642,
+   "rain_days": 108,
+   "wet_month": 9,
+   "wet_month_mm": 86
+  },
+  "nagyatad": {
+   "annual_mm": 796,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 95
+  },
+  "nagykanizsa": {
+   "annual_mm": 813,
+   "rain_days": 114,
+   "wet_month": 9,
+   "wet_month_mm": 97
+  },
+  "nagykoros": {
+   "annual_mm": 642,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 76
+  },
+  "nyirbator": {
+   "annual_mm": 664,
+   "rain_days": 115,
+   "wet_month": 6,
+   "wet_month_mm": 80
+  },
+  "nyiregyhaza": {
+   "annual_mm": 645,
+   "rain_days": 113,
+   "wet_month": 6,
+   "wet_month_mm": 74
+  },
+  "oroshaza": {
+   "annual_mm": 636,
+   "rain_days": 109,
+   "wet_month": 6,
+   "wet_month_mm": 70
+  },
+  "oroszlany": {
+   "annual_mm": 706,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 86
+  },
+  "ozd": {
+   "annual_mm": 727,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 93
+  },
+  "paks": {
+   "annual_mm": 652,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "pannonhalma": {
+   "annual_mm": 693,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 82
+  },
+  "papa": {
+   "annual_mm": 738,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 89
+  },
+  "paszto": {
+   "annual_mm": 733,
+   "rain_days": 117,
+   "wet_month": 5,
+   "wet_month_mm": 96
+  },
+  "pecs": {
+   "annual_mm": 712,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 90
+  },
+  "pecsvarad": {
+   "annual_mm": 706,
+   "rain_days": 111,
+   "wet_month": 5,
+   "wet_month_mm": 89
+  },
+  "petervasara": {
+   "annual_mm": 702,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 82
+  },
+  "polgar": {
+   "annual_mm": 627,
+   "rain_days": 107,
+   "wet_month": 7,
+   "wet_month_mm": 68
+  },
+  "puspokladany": {
+   "annual_mm": 626,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 71
+  },
+  "rackeve": {
+   "annual_mm": 653,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 76
+  },
+  "retsag": {
+   "annual_mm": 714,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 89
+  },
+  "salgotarjan": {
+   "annual_mm": 726,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 92
+  },
+  "sarbogard": {
+   "annual_mm": 655,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "sarkad": {
+   "annual_mm": 637,
+   "rain_days": 111,
+   "wet_month": 6,
+   "wet_month_mm": 71
+  },
+  "sarospatak": {
+   "annual_mm": 689,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 78
+  },
+  "sarvar": {
+   "annual_mm": 713,
+   "rain_days": 114,
+   "wet_month": 5,
+   "wet_month_mm": 89
+  },
+  "satoraljaujhely": {
+   "annual_mm": 695,
+   "rain_days": 117,
+   "wet_month": 5,
+   "wet_month_mm": 78
+  },
+  "siofok": {
+   "annual_mm": 682,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "sopron": {
+   "annual_mm": 694,
+   "rain_days": 115,
+   "wet_month": 9,
+   "wet_month_mm": 88
+  },
+  "szarvas": {
+   "annual_mm": 624,
+   "rain_days": 107,
+   "wet_month": 5,
+   "wet_month_mm": 68
+  },
+  "szazhalombatta": {
+   "annual_mm": 661,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 78
+  },
+  "szecseny": {
+   "annual_mm": 702,
+   "rain_days": 114,
+   "wet_month": 5,
+   "wet_month_mm": 87
+  },
   "szeged": {
    "annual_mm": 614,
    "rain_days": 107,
    "wet_month": 5,
    "wet_month_mm": 67
+  },
+  "szeghalom": {
+   "annual_mm": 627,
+   "rain_days": 109,
+   "wet_month": 6,
+   "wet_month_mm": 67
+  },
+  "szekesfehervar": {
+   "annual_mm": 663,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 77
+  },
+  "szekszard": {
+   "annual_mm": 658,
+   "rain_days": 104,
+   "wet_month": 5,
+   "wet_month_mm": 77
+  },
+  "szentendre": {
+   "annual_mm": 691,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 86
+  },
+  "szentes": {
+   "annual_mm": 613,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 67
+  },
+  "szentgotthard": {
+   "annual_mm": 805,
+   "rain_days": 117,
+   "wet_month": 5,
+   "wet_month_mm": 111
+  },
+  "szigetszentmiklos": {
+   "annual_mm": 667,
+   "rain_days": 109,
+   "wet_month": 5,
+   "wet_month_mm": 79
+  },
+  "szigetvar": {
+   "annual_mm": 724,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 89
+  },
+  "szob": {
+   "annual_mm": 747,
+   "rain_days": 120,
+   "wet_month": 5,
+   "wet_month_mm": 94
+  },
+  "szolnok": {
+   "annual_mm": 628,
+   "rain_days": 104,
+   "wet_month": 5,
+   "wet_month_mm": 74
+  },
+  "szombathely": {
+   "annual_mm": 720,
+   "rain_days": 118,
+   "wet_month": 5,
+   "wet_month_mm": 95
+  },
+  "tab": {
+   "annual_mm": 705,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "tamasi": {
+   "annual_mm": 683,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 80
+  },
+  "tapolca": {
+   "annual_mm": 715,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 86
+  },
+  "tata": {
+   "annual_mm": 673,
+   "rain_days": 110,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "tatabanya": {
+   "annual_mm": 705,
+   "rain_days": 116,
+   "wet_month": 5,
+   "wet_month_mm": 83
+  },
+  "tiszafured": {
+   "annual_mm": 627,
+   "rain_days": 105,
+   "wet_month": 6,
+   "wet_month_mm": 69
+  },
+  "tiszakecske": {
+   "annual_mm": 621,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 77
+  },
+  "tiszaujvaros": {
+   "annual_mm": 624,
+   "rain_days": 106,
+   "wet_month": 5,
+   "wet_month_mm": 72
+  },
+  "tiszavasvari": {
+   "annual_mm": 630,
+   "rain_days": 105,
+   "wet_month": 5,
+   "wet_month_mm": 71
+  },
+  "tokaj": {
+   "annual_mm": 639,
+   "rain_days": 110,
+   "wet_month": 6,
+   "wet_month_mm": 71
+  },
+  "torokszentmiklos": {
+   "annual_mm": 613,
+   "rain_days": 104,
+   "wet_month": 5,
+   "wet_month_mm": 72
+  },
+  "totkomlos": {
+   "annual_mm": 636,
+   "rain_days": 108,
+   "wet_month": 5,
+   "wet_month_mm": 71
+  },
+  "vac": {
+   "annual_mm": 682,
+   "rain_days": 109,
+   "wet_month": 5,
+   "wet_month_mm": 84
+  },
+  "varpalota": {
+   "annual_mm": 690,
+   "rain_days": 111,
+   "wet_month": 5,
+   "wet_month_mm": 81
+  },
+  "vasarosnameny": {
+   "annual_mm": 708,
+   "rain_days": 118,
+   "wet_month": 6,
+   "wet_month_mm": 78
+  },
+  "veszprem": {
+   "annual_mm": 734,
+   "rain_days": 117,
+   "wet_month": 5,
+   "wet_month_mm": 86
+  },
+  "zahony": {
+   "annual_mm": 757,
+   "rain_days": 122,
+   "wet_month": 6,
+   "wet_month_mm": 86
+  },
+  "zalaegerszeg": {
+   "annual_mm": 803,
+   "rain_days": 115,
+   "wet_month": 5,
+   "wet_month_mm": 100
+  },
+  "zalaszentgrot": {
+   "annual_mm": 755,
+   "rain_days": 112,
+   "wet_month": 5,
+   "wet_month_mm": 95
+  },
+  "zirc": {
+   "annual_mm": 768,
+   "rain_days": 121,
+   "wet_month": 5,
+   "wet_month_mm": 93
   }
  }
 }
