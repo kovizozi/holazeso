@@ -194,10 +194,12 @@ arra a településre, ahol a radar esőt talált.
 
 ### "részletek és statisztika" (`#stats-panel`, `buildStatsPanel`)
 
-Lenyíló `<details>`, zárva indul, csak kinyitáskor kér le (31+ napos
+Mindig látható `<section>` (nincs nyitógomb, nincs localStorage-állapot); a
+`revealPhase(PHASE_DONE)` mutatja meg, és ekkor kér le (31+ napos
 csapadék-história, az elmúlt 3 év ugyanezen időszaka, előrejelzés,
-hőmérséklet, talajnedvesség, Open-Meteo Flood API vízhozam). Nem fut bele az
-5 percenkénti automatikus frissítésbe. A tetején a `#stats-place` sor
+hőmérséklet, talajnedvesség, Open-Meteo Flood API vízhozam), keresésenként
+egyszer (a `statsRunId` eldobja az elavult választ). Nem fut bele az 5
+percenkénti automatikus frissítésbe. A tetején a `#stats-place` sor
 ("Az adatok helye: <név>") mondja ki, melyik helyre vonatkoznak a számok.
 Minden adata Open-Meteo-alapú, ezért bármely országban működik.
 
@@ -380,6 +382,9 @@ márka/domain felismerhetőségéről szól, nem tartalom-rangsorolásról.
 - `places-hu.json`: kb. 140 magyar település (n, lat, lon, r = rang 1-3). A radar, a talajtérkép és a csatorna-térkép feliratai és a talajcellák nevei használják (`loadPlaces`).
 - `counties-hu.json`: megyehatárok (geoBoundaries, CC BY 4.0, egyszerűsítve), a nagyított csatorna-térképen pontvonal.
 - `cigand.json` (kézzel karbantartott: tények, időrend, források, `active`, `updated`) és `cigand-geo.json` (OpenStreetMap-kivonat, egyszer előállítva): a vízpanel tetején álló Cigánd-blokk (`buildCigand`). `active: false` esetén egy soros összefoglalóvá zsugorodik és az országos szakaszok alá költözik. A negyedik, mért csempe csak akkor jelenik meg, ha a rivers-snapshotban van "Dombrád" állomás.
+  A Cigánd-térkép zsilipje a tározó DK-i csücskében áll (OSM way 851514123, a Tiszán Cigánd felett); a geo-fájl `sluice`, `inlet` (Tisza-pont) és `vapa` (a beáramlás vonala a tározón belül, a Tiszakarádi-főcsatornáig) mezői adják az animációt; a 4. lépés vonalkázása e sáv mentén nő. Az útvonalat a vízügy közlése erősíti meg (pecaverzum.hu, 2026-11-22). A `cigand.json` `faq` tömbje (q, a, kind, opcionális source) az "amit érdemes tudni" listát adja; a `kind: "nem közölt"` szaggatott körvonalú címkét kap. A "mennyi fér bele" metszet (`buildCigandSection`) séma: a magasság túlozott, a "most" víz számolt, nem mért.
+- Helyi talajszelvény (`renderSoilCoreProfile`, `#water-soil-core`): tájkép-metszet, felül a keresett hely ismert épületének sziluettje (`SOIL_LANDMARKS`: Budapest, Szeged, Debrecen, Pécs, Győr, Esztergom, Eger, Kecskemét, Sopron; név vagy 8 km-en belüli koordináta alapján), egyébként általános falusi kép; alatta a rétegek mélység-arányosan, liter/m² felirattal. A tengerszint feletti magasság az Open-Meteo talajválasz `elevation` mezőjéből jön (nincs külön hívás). Talajvizet nem rajzol (nincs adat).
+- Akcentusszín: a `style.css` `--accent` változója az EGYETLEN hely, ahol a kék hangolható; kitöltött sávok, víz, vonalkázás és jelölők használják, a szöveg, a vékony keretek és a határok `--fg` maradnak.
 - Ábraszélességek: `.fig-narrow/.fig-medium/.fig-wide` (420/720/960 px) és a `--ar` képarány a magasságot a nézet 70%-ára korlátozza.
 - Közös buborék: `mapPopupShow` / `popupSparklineSvg` (talajtérkép, folyóhálózat, csatorna-térkép, Cigánd-térkép).
 - A radar nagyítása (`radarZoomTo`) csak a keresés VÉGE után a megjelenített sugarat (`radarMaxRadiusKm`) változtatja; a `RADAR_SWEEP_MS`-t és a pásztázó animációt nem érinti. A feliratok méretét a `--k` (képpont/viewBox-egység) tartja állandóan.

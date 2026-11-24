@@ -2,6 +2,8 @@
   --bg: #ffffff;
   --fg: #111111;
   --muted: #6b6b6b;
+  /* Az EGYETLEN akcentusszín (kitöltött sávok, víz, vonalkázás): itt hangolható. */
+  --accent: #1f4e9c;
   --border: #dddddd;
   --error: #b3261e;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -31,6 +33,7 @@
     --bg: #111111;
     --fg: #f2f2f2;
     --muted: #9a9a9a;
+    --accent: #6ea3ff;
     --border: #333333;
     --error: #ff6b60;
     --t0: #232323;
@@ -462,7 +465,7 @@ button[type="submit"] {
    felületnek: az nem látszik, de a pointer-events: all miatt fogadja a
    koppintást. */
 .radar-dot {
-  fill: var(--fg);
+  fill: var(--accent);
   opacity: var(--dot-opacity, 1);
   cursor: pointer;
   stroke: transparent;
@@ -484,7 +487,7 @@ button[type="submit"] {
 
 .radar-pulse {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 1.5;
   pointer-events: none; /* ne fogja el a kattintást a pötty elől */
 }
@@ -584,14 +587,13 @@ noscript .about {
   margin: 0;
 }
 
-/* A "részletek és statisztika" panel az .about-details mintáját követi
-   (ugyanaz az osztály), de a #result-on kívül, egy elválasztó felső
-   szegéllyel - mint a .detail-block -, mert itt nem a lábláb aljára, hanem
-   egy új tartalmi szakasz elejére kerül. Alapból nyitva van (ld. script.js
-   setStatsOpen), a szöveg-blokkokhoz hasonlóan középre igazított, és kb.
-   46 em-re korlátozott szélességű. */
-.stats-details {
+/* A statisztika-panel mindig látható (nincs nyitógomb), a #result-on kívül,
+   egy elválasztó felső szegéllyel - mint a .detail-block -, mert egy új
+   tartalmi szakasz elejére kerül. A szöveg-blokkokhoz hasonlóan középre
+   igazított, a tartalma kb. 46 em-re korlátozott szélességű. */
+.stats-section {
   text-align: center;
+  margin-bottom: var(--sp-3);
   margin-top: var(--sp-4);
   padding-top: var(--sp-4);
   border-top: 1px solid var(--border);
@@ -699,7 +701,7 @@ noscript .about {
 .stats-usual-fill {
   display: block;
   height: 100%;
-  background: var(--fg);
+  background: var(--accent);
 }
 
 .stats-usual-mark {
@@ -751,7 +753,7 @@ noscript .about {
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--fg);
+  background: var(--accent);
 }
 
 .stats-day-prob {
@@ -1299,7 +1301,7 @@ noscript .about {
    megkülönböztethető legyen a folyóktól. */
 .water-map-river {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 1.5;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -1308,7 +1310,7 @@ noscript .about {
 
 .water-map-lake {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 1;
   stroke-dasharray: 2 2;
   pointer-events: none;
@@ -1357,7 +1359,7 @@ noscript .about {
    (halványabb), árok = pontsor (szürke). */
 .water-channel-canal {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 0.9;
   stroke-dasharray: 5 2;
   stroke-linejoin: round;
@@ -1366,7 +1368,7 @@ noscript .about {
 
 .water-channel-drain {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 0.6;
   stroke-dasharray: 1.6 1.6;
   stroke-linejoin: round;
@@ -1385,7 +1387,7 @@ noscript .about {
 
 .water-channel-river {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 1.7;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -1394,7 +1396,7 @@ noscript .about {
 
 /* A keresésre kiemelt vízfolyás: vastag, tömör, teljes erősségű. */
 .is-hl {
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 3.5px !important;
   stroke-dasharray: none;
   opacity: 1;
@@ -1457,7 +1459,7 @@ circle.water-channel-hit {
    THRESHOLD) - tömör, mert egy ilyen apró ponton egy vékony/szaggatott
    körvonal ugyanúgy észrevehetetlen maradna, mint a valódi alak. */
 .water-channel-lake-dot {
-  fill: var(--fg);
+  fill: var(--accent);
   stroke: none;
   pointer-events: none;
 }
@@ -1896,6 +1898,42 @@ circle.water-channel-hit {
   line-height: 1.6;
 }
 
+.cigand-chip-unknown {
+  border-style: dashed;
+}
+
+.cigand-faq {
+  max-width: 46em;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.cigand-faq-item {
+  margin: 0 0 var(--sp-3);
+}
+
+.cigand-faq-q {
+  margin: 0 0 var(--sp-1);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cigand-faq-a {
+  margin: 0 0 var(--sp-1);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cigand-faq-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cigand-faq-meta a {
+  color: var(--muted);
+}
+
 .cigand-badge {
   position: absolute;
   top: var(--sp-1);
@@ -1952,7 +1990,7 @@ circle.water-channel-hit {
 }
 
 .cigand-dot.is-done::after {
-  background: var(--fg);
+  background: var(--accent);
 }
 
 .cigand-dot[aria-current="step"]::after {
@@ -2082,7 +2120,7 @@ circle.water-channel-hit {
 
 .cg-tisza {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 4px;
   stroke-linejoin: round;
   transition: stroke-width 0.6s ease;
@@ -2101,7 +2139,7 @@ circle.water-channel-hit {
 
 .cg-canal-wet {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 2px;
   stroke-dasharray: 7 4;
   opacity: 0;
@@ -2128,7 +2166,7 @@ circle.water-channel-hit {
 
 .cg-flow-in {
   fill: none;
-  stroke: var(--fg);
+  stroke: var(--accent);
   stroke-width: 3px;
   stroke-dasharray: 6 5;
   opacity: 0;
@@ -2144,8 +2182,26 @@ circle.water-channel-hit {
   to { stroke-dashoffset: -22; }
 }
 
+.cg-vapa-seg {
+  stroke-dasharray: 0 2;
+}
+
+.cg-vapa-edge {
+  stroke: var(--accent);
+  stroke-width: 12px;
+}
+
+.cg-vapa-bg {
+  stroke: var(--bg);
+  stroke-width: 10.4px;
+}
+
+.cg-vapa-hatch {
+  stroke-width: 10.4px;
+}
+
 .cg-gate-bar {
-  fill: var(--fg);
+  fill: var(--accent);
   stroke: var(--bg);
   stroke-width: 1px;
   transition: transform 0.6s ease;
@@ -2185,4 +2241,22 @@ circle.water-channel-hit {
 .cg-hit:focus-visible {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
+}
+
+/* A helyi talajszelvény (renderSoilCoreProfile): a vonalak képpontban állandó
+   vastagságúak, a rétegek rámutatásra/fókuszra buborékot adnak. */
+.scl-art path,
+.scl-art circle,
+.scl-art line {
+  vector-effect: non-scaling-stroke;
+}
+
+.scl-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.scl-hit:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
 }

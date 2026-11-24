@@ -11,40 +11,124 @@
     "volume_high_m3": 3000000,
     "capacity_m3": 94000000,
     "area_km2": 24.7,
-    "built": 2008
+    "built": 2008,
+    "mean_depth_m": 3.8,
+    "dyke_height_m": 4.5,
+    "dyke_km": 23.8,
+    "gate_width_m": 43,
+    "pillar_m": 9.3,
+    "flood_m3s": 430
   },
   "timeline": [
     {
       "date": "2008",
-      "text": "Átadták a cigándi árapasztó tározót: 94 millió m³ fér bele, 24,7 km², Cigánd, Nagyrozvágy, Pácin és Ricse területén. Azóta nem használták, árvízkor sem.",
+      "text": "Átadták a cigándi árapasztó tározót: 94 millió m³ fér bele, kb. 25 km², Cigánd, Nagyrozvágy, Pácin és Ricse területén. Azóta nem használták, árvízkor sem.",
       "kind": "tény",
-      "source": { "name": "vizugy.hu", "url": "https://www3.vizugy.hu/uploads/csatolmanyok/160/cigand_tajekoztato_szakmai_a5.pdf" }
+      "source": {
+        "name": "index.hu",
+        "url": "https://index.hu/belfold/cigand8710/"
+      }
     },
     {
       "date": "2026 nyár",
       "text": "Aszály: a Bodrogköz kisebb csatornái kiszáradtak.",
       "kind": "bejelentett",
-      "source": { "name": "Borsodi Hír", "url": "https://borsodihir.hu/hir/ujra-elettel-telik-meg-a-bodrogkoz" }
+      "source": {
+        "name": "Borsodi Hír",
+        "url": "https://borsodihir.hu/hir/ujra-elettel-telik-meg-a-bodrogkoz"
+      }
     },
     {
       "date": "2026. nov. 21.",
-      "text": "Megnyitották a tározó zsilipjeit, a megáradt Tisza vizét víz-visszatartásra használják. A miniszter közel 2 millió köbmétert mondott, a miniszterelnök egy videóban 2-3 milliót.",
+      "text": "Megnyitották a tározó zsilipjeit (a műtárgy a tározó délkeleti csücskében áll, a Tiszán Cigánd felett). A víz-visszatartásra használt Tisza-víz a vízügyi igazgatóság (Észak-magyarországi Vízügyi Igazgatóság) szerint elsősorban a tájgazdálkodási vápát és szinte teljes hosszában a Tiszakarádi-főcsatornát tölti fel, mellékcsatornákkal együtt. A miniszter közel 2 millió köbmétert mondott, a miniszterelnök egy videóban 2-3 milliót.",
       "kind": "bejelentett",
-      "source": { "name": "Agrárszektor", "url": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" }
+      "source": {
+        "name": "pecaverzum.hu",
+        "url": "https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval"
+      }
     },
     {
       "date": "2026. nov. 23.",
       "text": "Kapcsolódó bodrogközi intézkedés, nem a cigándi víz hatása: a közel 12 km-es, teljesen kiszáradt Felsőberecki-főcsatorna gravitációs utánpótlást kap, a Vissi-Holt-Bodrog szintje egy hét alatt 129 cm-t emelkedett.",
       "kind": "bejelentett",
-      "source": { "name": "Pénzcentrum (MTI)", "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" }
+      "source": {
+        "name": "Pénzcentrum (MTI)",
+        "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518"
+      }
     }
   ],
   "sources": [
-    { "name": "Agrárszektor, nov. 22.", "url": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" },
-    { "name": "Portfolio, nov. 21.", "url": "https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248" },
-    { "name": "Magyar Hírlap, nov. 21.", "url": "https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe" },
-    { "name": "Pénzcentrum (MTI), nov. 23.", "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" },
-    { "name": "vizugy.hu, a tározó adatai", "url": "https://www3.vizugy.hu/uploads/csatolmanyok/160/cigand_tajekoztato_szakmai_a5.pdf" },
-    { "name": "OpenStreetMap (térkép)", "url": "https://www.openstreetmap.org/copyright" }
+    {
+      "name": "Agrárszektor, nov. 22.",
+      "url": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849"
+    },
+    {
+      "name": "Portfolio, nov. 21.",
+      "url": "https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248"
+    },
+    {
+      "name": "Magyar Hírlap, nov. 21.",
+      "url": "https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe"
+    },
+    {
+      "name": "Pénzcentrum (MTI), nov. 23.",
+      "url": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518"
+    },
+    {
+      "name": "pecaverzum.hu, nov. 22.",
+      "url": "https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval"
+    },
+    {
+      "name": "hajdupress.hu",
+      "url": "https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol"
+    },
+    {
+      "name": "index.hu, 2008 (a tározó adatai)",
+      "url": "https://index.hu/belfold/cigand8710/"
+    },
+    {
+      "name": "OpenStreetMap (térkép)",
+      "url": "https://www.openstreetmap.org/copyright"
+    }
+  ],
+  "operator": "Észak-magyarországi Vízügyi Igazgatóság",
+  "faq": [
+    {
+      "q": "mi lesz ezzel a vízzel?",
+      "a": "A tájban marad. Feltölti a tározó mély sávját, a vápát, és szinte teljes hosszában a Tiszakarádi-főcsatornát, onnan mellékcsatornákba jut. Ott lassan a talajba szivárog, és a nyáron kiszáradt Bodrogköz vízkészletét pótolja.",
+      "kind": "bejelentett",
+      "source": {
+        "name": "pecaverzum.hu",
+        "url": "https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval"
+      }
+    },
+    {
+      "q": "visszafolyik a Tiszába?",
+      "a": "Erről nincs közlés. A műtárgy be- és leeresztésre is alkalmas, tehát technikailag vissza lehetne engedni, de a kimondott cél éppen az, hogy a víz itt maradjon.",
+      "kind": "nem közölt"
+    },
+    {
+      "q": "miért csak 2 millió köbméter?",
+      "a": "Mert a víz szivattyú nélkül, magától folyik be, amíg a Tisza elég magasan áll. A mennyiség attól függ, meddig tart a magas vízállás; a 2 millió előzetes becslés. A cél a vápa és a csatornák feltöltése, nem a teljes, 94 millió köbméteres tározóé: azt árvízi vészhelyzetre tartják fenn.",
+      "kind": "bejelentett",
+      "source": {
+        "name": "hajdupress.hu",
+        "url": "https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol"
+      }
+    },
+    {
+      "q": "miért nem korábban?",
+      "a": "A tározót 2008-ban árvízcsúcs-csökkentésre építették, és azóta egyetlen árvíz sem tette szükségessé a megnyitását. Az alsó, tájgazdálkodási nyílások kezdettől megvoltak, de vízmegtartásra 18 évig nem használták őket. Hivatalos indoklást erre egyik forrás sem közöl.",
+      "kind": "tény",
+      "source": {
+        "name": "index.hu, 2008. nov. 14.",
+        "url": "https://index.hu/belfold/cigand8710/"
+      }
+    },
+    {
+      "q": "mi kell ahhoz, hogy ez megismétlődjön?",
+      "a": "Elég magas Tisza (a pontos küszöbszintet nem közölték), működő csatornák és zsilipek a tározón belül, és döntés a vízügytől. A kormány 2027-re 49-ről 221 milliárd forintra emelné az uniós vízügyi és környezetvédelmi fejlesztések keretét.",
+      "kind": "bejelentett"
+    }
   ]
 }

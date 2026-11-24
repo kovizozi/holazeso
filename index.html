@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 
@@ -115,8 +115,8 @@
         <g id="radar-water"></g>
         <g id="radar-places"></g>
         <g id="radar-tiers"></g>
-        <circle cx="175" cy="110" r="3" fill="var(--fg)"></circle>
-        <line id="radar-sweep" x1="175" y1="110" x2="175" y2="-97" stroke="var(--fg)" stroke-width="1.5" opacity="0.55"></line>
+        <circle cx="175" cy="110" r="3" fill="var(--accent)"></circle>
+        <line id="radar-sweep" x1="175" y1="110" x2="175" y2="-97" stroke="var(--accent)" stroke-width="1.5" opacity="0.55"></line>
         <!-- A megkoppintott esős pont helyneve, a pötty mellé írva. Utolsóként,
              hogy a pontok és a pásztázó vonal fölé kerüljön. -->
         <g id="radar-labels"></g>
@@ -137,8 +137,7 @@
          nem a #result gyermekeként -, és ezért van rajta eleve "hidden": a
          show/hide-ot script.js kezeli explicit módon (beginSearchUI
          elrejti+becsukja, revealPhase(PHASE_DONE) megmutatja). -->
-    <details id="stats-panel" class="about-details stats-details" hidden>
-      <summary>részletek és statisztika</summary>
+    <section id="stats-panel" class="stats-section" hidden>
       <div id="stats-body" class="stats-body">
         <p id="stats-place" class="stats-place"></p>
         <p id="stats-status" class="context">töltés…</p>
@@ -182,7 +181,7 @@
           </section>
         </div>
       </div>
-    </details>
+    </section>
 
     <!-- Vízadatok: talaj, folyók, tavak, vízmérleg. Nem lenyíló: a radar
          után rögtön megjelenik, nyitva (lásd script.js revealPhase,
@@ -248,6 +247,15 @@
             </figure>
             <ol class="cigand-steps" id="cigand-steps" hidden></ol>
 
+            <h4 class="cigand-subhead">mennyi fér bele, és mennyi van benne?</h4>
+            <figure class="water-figure fig-medium cigand-figure" style="--ar: 1.259">
+              <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
+              <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
+            </figure>
+
+            <h4 class="cigand-subhead">amit érdemes tudni</h4>
+            <div class="cigand-faq" id="cigand-faq"></div>
+
             <h4 class="cigand-subhead">Mekkora ez valójában?</h4>
             <div class="cigand-compare" id="cigand-compare"></div>
             <p class="cigand-caveat" id="cigand-caveat"></p>
@@ -265,8 +273,10 @@
           <p class="place-line" id="water-local-total"></p>
           <p class="context" id="water-local-compare"></p>
           <p class="context" id="water-local-profile-text"></p>
-          <figure class="water-figure fig-narrow" style="--ar: 0.668">
-            <svg id="water-soil-core" viewBox="10 -4 235 352" preserveAspectRatio="xMidYMid meet"></svg>
+          <figure class="water-figure fig-medium" style="--ar: 1.09">
+            <svg id="water-soil-core" viewBox="0 0 720 660" preserveAspectRatio="xMidYMid meet" role="group" aria-label="tájkép-metszet: a talaj rétegei és víztartalmuk 81 cm mélységig"></svg>
+            <div id="water-soil-tooltip" class="water-map-tooltip" hidden></div>
+            <figcaption id="water-soil-note"></figcaption>
           </figure>
         </section>
 
@@ -434,8 +444,8 @@
           <p class="context" id="water-lake-worst-detail"></p>
           <!-- Egy közös jelmagyarázat a kártyák fölött. -->
           <p class="water-lake-legend" aria-label="jelmagyarázat">
-            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" fill="var(--fg)"></rect></svg>jelenlegi szint</span>
-            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><defs><pattern id="lake-legend-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--fg)" stroke-width="1"></line></pattern></defs><rect x="2" y="2" width="10" height="10" fill="url(#lake-legend-hatch)" stroke="var(--fg)" stroke-width="0.75"></rect></svg>ideális sáv</span>
+            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" fill="var(--accent)"></rect></svg>jelenlegi szint</span>
+            <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><defs><pattern id="lake-legend-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--accent)" stroke-width="1"></line></pattern></defs><rect x="2" y="2" width="10" height="10" fill="url(#lake-legend-hatch)" stroke="var(--fg)" stroke-width="0.75"></rect></svg>ideális sáv</span>
             <span><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 2"></rect></svg>teli meder</span>
           </p>
           <div id="water-lake-gauges" class="water-lake-cards"></div>
@@ -481,7 +491,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=76"></script>
+  <script src="script.js?v=77"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
