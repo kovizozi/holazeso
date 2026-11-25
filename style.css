@@ -1227,6 +1227,34 @@ noscript .about {
   margin-top: var(--sp-4);
 }
 
+/* E1: a saját hely szekciója asztalon egy hajtásba fér (kérdés, fő szám, két
+   sor szöveg, a teljes metszet és a jelmagyarázat). A metszet a maradék
+   magasságot arányosan tölti ki: az svg doboza a max-height-ig csökken, a
+   viewBox "meet" illesztéssel kisebbedik (mint az A2 radarja), a --k-t a
+   watchFigureScale a szélesség ÉS a magasság arányának minimumából veszi. A
+   --local-chrome a szöveg és a felirat magasságának becslése (px). Mobilon és
+   alacsony kijelzőn a normál folyás marad. */
+@media (min-width: 720px) and (min-height: 600px) {
+  #water-local-section:not([hidden]) {
+    min-height: calc(100vh - 55px);
+    min-height: calc(100svh - 55px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  #water-local-section .water-local-fig {
+    --fig-w: 720px;
+    max-width: 720px;
+    margin-top: var(--sp-3);
+  }
+
+  #water-local-section .water-local-fig svg {
+    width: 100%;
+    max-height: calc(100svh - 55px - var(--local-chrome, 330px));
+  }
+}
+
 /* Három ábraszélesség (UX-terv 3.2): keskeny 420, közepes 720, széles 960 px.
    A figure kapja a korlátot (az svg 100%-a ennek), a magasságot pedig a
    --ar (szélesség/magasság) segítségével a nézet 70%-ára vágjuk, hogy egy
@@ -1383,23 +1411,54 @@ noscript .about {
   height: auto;
 }
 
-/* Talajvíz-rétegek: öt sima HTML sor (nem pozicionált SVG-szöveg - az
-   élőben levágódott/egymásra csúszott, ld. a script.js kommentjét),
-   mindegyik alatt egy liter-arányos szélességű, Balaton-ikonokkal
-   mintázott sáv. */
-.water-balaton-stack-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  max-width: 520px;
+/* Talajvíz-rétegek: kétoszlopos, keretes táblázat (CLAUDE.md 2. szabály,
+   --frame keret, lekerekítve): az 1. oszlopban a mélység és a liter-arányos
+   szélességű, Balaton-ikonokkal mintázott sáv, a 2.-ban a mennyiség. */
+.water-balaton-table {
+  width: 100%;
+  max-width: 560px;
   margin: 0 auto;
+  border: 1.5px solid var(--frame);
+  border-radius: var(--radius-card);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-align: left;
 }
 
-.water-balaton-stack-row-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-1);
-  font-size: 14px;
+.water-balaton-table th,
+.water-balaton-table td {
+  padding: var(--sp-2) var(--sp-3);
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.water-balaton-table tr + tr th,
+.water-balaton-table tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+.water-balaton-table-label {
+  display: block;
+  font-weight: 600;
+}
+
+.water-balaton-table-count {
+  color: var(--muted);
+  text-align: right;
+  width: 38%;
+}
+
+.water-balaton-table-count span {
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .water-balaton-table th,
+  .water-balaton-table td {
+    padding: var(--sp-2);
+  }
 }
 
 .water-balaton-stack-bar {

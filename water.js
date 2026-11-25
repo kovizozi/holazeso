@@ -137,29 +137,33 @@ function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureBy
   const maxCount = Math.max(...counts, 0.01);
   const BAR_UNITS_PER_BALATON = 46; // ~ a design mintájából (327.5 egység / 7.1 Balaton)
 
+  // Kétoszlopos, kék keretes táblázat: az 1. oszlopban a mélység és a
+  // Balaton-csempés sáv, a 2.-ban a "0,11 Balaton · 22% víz".
   containerEl.innerHTML = "";
-  const list = document.createElement("div");
-  list.className = "water-balaton-stack-list";
+  const table = document.createElement("table");
+  table.className = "water-balaton-table";
+  const body = document.createElement("tbody");
 
   for (let i = 0; i < depthBandsCm.length; i++) {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
     const widthUnits = Math.max(2, counts[i] * BAR_UNITS_PER_BALATON);
-    const row = document.createElement("div");
+    const row = document.createElement("tr");
     row.innerHTML = `
-      <div class="water-balaton-stack-row-head">
-        <span style="font-weight: 600;">${lo}–${hi} cm</span>
-        <span style="color: var(--muted);">${waterBalatonCount(litersByDepth[i], 2)} Balaton · ${pct}% víz</span>
-      </div>
-      <svg viewBox="0 0 400 26" class="water-balaton-stack-bar" aria-hidden="true">
-        <defs><pattern id="mbal-${i}" width="46" height="26" patternUnits="userSpaceOnUse">
-          <path transform="translate(1.5,1.5) scale(0.6)" fill="var(--accent)" d="${BALATON_TILE_ICON_PATH}"></path>
-        </pattern></defs>
-        <rect x="0" y="0" width="${widthUnits.toFixed(1)}" height="26" fill="url(#mbal-${i})"></rect>
-      </svg>`;
-    list.appendChild(row);
+      <th scope="row" class="water-balaton-table-depth">
+        <span class="water-balaton-table-label">${lo}–${hi} cm</span>
+        <svg viewBox="0 0 400 26" class="water-balaton-stack-bar" aria-hidden="true">
+          <defs><pattern id="mbal-${i}" width="46" height="26" patternUnits="userSpaceOnUse">
+            <path transform="translate(1.5,1.5) scale(0.6)" fill="var(--accent)" d="${BALATON_TILE_ICON_PATH}"></path>
+          </pattern></defs>
+          <rect x="0" y="0" width="${widthUnits.toFixed(1)}" height="26" fill="url(#mbal-${i})"></rect>
+        </svg>
+      </th>
+      <td class="water-balaton-table-count"><span>${waterBalatonCount(litersByDepth[i], 2)} Balaton</span> · <span>${pct}% víz</span></td>`;
+    body.appendChild(row);
   }
-  containerEl.appendChild(list);
+  table.appendChild(body);
+  containerEl.appendChild(table);
 }
 
 // ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
@@ -1160,10 +1164,16 @@ function buildRiverNet(svgEl, popupEl, stations) {
 // Egy svg-figure képpont/viewBox-egység arányának (--k) követése, hogy a
 // feliratok betűmérete képpontban állandó maradjon (ld. .water-map-label).
 const figureScaleObservers = new Map();
-function watchFigureScale(svgEl, viewBoxWidth) {
+function watchFigureScale(svgEl, viewBoxWidth, fitHeight = false) {
   const apply = () => {
-    const w = svgEl.getBoundingClientRect().width;
-    if (w > 0) svgEl.style.setProperty("--k", (w / viewBoxWidth).toFixed(3));
+    const rect = svgEl.getBoundingClientRect();
+    let k = rect.width / viewBoxWidth;
+    // fitHeight: a doboz magasság szerint is szűkülhet (letterbox, "meet"),
+    // ilyenkor a kisebbik arány a valódi képpont/viewBox-egység.
+    if (fitHeight && svgEl.viewBox && svgEl.viewBox.baseVal.height > 0 && rect.height > 0) {
+      k = Math.min(k, rect.height / svgEl.viewBox.baseVal.height);
+    }
+    if (rect.width > 0) svgEl.style.setProperty("--k", k.toFixed(3));
   };
   apply();
   if (!("ResizeObserver" in window)) return;
@@ -2201,12 +2211,11 @@ function soilSceneSvg(point, GY, elevationM, narrow = false, sc = 1) {
   if (narrow) {
     // Keskeny kijelzőn külön elrendezés: a három fejlécsor egymás alatt, normál sorközzel.
     const head = `<text class="water-map-label scl-place" x="4" y="16"><tspan style="font-weight:600">${placeName}</tspan>` +
-      (lm ? `<tspan x="4" dy="1.4em" style="fill:var(--muted)">${lm.label}</tspan>` : "") +
       (hasElev ? `<tspan x="4" dy="1.4em">${waterNum(Math.round(elevationM), 0)} m a tengerszint felett</tspan>` : "") + `</text>`;
     return head + art;
   }
   const labelBase = `<text class="water-map-label scl-place" x="80" y="26"><tspan style="font-weight:600">${placeName}</tspan>` +
-    (lm ? `<tspan x="80" dy="1.35em" style="fill:var(--muted)">${lm.label}</tspan>` : "") + `</text>`;
+    `</text>`;
   const elev = hasElev
     ? `<text class="water-map-label" x="716" y="26" text-anchor="end">${waterNum(Math.round(elevationM), 0)} m a tengerszint felett</text>` +
       `<polyline points="708,32 708,${GY - 2}" fill="none" stroke="var(--muted)" stroke-width="0.75" stroke-dasharray="2 3"></polyline>` +
@@ -2352,7 +2361,7 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
   renderSoilCoreProfile.closer = () => mapPopupHide(tooltipEl);
   document.addEventListener("click", renderSoilCoreProfile.closer);
 
-  watchFigureScale(svgEl, VW);
+  watchFigureScale(svgEl, VW, true);
   // Méretváltozásnál: a vonalkázás sűrűsége követi; ha az elrendezés-mód vagy
   // (keskenyen) a szélesség változik, az ábra újrarajzolódik.
   if (soilCoreObservers.has(svgEl)) soilCoreObservers.get(svgEl).disconnect();
