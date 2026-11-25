@@ -444,6 +444,10 @@ html.radar-old-layout #result.pending {
   display: none;
 }
 
+html.radar-old-layout #q1-context {
+  min-height: 0;
+}
+
 html.radar-old-layout #q1-question,
 html.radar-old-layout #q2-question,
 html.radar-old-layout #q2-answer {
@@ -454,9 +458,32 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
   padding-top: 8rem;
 }
 
-.loading.settled #loading-text,
 .loading.settled #radar-sweep {
   display: none;
+}
+
+/* A "töltés…" felirat helye a keresés végén is megmarad (csak láthatatlan), és
+   ott ülnek a nagyítógombok is (absolute): így a végleges fázisban sem lesz a
+   radar doboza kisebb vagy nagyobb a keresés közbenihez képest, a radar
+   az első képkockától a végleges méretében áll. */
+.loading.settled #loading-text {
+  visibility: hidden;
+}
+
+/* A válasz alatti 2 sornyi kontextus (tipikus: "Most nem esik" + érkezési
+   idő; 13 + 21 + 4 + 21 px) helye a keresés elejétől le van foglalva, hogy a
+   #result magassága, és vele a radar doboza, a fázisváltáskor ne változzon. */
+#q1-context {
+  display: flow-root; /* a .context felső margója ne lógjon ki a min-height-ból */
+  min-height: 59px;
+}
+
+/* Keskeny kijelzőn az első sor ("A következő 3 órában ... eső várható") két
+   sorba törik: 13 + 42 + 4 + 21 px. */
+@media (max-width: 560px) {
+  #q1-context {
+    min-height: 80px;
+  }
 }
 
 /* Asztali gépen 720 px-ig nő (a viewBox és a képarány változatlan, így a
@@ -516,8 +543,15 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
   max-width: none;
 }
 
+.fold .loading {
+  position: relative;
+}
+
 .fold .radar-zoom {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
 }
 
 /* A nagyítás-gombok csak a keresés végén jelennek meg. */
@@ -525,7 +559,7 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
   display: none;
   justify-content: center;
   gap: 1px;
-  margin: 0 auto var(--sp-2);
+  margin: 0;
 }
 
 .loading.settled .radar-zoom {

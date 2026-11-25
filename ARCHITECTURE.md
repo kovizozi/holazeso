@@ -468,6 +468,24 @@ végleges, csak transform mozog.
   (2 sor) a `setHero`-nál foglal helyet. Ez a két megmaradó ugrás ("Most
   esik" állapot): 0,047 (390 px), 0,028 (1280 px).
 
+**Egyetlen radarméret (2026-11-25, 2. kör)**: a `#radar-svg` magassága a
+`.fold` maradéka, tehát a `#result` magasságából adódik. Képkockánkénti
+méréssel (rAF-ből a `#radar-svg` doboza, `--k`, a `#loading` transformja az
+első festéstől) a radar 390 px-en 400 -> 320 -> 313 px, 1280 px-en 350 -> 291
+-> 284 px magas volt, vagyis három méretben jelent meg. Két ok: (1) a
+`#q1-context` a `setHero`-nál, a `where` fázisban kapott tartalmat (2 sor,
++59/80 px), (2) a keresés végén a "töltés…" felirat (`display: none`) helyét
+a nagyítógombok vették át (-7 px). Most a `#q1-context` `min-height`-ja (59,
+keskenyen 80 px; `display: flow-root`, hogy a `.context` margója ne lógjon ki)
+a keresés elejétől helyet tart, a felirat `visibility: hidden`, a gombok
+`position: absolute`-ak a felirat helyén. Eredmény: a radar az első
+képkockától a végleges méretében áll, `where` és `done` között sem változik
+(mockolt "most nem esik"/"nem"/"igen" 390 és 1280 px, főoldal, /eso/, /ho/).
+Egy megmaradó kivétel: ha nálad esik, a 2. blokk kiesik, és a radar nő. A
+`where` fázis csúszása azelőtt azért ugrott, mert a `#result` magasságának
+változása a ResizeObserveren át `positionRadar(false)`-t hívott és
+megszakította az animációt; most a magasság nem változik, a csúszás animált.
+
 **Első hajtás (`.fold`, 2026-11-25)**: a `#result` és a `#loading` egy
 `.fold` flex-oszlopban van (`height: calc(100svh - var(--sp-3))`, `min-height:
 520px`), a `#result` természetes magasságú, a `#radar-svg` a maradékot kapja
