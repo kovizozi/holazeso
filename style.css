@@ -1110,6 +1110,7 @@ noscript .about {
 /* Bevezető: cím, egy mondat, frissítés ideje. */
 .water-intro {
   text-align: center;
+  padding-top: var(--sp-5);
 }
 
 .water-title {
@@ -1123,7 +1124,35 @@ noscript .about {
   text-align: center;
   color: var(--muted);
   font-size: 15px;
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* A bevezető gombja: a Cigánd-szakaszra visz (csak aktív eseménynél látszik,
+   water.js buildCigand). Fehér szöveg a #027cff-en csak 3,9:1, ezért a
+   szöveg nagy (19 px) és félkövér (WCAG nagy szöveg: 3:1 elég); sötét módban
+   a #111 a #6ea3ff-en 7,5:1. */
+.water-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--sp-3);
+  padding: 12px 21px;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: var(--radius-card);
+  font-size: 19px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.water-cta[hidden] {
+  display: none;
+}
+
+.water-cta:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Helyfoglaló doboz a betöltés alatt: a lap nem ugrik, amikor az ábrák
@@ -1148,8 +1177,8 @@ noscript .about {
   display: flex;
   justify-content: safe center;
   gap: var(--sp-1) var(--sp-3);
-  margin-top: var(--sp-3);
-  padding: var(--sp-1) 0;
+  margin-top: var(--sp-4);
+  padding: 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
@@ -1162,16 +1191,20 @@ noscript .about {
 }
 
 .water-toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-size: 14px;
-  color: var(--muted);
-  text-decoration: none;
-  padding: 6px 2px;
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 10px 6px;
 }
 
 .water-toc a[aria-current="true"] {
-  color: var(--fg);
-  font-weight: 600;
-  text-decoration: underline;
+  font-weight: 700;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
 }
 
 /* A tapadó sáv alá ne csússzon be az ugrópont. */

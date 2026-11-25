@@ -3171,6 +3171,7 @@ async function buildCigandPage() {
 async function buildCigand(soil, rivers) {
   const section = document.getElementById("water-cigand-section");
   const tocLink = document.getElementById("water-toc-cigand");
+  const cta = document.getElementById("water-cta-cigand");
   try {
     const { data, geo } = await loadCigand();
     document.getElementById("cigand-tag").textContent = data.active ? data.label : "";
@@ -3216,10 +3217,13 @@ async function buildCigand(soil, rivers) {
     }
     section.hidden = false;
     tocLink.hidden = false;
+    // A bevezető gombja csak aktív eseménynél jelenik meg.
+    cta.hidden = !data.active;
   } catch (err) {
     console.error(err);
     section.hidden = true;
     tocLink.hidden = true;
+    cta.hidden = true;
   }
 }
 
@@ -3556,7 +3560,7 @@ function resetWaterPanelNow() {
   const panel = document.getElementById("water-panel");
   panel.hidden = true;
   cigandStopAnimation();
-  for (const id of ["water-cigand-section", "water-soil-section", "water-map-section", "water-river-net-section", "water-channels-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
+  for (const id of ["water-cta-cigand", "water-cigand-section", "water-soil-section", "water-map-section", "water-river-net-section", "water-channels-section", "water-local-section", "water-balance-section", "water-lakes-section"]) {
     document.getElementById(id).hidden = true;
   }
   document.getElementById("water-status").hidden = false;
