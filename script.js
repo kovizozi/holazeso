@@ -2570,6 +2570,12 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // ============================================================================
 
 const WATER_JS_URL = "/water.js?v=2";
+// A generált oldalakon (/eso/<slug>/, /ho/) a panel markupja nincs a HTML-ben
+// (üres #water-panel[data-fragment]): a generátor egyszer, ebbe a fájlba írja
+// az index.html sablonból. A főoldalon inline marad. A ?v= együtt emelendő a
+// fragment tartalmának változásakor (CLAUDE.md 3. szabály).
+const WATER_PANEL_URL = "/water-panel.html?v=1";
+let waterFragmentLoading = null;
 let waterJsLoading = null;
 let waterPendingPoint = null;
 let waterLazyObserver = null;
@@ -2585,6 +2591,18 @@ function loadWaterJs() {
     document.head.appendChild(s);
   });
   return waterJsLoading;
+}
+
+// Üres panelnél (generált oldalak) betölti és beszúrja a markupot; különben nem csinál semmit.
+function ensureWaterFragment() {
+  const panel = document.getElementById("water-panel");
+  if (!panel.hasAttribute("data-fragment") || panel.firstElementChild) return Promise.resolve();
+  if (waterFragmentLoading) return waterFragmentLoading;
+  waterFragmentLoading = fetch(WATER_PANEL_URL)
+    .then(r => { if (!r.ok) throw new Error("water-panel.html: " + r.status); return r.text(); })
+    .then(html => { panel.innerHTML = html; })
+    .catch(err => { waterFragmentLoading = null; throw err; });
+  return waterFragmentLoading;
 }
 
 function waterHashWanted() {
@@ -2615,12 +2633,14 @@ async function startWaterPanel() {
   waterPendingPoint = null;
   const token = ++waterBuildToken;
   try {
+    await ensureWaterFragment();
     await loadWaterJs();
   } catch (err) {
     console.error(err);
     if (token === waterBuildToken) {
-      document.getElementById("water-status").textContent = "a vízadatok most nem érhetők el";
-      document.getElementById("water-skeleton").hidden = true;
+      const st = document.getElementById("water-status"), sk = document.getElementById("water-skeleton");
+      if (st) st.textContent = "a vízadatok most nem érhetők el";
+      if (sk) sk.hidden = true;
     }
     return;
   }

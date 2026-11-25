@@ -12,6 +12,8 @@ Használat (a repó gyökeréből):
   python3 tools/build_pages.py --fetch-climate --climate-limit 3   # helyi teszt
   python3 tools/build_pages.py --fetch-water          # vízállás-oldalak (worker pillanatképei)
   python3 tools/build_pages.py --water-dir DIR        # teszt: DIR/rivers.json + lakes.json
+  python3 tools/build_pages.py --fetch-recent         # friss csapadék a településekhez (Action)
+  python3 tools/build_pages.py --fetch-recent --recent-limit 3     # helyi teszt (legfeljebb 3 hely)
 
 Új oldaltípus (víz, /cigand/, /ho/, /widget/): írj egy builder függvényt, ami
 `Ctx`-ből `Page` listát ad, és vedd fel a PAGE_BUILDERS listába. A közös
@@ -70,12 +72,17 @@ class Ctx:
     climate: dict
     today: str
     water: object = None   # (rivers, lakes) pillanatkép vagy None
+    recent: dict = field(default_factory=dict)   # town-recent.json tartalma
     extra: dict = field(default_factory=dict)
 
 
 def page_file(path):
     """URL-útvonalból fájl a repóban."""
-    return ROOT / "index.html" if path == "/" else ROOT / path.strip("/") / "index.html"
+    if path == "/":
+        return ROOT / "index.html"
+    if path.endswith(".html"):
+        return ROOT / path.strip("/")
+    return ROOT / path.strip("/") / "index.html"
 
 
 # ---------------------------------------------------------------------------
@@ -121,10 +128,30 @@ def set_head(html, title, description, canonical, jsonld):
     return html
 
 
+WATER_PANEL_RE = re.compile(
+    r'(<section id="water-panel" class="water-details")( hidden>)\n(.*?)\n    </section>\n\n  </main>', re.S)
+
+
+def water_panel_fragment(template):
+    """A sablon #water-panel szekciójának belseje: ez a /water-panel.html."""
+    m = WATER_PANEL_RE.search(template)
+    assert m, "water-panel"
+    return m.group(3) + "\n"
+
+
+def slim_water_panel(html):
+    """Generált oldalakon üres a panel (data-fragment): a markupot a script.js tölti a /water-panel.html-ből."""
+    html, n = WATER_PANEL_RE.subn(
+        lambda m: m.group(1) + ' data-fragment hidden></section>\n\n  </main>', html, count=1)
+    assert n == 1, "water-panel"
+    return html
+
+
 def render_page(ctx, *, path, title, description, h1, content_html,
-                boot_script="", indexable=True):
-    """Egy aloldal a sablonból. content_html a teljes h1-et és bevezetőt is
-    tartalmazza (a h1 paraméter a JSON-LD nevéhez kell)."""
+                boot_script="", indexable=True, q1=None, slim_water=False):
+    """Egy aloldal a sablonból. A lap egyetlen h1-e a #q1-question (az app
+    tetején): q1 a statikus szövege (a script.js később átírja); a content_html
+    SEO-szakaszának címe h2."""
     canonical = BASE_URL + path
     html = set_head(ctx.template, title, description, canonical, {
         "@context": "https://schema.org",
@@ -138,6 +165,12 @@ def render_page(ctx, *, path, title, description, h1, content_html,
     if not indexable:
         html = html.replace("<title>", '<meta name="robots" content="noindex">\n<title>', 1)
     html = replace_between(html, "content", content_html)
+    if slim_water:
+        html = slim_water_panel(html)
+    if q1:
+        html, n = re.subn(r'(<h1 class="question" id="q1-question">)[^<]*(</h1>)',
+                          lambda m: m.group(1) + esc(q1) + m.group(2), html, count=1)
+        assert n == 1, "q1-question"
     html = absolutize(html)
     if boot_script:
         marker = '<script src="/script.js'
@@ -237,6 +270,123 @@ def fetch_missing_climate(places, climate, limit=None):
 
 
 # ---------------------------------------------------------------------------
+# Friss, napi adat a településoldalakhoz (town-recent.json): elmúlt napok
+# csapadéka, holnapi előrejelzés (--fetch-recent), legközelebbi vízmérce
+# (a vízállás-pillanatképből, ha az elérhető). Alapfutás: a tárolt fájlt használja.
+
+RECENT_FILE = ROOT / "town-recent.json"
+FORECAST_API = "https://api.open-meteo.com/v1/forecast"
+RECENT_PAST_DAYS = 30      # ennyi napban keressük az utolsó >= 1 mm-es napot
+RECENT_WEEK = 7
+RECENT_BATCH = 50          # hely / kérés
+RECENT_SLEEP = 5           # másodperc két kérés között
+WATER_MAX_KM = 60
+
+
+def load_recent():
+    if RECENT_FILE.exists():
+        try:
+            data = json.loads(RECENT_FILE.read_text(encoding="utf-8"))
+            if isinstance(data.get("places"), dict):
+                return data
+        except ValueError:
+            pass
+    return {"date": None, "places": {}}
+
+
+def save_recent(recent):
+    text = json.dumps(recent, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
+    if not RECENT_FILE.exists() or RECENT_FILE.read_text(encoding="utf-8") != text:
+        RECENT_FILE.write_text(text, encoding="utf-8")
+
+
+def summarize_recent(times, precip, prob):
+    """A napi sorokból (a past_days napot a mai nap és a holnap követi) egy hely
+    összegzése. A "mai" nap indexe a times-ban RECENT_PAST_DAYS. A mai (még
+    nem lezárt) nap nem számít bele az elmúlt napokba."""
+    t0 = RECENT_PAST_DAYS
+    past = precip[t0 - RECENT_WEEK:t0]
+    if any(v is None for v in past):
+        past = [v or 0 for v in past]
+    week = sum(past)
+    out = {"week_mm": round(week, 1)}
+    last = None
+    window = range(t0 - 1, t0 - 1 - (RECENT_WEEK if week >= RAIN_DAY_MM else RECENT_PAST_DAYS), -1)
+    for i in window:                      # az utolsó legalább 1 mm-es nap
+        if (precip[i] or 0) >= RAIN_DAY_MM:
+            last = times[i]
+            break
+    if last is None and week >= RAIN_DAY_MM:   # csupa apró csepp: az utolsó nedves nap
+        for i in range(t0 - 1, t0 - 1 - RECENT_WEEK, -1):
+            if (precip[i] or 0) > 0:
+                last = times[i]
+                break
+    out["last"] = last
+    out["tomorrow"] = times[t0 + 1]
+    out["tomorrow_mm"] = round(precip[t0 + 1] or 0, 1) if precip[t0 + 1] is not None else None
+    out["tomorrow_prob"] = prob[t0 + 1] if prob[t0 + 1] is not None else None
+    return out
+
+
+def fetch_recent_batch(batch):
+    q = urllib.parse.urlencode({
+        "latitude": ",".join(str(p["lat"]) for p in batch),
+        "longitude": ",".join(str(p["lon"]) for p in batch),
+        "daily": "precipitation_sum,precipitation_probability_max",
+        "past_days": RECENT_PAST_DAYS, "forecast_days": 2,
+        "timezone": "Europe/Budapest",
+    }, safe=",")
+    req = urllib.request.Request(f"{FORECAST_API}?{q}", headers={"User-Agent": "holazeso-build-pages"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.load(resp)
+    if isinstance(data, dict):
+        data = [data]
+    assert len(data) == len(batch), "hibás válaszhossz"
+    out, date = {}, None
+    for p, d in zip(batch, data):
+        daily = d["daily"]
+        times = daily["time"]
+        assert len(times) == RECENT_PAST_DAYS + 2, "hibás napszám"
+        date = times[RECENT_PAST_DAYS]
+        out[p["slug"]] = summarize_recent(times, daily["precipitation_sum"],
+                                          daily["precipitation_probability_max"])
+    return date, out
+
+
+def fetch_recent(places, recent, limit=None):
+    """Friss csapadékadat az összes (vagy az első `limit`) helyre, 50-es csomagokban.
+    Bármilyen hibánál az EGÉSZ lekérés elvetődik: a korábbi fájl és az oldalak
+    változatlanok maradnak (nincs félig friss állapot). True, ha sikerült."""
+    targets = places[:limit] if limit else places
+    print(f"friss csapadék: {len(targets)} hely lekérése", file=sys.stderr)
+    got, date = {}, None
+    try:
+        for i in range(0, len(targets), RECENT_BATCH):
+            if i:
+                time.sleep(RECENT_SLEEP)
+            d, out = fetch_recent_batch(targets[i:i + RECENT_BATCH])
+            if date not in (None, d):
+                raise ValueError("a csomagok napja eltér")
+            date = d
+            got.update(out)
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError, AssertionError) as err:
+        print(f"friss csapadék: hiba ({err}), a korábbi adat marad", file=sys.stderr)
+        return False
+    if not got:
+        return False
+    new = {} if not limit else dict(recent["places"])
+    for slug, v in got.items():
+        v["water"] = recent["places"].get(slug, {}).get("water")
+        if v["water"] is None:
+            del v["water"]
+        new[slug] = v
+    recent["date"] = date
+    recent["places"] = new
+    save_recent(recent)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Oldaltípusok (PAGE_BUILDERS)
 
 def distance_km(a, b):
@@ -257,10 +407,11 @@ def places_nav(places, heading="Települések"):
 
 
 def build_home(ctx):
-    """A főoldal maga a sablon, csak a településlista generált."""
+    """A főoldal maga a sablon, csak a településlista generált. Mellé készül a
+    /water-panel.html (a vízpanel markupja a generált oldalakhoz)."""
     alpha = sorted(ctx.places, key=lambda p: p["n"].casefold().translate(HU_SORT))
     html = replace_between(ctx.template, "places", places_nav(alpha))
-    return [Page("/", html)]
+    return [Page("/", html), Page("/water-panel.html", water_panel_fragment(ctx.template), indexable=False)]
 
 
 # A magyar ábécé sorrendjéhez (ékezetes betűk az alapbetű után).
@@ -294,6 +445,103 @@ def embed_details(slug):
             "    </details>")
 
 
+WEEKDAYS = ["hétfőn", "kedden", "szerdán", "csütörtökön", "pénteken", "szombaton", "vasárnap"]
+# "nov. 3-án": a keltezés -án/-én toldaléka a nap számától függ (3-án, 4-én, 1-jén).
+DAY_SUFFIX = {1: "jén", 2: "án", 3: "án", 4: "én", 5: "én", 6: "án", 7: "én", 8: "án", 9: "én",
+              10: "én", 11: "én", 12: "én", 13: "án", 14: "én", 15: "én", 16: "án", 17: "én",
+              18: "án", 19: "én", 20: "án", 21: "én", 22: "én", 23: "án", 24: "én", 25: "én",
+              26: "án", 27: "én", 28: "án", 29: "én", 30: "án", 31: "én"}
+
+
+def mm_hu(x):
+    """Csapadék mm-ben: 10 mm fölött egész, alatta egy tizedes."""
+    return num_hu(x, 0) if x >= 10 else num_hu(x, 1)
+
+
+def recent_sentences(place, recent):
+    """A tárolt friss adatból: elmúlt 7 nap + holnapi előrejelzés mondatai (üres, ha nincs adat)."""
+    r = recent["places"].get(place["slug"])
+    if not r or "week_mm" not in r:
+        return []
+    loc = place["loc"]
+    out = []
+    week = r["week_mm"]
+    last = datetime.date.fromisoformat(r["last"]) if r.get("last") else None
+    short = lambda d: f"{MONTHS[d.month - 1][:3]}. {d.day}."
+    if week >= RAIN_DAY_MM:
+        s = f"{loc} az elmúlt 7 napban {mm_hu(week)} mm csapadék hullott"
+        if last:
+            s += f", legutóbb {WEEKDAYS[last.weekday()]} ({short(last)}) esett"
+        out.append(s + ".")
+    else:
+        if last:
+            out.append(f"Az elmúlt 7 napban nem esett számottevő csapadék; "
+                       f"legutóbb {short(last)[:-1]}-{DAY_SUFFIX[last.day]} esett.")
+        else:
+            out.append(f"Az elmúlt {RECENT_PAST_DAYS} napban nem esett legalább 1 mm csapadék.")
+    prob, tmm = r.get("tomorrow_prob"), r.get("tomorrow_mm")
+    if r.get("tomorrow") and (prob is not None or tmm is not None):
+        d = datetime.date.fromisoformat(r["tomorrow"])
+        bits = []
+        if prob is not None:
+            bits.append(f"{prob}% esély")
+        if tmm is not None:
+            bits.append(f"kb. {num_hu(tmm, 1)} mm" if tmm >= 0.1 else "érdemi csapadék nem várható")
+        out.append(f"Holnapra ({short(d)}) " + ", ".join(bits) + ".")
+    return out
+
+
+def water_slug(kind, name):
+    for sl, nm, _ in (RIVER_PAGES if kind == "river" else LAKE_PAGES):
+        if nm == name:
+            return sl
+    return None
+
+
+def nearest_gauge(place, water):
+    """A legközelebbi (<= WATER_MAX_KM) folyó- vagy tóállomás a pillanatképből,
+    ugyanazzal a szűréssel, mint a vízoldalak (EXCLUDE, elavult, nem szám)."""
+    rivers, lakes = water
+    best = None
+    for kind, snap, key in (("river", rivers, "river"), ("lake", lakes, "lake")):
+        for st in snap["stations"]:
+            nm = st["name"] if kind == "river" else st["station"]
+            if (nm in EXCLUDE or nm == "Balaton average" or st.get("stale")
+                    or not isinstance(st.get("level_cm"), (int, float))
+                    or not water_slug(kind, st[key])):
+                continue
+            km = distance_km(place, st)
+            if km <= WATER_MAX_KM and (best is None or km < best[0]):
+                best = (km, kind, st, nm)
+    if not best:
+        return None
+    km, kind, st, nm = best
+    wname = st["river" if kind == "river" else "lake"]
+    return {"slug": water_slug(kind, wname), "water": wname,
+            "station": STATION_LABEL.get(nm, nm), "km": int(round(km)), "level_cm": int(st["level_cm"])}
+
+
+def update_recent_water(places, recent, water):
+    """A vízpillanatkép elérhetőségekor frissíti a települések legközelebbi mércéjét."""
+    for p in places:
+        g = nearest_gauge(p, water)
+        entry = recent["places"].setdefault(p["slug"], {})
+        if g:
+            entry["water"] = g
+        else:
+            entry.pop("water", None)
+    save_recent(recent)
+
+
+def gauge_sentence(place, recent):
+    r = recent["places"].get(place["slug"])
+    g = r.get("water") if r else None
+    if not g:
+        return ""
+    return (f'A legközelebbi vízmérce: <a href="/vizallas/{g["slug"]}/">{esc(g["water"])}, '
+            f'{esc(g["station"])}</a> ({g["km"]} km), ma {esc(cm_text(g["level_cm"]))}.')
+
+
 def build_town_pages(ctx):
     pages = []
     for p in ctx.places:
@@ -306,9 +554,11 @@ def build_town_pages(ctx):
         if clim:
             desc += f" Éves csapadék: kb. {int(round(ctx.climate['places'][slug]['annual_mm'] / 10.0)) * 10} mm."
         h1 = f"Esik most {loc}?"
+        rec = recent_sentences(p, ctx.recent)
+        gauge = gauge_sentence(p, ctx.recent)
         content = [
             '  <section class="seo-content">',
-            f"    <h1>{esc(h1)}</h1>",
+            f'    <h2 class="seo-title">{esc(h1)}</h2>',
             '    <p class="about">',
             f"      Ez az oldal élő adatból megmondja, esik-e most {esc(loc)}, és ha nem,",
             "      megkeresi, hol esik a legközelebb: a település nevét, a távolságot,",
@@ -316,6 +566,10 @@ def build_town_pages(ctx):
             "      A <a href=\"/\">főoldalon</a> a saját helyedre is megnézheted.",
             "    </p>",
         ]
+        if rec:
+            content += ['    <p class="about">', f"      {esc(' '.join(rec))}", "    </p>"]
+        if gauge:
+            content += ['    <p class="about">', f"      {gauge}", "    </p>"]
         if clim:
             content += ['    <p class="about">', f"      {esc(clim)}", "    </p>"]
         content += [
@@ -332,7 +586,8 @@ def build_town_pages(ctx):
             ensure_ascii=False, separators=(", ", ": ")) + ";"
         pages.append(render_page(
             ctx, path=f"/eso/{slug}/", title=title, description=desc, h1=h1,
-            content_html="\n".join(content), boot_script=boot))
+            content_html="\n".join(content), boot_script=boot, q1=h1,
+            slim_water=True))
     return pages
 
 
@@ -692,7 +947,7 @@ def build_snow_page(ctx):
     h1 = "Hol esik most a hó?"
     content = "\n".join([
         '  <section class="seo-content">',
-        f"    <h1>{esc(h1)}</h1>",
+        f'    <h2 class="seo-title">{esc(h1)}</h2>',
         '    <p class="about">',
         "      Ez az oldal megmondja, havazik-e most nálad, és ha nem, megkeresi, hol havazik",
         "      a hozzád legközelebb: a település nevét, a távolságot és az irányt is",
@@ -709,7 +964,8 @@ def build_snow_page(ctx):
         ctx, path="/ho/", title=f"Hol esik most a hó? | {SITE_NAME}",
         description=("Havazik most nálad? Élő csapadékadatból megkeressük, hol esik a hó "
                      "a hozzád legközelebb, radarképpel."),
-        h1=h1, content_html=content, boot_script='window.HOLAZESO_MODE = "ho";')]
+        h1=h1, content_html=content, boot_script='window.HOLAZESO_MODE = "ho";',
+        q1="Havazik most nálad?", slim_water=True)]
 
 
 WIDGET_HTML = """<!doctype html>
@@ -855,6 +1111,10 @@ def main():
                     help="legfeljebb ennyi hely lekérése (helyi teszthez)")
     ap.add_argument("--fetch-water", action="store_true",
                     help="a vízállás-pillanatképek lekérése a workertől (Action)")
+    ap.add_argument("--fetch-recent", action="store_true",
+                    help="friss csapadék a településekhez az Open-Meteo forecast API-ból (Action)")
+    ap.add_argument("--recent-limit", type=int, default=None,
+                    help="legfeljebb ennyi hely lekérése (helyi teszthez)")
     ap.add_argument("--water-dir", default=None,
                     help="teszt: rivers.json és lakes.json ebből a mappából")
     args = ap.parse_args()
@@ -866,7 +1126,14 @@ def main():
     climate = load_climate()
     if args.fetch_climate:
         fetch_missing_climate(places, climate, args.climate_limit)
-    ctx = Ctx(template, places, climate, datetime.date.today().isoformat(), water=load_water(args))
+    recent = load_recent()
+    if args.fetch_recent:
+        fetch_recent(places, recent, args.recent_limit)
+    water = load_water(args)
+    if water:
+        update_recent_water(places, recent, water)
+    ctx = Ctx(template, places, climate, datetime.date.today().isoformat(), water=water,
+              recent=recent)
 
     pages = []
     for builder in PAGE_BUILDERS:

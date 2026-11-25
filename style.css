@@ -889,6 +889,13 @@ noscript .about {
   border-top: 1px solid var(--border);
 }
 
+/* Generált oldalakon a panel markupja később töltődik (script.js
+   ensureWaterFragment): addig a kész váz magasságát (a főoldalon mért ~920 px)
+   foglalja le, hogy a betöltés ne tolja el a lap többi részét. */
+#water-panel[data-fragment]:empty {
+  min-height: 920px;
+}
+
 .water-body {
   margin-top: var(--sp-3);
 }
@@ -2421,7 +2428,7 @@ circle.water-channel-hit {
   }
 }
 
-/* Statikus, indexelhető tartalom az alkalmazás alatt: h1, rövid leírás és a
+/* Statikus, indexelhető tartalom az alkalmazás alatt: cím (h2), rövid leírás és a
    generált (tools/build_pages.py) településlista. */
 .seo-content {
   max-width: 1300px;
@@ -2430,9 +2437,10 @@ circle.water-channel-hit {
   padding: var(--sp-6) var(--sp-3) 0;
 }
 
-.seo-content h1 {
+.seo-content .seo-title {
   font-size: 16px;
   font-weight: 600;
+  color: var(--fg);
   text-align: center;
   margin: 0;
 }

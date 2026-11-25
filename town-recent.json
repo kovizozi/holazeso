@@ -1,0 +1,1017 @@
+{
+ "date": "2026-11-25",
+ "places": {
+  "ajka": {
+   "water": {
+    "km": 33,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "bacsalmas": {
+   "water": {
+    "km": 52,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "baja": {
+   "water": {
+    "km": 29,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "balassagyarmat": {},
+  "balatonboglar": {
+   "water": {
+    "km": 20,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "balatonfured": {
+   "water": {
+    "km": 5,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Tihany rév",
+    "water": "Balaton"
+   }
+  },
+  "balmazujvaros": {},
+  "barcs": {},
+  "batonyterenye": {
+   "water": {
+    "km": 58,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "battonya": {
+   "water": {
+    "km": 42,
+    "level_cm": 4,
+    "slug": "maros",
+    "station": "Makó",
+    "water": "Maros"
+   }
+  },
+  "bekes": {
+   "water": {
+    "km": 45,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "bekescsaba": {
+   "water": {
+    "km": 46,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "berettyoujfalu": {},
+  "bicske": {
+   "water": {
+    "km": 30,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "bonyhad": {
+   "water": {
+    "km": 35,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "budapest": {
+   "water": {
+    "km": 0,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "buk": {
+   "water": {
+    "km": 38,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "cegled": {
+   "water": {
+    "km": 29,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "celldomolk": {},
+  "csenger": {
+   "water": {
+    "km": 38,
+    "level_cm": -76,
+    "slug": "tisza",
+    "station": "Tiszabecs",
+    "water": "Tisza"
+   }
+  },
+  "csongrad": {
+   "water": {
+    "km": 35,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "csorna": {
+   "water": {
+    "km": 31,
+    "level_cm": 169,
+    "slug": "raba",
+    "station": "Győr",
+    "water": "Rába"
+   }
+  },
+  "csurgo": {
+   "water": {
+    "km": 26,
+    "level_cm": -81,
+    "slug": "drava",
+    "station": "Őrtilos",
+    "water": "Dráva"
+   }
+  },
+  "dabas": {
+   "water": {
+    "km": 40,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "debrecen": {},
+  "dombovar": {
+   "water": {
+    "km": 59,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   }
+  },
+  "dunakeszi": {
+   "water": {
+    "km": 17,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "dunaujvaros": {
+   "water": {
+    "km": 36,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "eger": {
+   "water": {
+    "km": 49,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "enying": {
+   "water": {
+    "km": 15,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   }
+  },
+  "erd": {
+   "water": {
+    "km": 15,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "esztergom": {
+   "water": {
+    "km": 40,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "fehergyarmat": {
+   "water": {
+    "km": 36,
+    "level_cm": -76,
+    "slug": "tisza",
+    "station": "Tiszabecs",
+    "water": "Tisza"
+   }
+  },
+  "fonyod": {
+   "water": {
+    "km": 29,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "godollo": {
+   "water": {
+    "km": 26,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "gyal": {
+   "water": {
+    "km": 19,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "gyomaendrod": {
+   "water": {
+    "km": 23,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "gyongyos": {
+   "water": {
+    "km": 35,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "gyor": {
+   "water": {
+    "km": 0,
+    "level_cm": 169,
+    "slug": "raba",
+    "station": "Győr",
+    "water": "Rába"
+   }
+  },
+  "gyula": {},
+  "hajduboszormeny": {},
+  "hajdunanas": {},
+  "hajduszoboszlo": {},
+  "hatvan": {
+   "water": {
+    "km": 38,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "hodmezovasarhely": {
+   "water": {
+    "km": 23,
+    "level_cm": 266,
+    "slug": "tisza",
+    "station": "Szeged",
+    "water": "Tisza"
+   }
+  },
+  "janoshalma": {
+   "water": {
+    "km": 60,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "jaszbereny": {
+   "water": {
+    "km": 15,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "kalocsa": {},
+  "kaposvar": {
+   "water": {
+    "km": 60,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "kapuvar": {
+   "water": {
+    "km": 32,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "karcag": {
+   "water": {
+    "km": 57,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "kazincbarcika": {},
+  "kecskemet": {
+   "last": "2026-11-23",
+   "tomorrow": "2026-11-26",
+   "tomorrow_mm": 6.9,
+   "tomorrow_prob": 100,
+   "water": {
+    "km": 47,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   },
+   "week_mm": 32.0
+  },
+  "keszthely": {
+   "water": {
+    "km": 49,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "kiskoros": {},
+  "kiskunfelegyhaza": {
+   "water": {
+    "km": 56,
+    "level_cm": 266,
+    "slug": "tisza",
+    "station": "Szeged",
+    "water": "Tisza"
+   }
+  },
+  "kiskunhalas": {
+   "water": {
+    "km": 54,
+    "level_cm": 266,
+    "slug": "tisza",
+    "station": "Szeged",
+    "water": "Tisza"
+   }
+  },
+  "kisujszallas": {
+   "water": {
+    "km": 42,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "kisvarda": {},
+  "komlo": {
+   "water": {
+    "km": 39,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "kormend": {},
+  "koszeg": {
+   "water": {
+    "km": 37,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "lajosmizse": {
+   "water": {
+    "km": 50,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "lenti": {
+   "water": {
+    "km": 41,
+    "level_cm": -81,
+    "slug": "drava",
+    "station": "Őrtilos",
+    "water": "Dráva"
+   }
+  },
+  "letenye": {
+   "water": {
+    "km": 16,
+    "level_cm": -81,
+    "slug": "drava",
+    "station": "Őrtilos",
+    "water": "Dráva"
+   }
+  },
+  "mako": {
+   "water": {
+    "km": 0,
+    "level_cm": 4,
+    "slug": "maros",
+    "station": "Makó",
+    "water": "Maros"
+   }
+  },
+  "marcali": {
+   "water": {
+    "km": 49,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "mateszalka": {
+   "water": {
+    "km": 52,
+    "level_cm": -76,
+    "slug": "tisza",
+    "station": "Tiszabecs",
+    "water": "Tisza"
+   }
+  },
+  "mezobereny": {
+   "water": {
+    "km": 37,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "mezocsat": {},
+  "mezokovacshaza": {
+   "water": {
+    "km": 39,
+    "level_cm": 4,
+    "slug": "maros",
+    "station": "Makó",
+    "water": "Maros"
+   }
+  },
+  "mezokovesd": {
+   "water": {
+    "km": 49,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "mezotur": {
+   "water": {
+    "km": 16,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "miskolc": {},
+  "mohacs": {
+   "water": {
+    "km": 1,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "monor": {
+   "water": {
+    "km": 35,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "mor": {
+   "water": {
+    "km": 36,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "morahalom": {
+   "water": {
+    "km": 20,
+    "level_cm": 266,
+    "slug": "tisza",
+    "station": "Szeged",
+    "water": "Tisza"
+   }
+  },
+  "mosonmagyarovar": {
+   "water": {
+    "km": 31,
+    "level_cm": 31,
+    "slug": "duna",
+    "station": "Nagybajcs",
+    "water": "Duna"
+   }
+  },
+  "nagyatad": {
+   "water": {
+    "km": 46,
+    "level_cm": -81,
+    "slug": "drava",
+    "station": "Őrtilos",
+    "water": "Dráva"
+   }
+  },
+  "nagykanizsa": {
+   "water": {
+    "km": 26,
+    "level_cm": -81,
+    "slug": "drava",
+    "station": "Őrtilos",
+    "water": "Dráva"
+   }
+  },
+  "nagykoros": {
+   "water": {
+    "km": 34,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "nyirbator": {},
+  "nyiregyhaza": {},
+  "oroshaza": {
+   "water": {
+    "km": 35,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "oroszlany": {
+   "water": {
+    "km": 39,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "ozd": {},
+  "paks": {},
+  "pannonhalma": {
+   "water": {
+    "km": 17,
+    "level_cm": 169,
+    "slug": "raba",
+    "station": "Győr",
+    "water": "Rába"
+   }
+  },
+  "papa": {
+   "water": {
+    "km": 42,
+    "level_cm": 169,
+    "slug": "raba",
+    "station": "Győr",
+    "water": "Rába"
+   }
+  },
+  "paszto": {
+   "water": {
+    "km": 57,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "pecs": {
+   "water": {
+    "km": 32,
+    "level_cm": -30,
+    "slug": "drava",
+    "station": "Drávaszabolcs",
+    "water": "Dráva"
+   }
+  },
+  "pecsvarad": {
+   "water": {
+    "km": 27,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "petervasara": {
+   "water": {
+    "km": 55,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "polgar": {},
+  "puspokladany": {},
+  "rackeve": {
+   "water": {
+    "km": 27,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "retsag": {
+   "water": {
+    "km": 49,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "salgotarjan": {},
+  "sarbogard": {
+   "water": {
+    "km": 34,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "sarkad": {},
+  "sarospatak": {},
+  "sarvar": {
+   "water": {
+    "km": 56,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "satoraljaujhely": {},
+  "siofok": {
+   "last": "2026-11-22",
+   "tomorrow": "2026-11-26",
+   "tomorrow_mm": 7.3,
+   "tomorrow_prob": 100,
+   "water": {
+    "km": 1,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   },
+   "week_mm": 28.8
+  },
+  "sopron": {
+   "water": {
+    "km": 6,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "szarvas": {
+   "water": {
+    "km": 0,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "szazhalombatta": {
+   "water": {
+    "km": 22,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "szecseny": {},
+  "szeged": {
+   "last": "2026-11-23",
+   "tomorrow": "2026-11-26",
+   "tomorrow_mm": 5.4,
+   "tomorrow_prob": 100,
+   "water": {
+    "km": 1,
+    "level_cm": 266,
+    "slug": "tisza",
+    "station": "Szeged",
+    "water": "Tisza"
+   },
+   "week_mm": 35.1
+  },
+  "szeghalom": {
+   "water": {
+    "km": 50,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "szekesfehervar": {
+   "water": {
+    "km": 14,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "szekszard": {
+   "water": {
+    "km": 39,
+    "level_cm": 96,
+    "slug": "duna",
+    "station": "Mohács",
+    "water": "Duna"
+   }
+  },
+  "szentendre": {
+   "water": {
+    "km": 19,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "szentes": {
+   "water": {
+    "km": 32,
+    "level_cm": 498,
+    "slug": "harmas-koros",
+    "station": "Szarvas",
+    "water": "Hármas-Körös"
+   }
+  },
+  "szentgotthard": {},
+  "szigetszentmiklos": {
+   "water": {
+    "km": 17,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "szigetvar": {
+   "water": {
+    "km": 54,
+    "level_cm": -30,
+    "slug": "drava",
+    "station": "Drávaszabolcs",
+    "water": "Dráva"
+   }
+  },
+  "szob": {
+   "water": {
+    "km": 38,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "szolnok": {
+   "water": {
+    "km": 1,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "szombathely": {
+   "water": {
+    "km": 54,
+    "level_cm": -2,
+    "slug": "ferto",
+    "station": "Fertőrákos",
+    "water": "Fertő"
+   }
+  },
+  "tab": {
+   "water": {
+    "km": 20,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   }
+  },
+  "tamasi": {
+   "water": {
+    "km": 35,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   }
+  },
+  "tapolca": {
+   "water": {
+    "km": 32,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "tata": {
+   "water": {
+    "km": 50,
+    "level_cm": 169,
+    "slug": "raba",
+    "station": "Győr",
+    "water": "Rába"
+   }
+  },
+  "tatabanya": {
+   "water": {
+    "km": 47,
+    "level_cm": 16,
+    "slug": "velencei-to",
+    "station": "Agárd",
+    "water": "Velencei-tó"
+   }
+  },
+  "tiszafured": {
+   "water": {
+    "km": 50,
+    "level_cm": 300,
+    "slug": "tisza",
+    "station": "Kisköre (alsó)",
+    "water": "Tisza"
+   }
+  },
+  "tiszakecske": {
+   "water": {
+    "km": 27,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "tiszaujvaros": {},
+  "tiszavasvari": {},
+  "tokaj": {},
+  "torokszentmiklos": {
+   "water": {
+    "km": 18,
+    "level_cm": 317,
+    "slug": "tisza",
+    "station": "Szolnok",
+    "water": "Tisza"
+   }
+  },
+  "totkomlos": {
+   "water": {
+    "km": 29,
+    "level_cm": 4,
+    "slug": "maros",
+    "station": "Makó",
+    "water": "Maros"
+   }
+  },
+  "vac": {
+   "water": {
+    "km": 32,
+    "level_cm": 95,
+    "slug": "duna",
+    "station": "Budapest",
+    "water": "Duna"
+   }
+  },
+  "varpalota": {
+   "water": {
+    "km": 33,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Siófok",
+    "water": "Balaton"
+   }
+  },
+  "vasarosnameny": {
+   "water": {
+    "km": 48,
+    "level_cm": -76,
+    "slug": "tisza",
+    "station": "Tiszabecs",
+    "water": "Tisza"
+   }
+  },
+  "veszprem": {
+   "water": {
+    "km": 20,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Tihany rév",
+    "water": "Balaton"
+   }
+  },
+  "zahony": {},
+  "zalaegerszeg": {},
+  "zalaszentgrot": {
+   "water": {
+    "km": 60,
+    "level_cm": 36,
+    "slug": "balaton",
+    "station": "Balatonakali",
+    "water": "Balaton"
+   }
+  },
+  "zirc": {
+   "water": {
+    "km": 39,
+    "level_cm": 38,
+    "slug": "balaton",
+    "station": "Tihany rév",
+    "water": "Balaton"
+   }
+  }
+ }
+}
