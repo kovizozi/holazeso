@@ -400,7 +400,7 @@ async function fetchUserStats(point) {
   return openMeteo(
     `${API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}` +
     `&past_days=31&forecast_days=4` +
-    `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min,snowfall_sum` +
+    `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min,snowfall_sum,rain_sum,weather_code` +
     `&hourly=precipitation,precipitation_probability,snowfall` +
     `&current=temperature_2m,precipitation,snowfall&timezone=auto`
   );
@@ -1798,7 +1798,10 @@ function fillPrecipStats(stats, usual, todayIdx) {
 
   const from = Math.max(0, todayIdx - 29);
   const dates = stats.daily.time.slice(from, todayIdx + 1);
-  renderSparkline(document.getElementById("stats-precip-chart"), dates, daily.slice(from, todayIdx + 1));
+  const snowDays = (stats.daily.snowfall_sum || []).slice(from, todayIdx + 1).map(v => v > 0);
+  renderSparkline(document.getElementById("stats-precip-chart"), dates, daily.slice(from, todayIdx + 1), snowDays);
+  document.getElementById("stats-precip-legend").hidden =
+    !snowDays.some((isSnow, i) => isSnow && daily[from + i] > 0);
   // Dátumok a tengelyen: az első, a középső és az utolsó nap.
   const axis = document.getElementById("stats-precip-axis");
   axis.innerHTML = dates.length
@@ -1814,7 +1817,7 @@ function fillPrecipStats(stats, usual, todayIdx) {
 // és csapadékával. A látható sáv keskeny (0,7*barWidth), ezért egy átlátszó,
 // szélesebb körvonal adja a tényleges koppintási célterületet - ugyanaz a
 // trükk, mint a radar-pöttyök "stroke: transparent; stroke-width" megoldása.
-function renderSparkline(svgEl, dates, values) {
+function renderSparkline(svgEl, dates, values, snow = []) {
   while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
   hideSparklineTooltip();
   const svgNS = "http://www.w3.org/2000/svg";
@@ -1827,12 +1830,20 @@ function renderSparkline(svgEl, dates, values) {
     rect.setAttribute("y", 40 - h);
     rect.setAttribute("width", Math.max(barWidth * 0.7, 1));
     rect.setAttribute("height", h);
-    rect.setAttribute("fill", "var(--accent)");
-    rect.setAttribute("opacity", v > 0 ? 0.85 : 0.15);
+    if (snow[i] && v > 0) {
+      // Havazásos nap: ugyanaz a sraffozás, mint a 12 órás kártyán (#snow-hatch).
+      rect.setAttribute("fill", "url(#snow-hatch)");
+      rect.style.stroke = "var(--accent)";
+      rect.setAttribute("stroke-width", 1);
+      rect.setAttribute("vector-effect", "non-scaling-stroke");
+    } else {
+      rect.setAttribute("fill", "var(--accent)");
+      rect.setAttribute("opacity", v > 0 ? 0.85 : 0.15);
+    }
     rect.classList.add("stats-bar");
     rect.addEventListener("click", (event) => {
       event.stopPropagation();
-      toggleSparklineTooltip(i, dates[i], v, values.length);
+      toggleSparklineTooltip(i, dates[i], v, values.length, snow[i] && v > 0);
     });
     svgEl.appendChild(rect);
   });
@@ -1844,7 +1855,7 @@ function formatStatsDate(dateIso) {
 
 let openTooltipBarIndex = null;
 
-function toggleSparklineTooltip(index, dateIso, mm, barCount) {
+function toggleSparklineTooltip(index, dateIso, mm, barCount, isSnow = false) {
   if (openTooltipBarIndex === index) {
     hideSparklineTooltip();
     return;
@@ -1855,7 +1866,7 @@ function toggleSparklineTooltip(index, dateIso, mm, barCount) {
   if (bars[index]) bars[index].classList.add("stats-bar-active");
   const tooltip = document.getElementById("stats-precip-tooltip");
   const leftPercent = ((index + 0.5) / barCount) * 100;
-  tooltip.textContent = `${formatStatsDate(dateIso)}: ${formatMm(mm)} mm`;
+  tooltip.textContent = `${formatStatsDate(dateIso)}: ${formatMm(mm)} mm${isSnow ? " (hó)" : ""}`;
   tooltip.style.left = `${leftPercent}%`;
   tooltip.hidden = false;
 }
@@ -1879,6 +1890,7 @@ const HU_WEEKDAYS = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "
 function fillForecastStats(stats, todayIdx) {
   const list = document.getElementById("stats-forecast-days");
   list.innerHTML = "";
+  let anySnow = false;
   for (let offset = 0; offset <= 3; offset++) {
     const dayIdx = todayIdx + offset;
     if (dayIdx >= stats.daily.time.length) break;
@@ -1887,15 +1899,22 @@ function fillForecastStats(stats, todayIdx) {
     const prob = stats.daily.precipitation_probability_max[dayIdx];
     const sum = stats.daily.precipitation_sum[dayIdx];
     const hasProb = typeof prob === "number";
+    const snow = stats.daily.snowfall_sum?.[dayIdx] > 0;
+    const rain = stats.daily.rain_sum?.[dayIdx] > 0;
+    const icy = FREEZING_RAIN_CODES.includes(stats.daily.weather_code?.[dayIdx]);
+    const kindLabel = icy ? "ónos eső" : snow && rain ? "eső és hó" : "";
+    if (snow) anySnow = true;
     const li = document.createElement("li");
     li.innerHTML =
       `<span class="stats-day-name">${label}</span>` +
       `<span class="stats-day-bar" role="img" aria-label="${hasProb ? `${Math.round(prob)}% eséllyel` : "az esély nem ismert"}">` +
-      (hasProb ? `<i style="height:${Math.max(0, Math.min(100, prob))}%"></i>` : "") + `</span>` +
+      (hasProb ? `<i${snow ? ` class="stats-hatch"` : ""} style="height:${Math.max(0, Math.min(100, prob))}%"></i>` : "") + `</span>` +
       `<span class="stats-day-prob">${hasProb ? `${Math.round(prob)}%` : "?"}</span>` +
-      `<span class="stats-day-mm">kb. ${formatMm(sum)} mm</span>`;
+      `<span class="stats-day-mm">kb. ${formatMm(sum)} mm</span>` +
+      (kindLabel ? `<span class="stats-day-kind">${kindLabel}</span>` : "");
     list.appendChild(li);
   }
+  document.getElementById("stats-forecast-legend").hidden = !anySnow;
 }
 
 // Mai és holnapi min-max egy közös hőmérséklet-skálán, a fagypont
@@ -2005,15 +2024,13 @@ function renderNext12hChart(container, hours) {
   const W = 300, baseY = 60, plotH = 44;
   const pitch = W / hours.length;
   const max = Math.max(...hours.map(h => h.mm), 1);
-  let body = `<defs><pattern id="stats-snow-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
-    `<line x1="0" y1="0" x2="0" y2="4" stroke="var(--accent)" stroke-width="1.6"></line></pattern></defs>` +
-    `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
+  let body = `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
   hours.forEach((h, i) => {
     const wet = h.mm >= RAIN_THRESHOLD_MM;
     const bh = wet ? Math.max((h.mm / max) * plotH, 2) : 1;
     const x = i * pitch + pitch * 0.15, w = pitch * 0.7, cx = i * pitch + pitch / 2;
     if (wet && h.snow) {
-      body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#stats-snow-hatch)" stroke="var(--accent)" stroke-width="1"></rect>`;
+      body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#snow-hatch)" stroke="var(--accent)" stroke-width="1"></rect>`;
     } else {
       body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="var(--accent)" opacity="${wet ? 0.9 : 0.15}"></rect>`;
     }

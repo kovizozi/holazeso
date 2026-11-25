@@ -40,7 +40,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="/style.css?v=64">
+<link rel="stylesheet" href="/style.css?v=65">
 </head>
 <body>
 
@@ -166,6 +166,8 @@
         <p id="stats-place" class="stats-place"></p>
         <p id="stats-status" class="context">töltés…</p>
 
+        <!-- A havazás sraffozása EGY helyen van definiálva (url(#snow-hatch)), a statisztika-kártyák SVG-i erre hivatkoznak. -->
+        <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><pattern id="snow-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--accent)" stroke-width="1.6"></line></pattern></defs></svg>
         <div class="stats-grid">
           <section class="stats-card" id="stats-next12">
             <h3 class="stats-heading">Következő 12 óra</h3>
@@ -177,6 +179,7 @@
           <section class="stats-card" id="stats-forecast">
             <h3 class="stats-heading">Előrejelzés</h3>
             <ul class="stats-days" id="stats-forecast-days"></ul>
+            <p class="stats-note" id="stats-forecast-legend" hidden>Sraffozott oszlop: havazás.</p>
           </section>
 
           <section class="stats-card" id="stats-temp">
@@ -203,6 +206,7 @@
               <div id="stats-precip-tooltip" class="stats-tooltip" hidden></div>
             </div>
             <div class="stats-chart-axis" id="stats-precip-axis" aria-hidden="true"></div>
+            <p class="stats-note" id="stats-precip-legend" hidden>Sraffozott oszlop: havazás.</p>
           </section>
         </div>
       </div>
@@ -285,7 +289,7 @@
   </footer>
 
   <script>window.HOLAZESO_PLACE = {"name": "Győr", "lat": 47.687, "lon": 17.65, "countryCode": "HU"};</script>
-  <script src="/script.js?v=88"></script>
+  <script src="/script.js?v=89"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

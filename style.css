@@ -794,6 +794,18 @@ noscript .about {
   background: var(--accent);
 }
 
+/* Havazásos nap: ugyanaz a sraffozás, mint az SVG #snow-hatch mintája. */
+.stats-day-bar i.stats-hatch {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.6px, transparent 1.6px 4px);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.stats-day-kind {
+  display: block;
+  font-size: 11px;
+  color: var(--fg);
+}
+
 .stats-day-prob {
   display: block;
   font-size: 18px;

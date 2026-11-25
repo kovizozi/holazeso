@@ -243,6 +243,17 @@ sraffozott, körvonalas oszlopot kapnak, és ekkor egy jelmagyarázat-sor
 jelenik meg. Ha mind nulla: "A következő 12 órában nem várható csapadék." és a
 lapos diagram.
 
+**Havazás jelölése a kártyákon**: a sraffozás EGY SVG-mintában él (`#snow-hatch`,
+az `index.html`-ben a `.stats-grid` fölötti 0x0-s rejtett SVG-ben; ne
+definiáld újra, és ne `display:none` alá tedd). A 12 órás kártya (órás
+`snowfall`), a Csapadék kártya 30 napos oszlopdiagramja (napi `snowfall_sum`,
+a tooltip "(hó)" toldalékot kap) és az Előrejelzés kártya esély-oszlopa
+(`.stats-hatch`, CSS-gradiens ugyanazzal a rajzolattal) használja; mindegyik
+alatt a "Sraffozott oszlop: havazás." sor csak akkor látszik, ha van ilyen. Az
+Előrejelzés napi sora alá kerül még "eső és hó" (`snowfall_sum` és `rain_sum`
+is > 0) vagy "ónos eső" (napi `weather_code` 56/57/66/67). A `fetchUserStats`
+napi mezői ehhez bővültek (`rain_sum`, `weather_code`), új kérés nincs.
+
 ### Vízadat-panel (`#water-panel`, `buildWaterPanel`)
 
 **A kód külön fájlban van, lustán töltődik** (SEO-PLAN 4. fázis). A panel

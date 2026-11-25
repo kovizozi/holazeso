@@ -1,3 +1,8 @@
+# HTTPS kikényszerítése a böngészőben (HSTS), 1 év. includeSubDomains és preload
+# szándékosan nincs: egy későbbi, HTTPS nélküli aldomaint egy évre elérhetetlenné tenne.
+/*
+  Strict-Transport-Security: max-age=31536000
+
 /script.js
   Cache-Control: no-cache
 
@@ -9,6 +14,10 @@
 
 # Töredék a generált oldalak vízpaneljéhez (script.js ensureWaterFragment), önmagában nem oldal.
 /water-panel.html
+  X-Robots-Tag: noindex
+
+# A Cloudflare Pages a .html-t levágja (308 -> /water-panel), a fejléc ott is kell.
+/water-panel
   X-Robots-Tag: noindex
 
 # A beágyazható widget bármely oldalon iframe-ben megjeleníthető (nincs X-Frame-Options).
