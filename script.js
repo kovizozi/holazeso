@@ -1460,9 +1460,14 @@ async function run(userLoc, { silent = false } = {}) {
       }
     }
 
-    document.getElementById("q1-question").textContent = SNOW_MODE
+    // A kicsi címke (#q1-question) és a keresés alatt látható nagy címsor
+    // (#q1-big, aria-hidden másolat) ugyanazt a szöveget kapja.
+    const q1Text = SNOW_MODE
       ? `Havazik-e ${userLoc.name} környékén?`
       : `Esik-e ${userLoc.name} környékén?`;
+    document.getElementById("q1-question").textContent = q1Text;
+    const q1Big = document.getElementById("q1-big");
+    if (q1Big) q1Big.textContent = q1Text;
 
     // === 1. FÁZIS: esik-e a környéken? ===
     // Csak ezt keressük: a saját hely részletes előrejelzését és a legelső,

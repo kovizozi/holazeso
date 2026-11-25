@@ -305,6 +305,60 @@ button[type="submit"] {
   min-height: 1.3em;
 }
 
+/* Keresés közben (local) a kérdés nagy címsorként látszik; a válasz
+   érkezésekor kicsinyedve a kis címkébe olvad, a válasz pedig növekszik.
+   A nagy címsor (#q1-big) a .hero-block-hoz képest abszolút pozíciójú, így
+   a layoutot nem érinti: a kis címke (h1) és a válasz helye a keresés
+   elejétől végleges (CLS 0), csak opacity és transform mozog. */
+.hero-block {
+  position: relative;
+}
+
+.q-big {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  margin: 0;
+  font-size: clamp(30px, 8.5vw, 48px);
+  font-weight: 600;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  background: var(--bg);
+  transform-origin: 50% 0;
+  opacity: 0;
+  transform: scale(0.45);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+#result[data-phase="local"] .q-big {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+#q1-question {
+  transition: opacity 0.4s ease 0.05s;
+}
+
+#result[data-phase="local"] #q1-question {
+  opacity: 0;
+  transition: none;
+}
+
+#result #q1-answer {
+  font-size: clamp(48px, 12vw, 96px);
+  transform-origin: 50% 50%;
+  animation: answer-grow 0.45s ease both;
+}
+
+@keyframes answer-grow {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 /* Helymeghatározás közben a #result helyét már lefoglaljuk, de nem látszik. */
 #result.pending {
   visibility: hidden;

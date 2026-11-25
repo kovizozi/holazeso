@@ -709,7 +709,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
             '  <main class="doc-main">\n' + body_html + '\n  </main>\n'
             '  <footer>\n    <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · '
             'Vízállás: <a href="https://www.hydroinfo.hu/" target="_blank" rel="noopener">hydroinfo.hu</a> '
-            '(Országos Vízügyi Főigazgatóság)</p>\n  </footer>\n'
+            '(Országos Vízügyi Főigazgatóság) · <a href="/az-oldalrol/">Az oldalról</a></p>\n  </footer>\n'
             + extra_scripts +
             '  <script data-goatcounter="https://holazeso.goatcounter.com/count"\n'
             '          async src="//gc.zgo.at/count.js"></script>\n</body>\n</html>\n')
@@ -721,7 +721,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
 # összefoglaló marad (keresők, JS nélkül), a grafikon helye aspect-ratio-val előre foglalt.
 HISTORY_FILE = ROOT / "water-history.json"
 ALERTS_FILE = ROOT / "water-alerts.json"
-VIZALLAS_JS = "/vizallas.js?v=2"
+VIZALLAS_JS = "/vizallas.js?v=3"
 DATA_DIR = "data/vizallas"
 # oldal-állomás neve -> archívum-kód (éves sor és napi sor)
 HIST_CODE = {"Siófok": "si", "Agárd": "ag", "Budapest": "bp", "Mohács": "mo", "Szolnok": "so",
@@ -1263,6 +1263,64 @@ def build_cigand_page(ctx):
                      extra_scripts=f'  <script src="{CIGAND_PAGE_JS}"></script>\n')]
 
 
+def build_about_page(ctx):
+    """/az-oldalrol/: kapcsolat, adatforrások, adatvédelmi tájékoztató. Kézzel írt szöveg;
+    a tartalma a script.js, a vizallas.js, a push-worker és a cigand_news.py tényleges működését írja le."""
+    ext = lambda url, name: f'<a href="{url}" target="_blank" rel="noopener">{name}</a>'
+    sources = [
+        (ext("https://open-meteo.com/", "Open-Meteo"), "időjárás, csapadék és helykeresés (CC BY 4.0)"),
+        (ext("https://www.bigdatacloud.com/", "BigDataCloud"), "a helynév a koordinátából"),
+        (ext("https://www.rainviewer.com/", "RainViewer"), "radarkép"),
+        (ext("https://www.hydroinfo.hu/", "hydroinfo.hu") + " (Országos Vízügyi Főigazgatóság)",
+         "vízállás és előrejelzés"),
+        (ext("https://wasser.bgld.gv.at/", "wasser.bgld.gv.at") + " (Burgenland)",
+         "a Fertő vízállása 1965 és 2001 között"),
+        ("10/1997. (V. 28.) KHVM rendelet", "a vízállás-oldalak készültségi szintjei"),
+        (ext("https://www.openstreetmap.org/copyright", "OpenStreetMap") + " közreműködői (ODbL)",
+         "folyók és tavak alakja a vízállás-térképen"),
+        (ext("https://www.geoboundaries.org/", "geoBoundaries") + " (CC BY 4.0) és Natural Earth",
+         "megye- és országhatárok"),
+        (ext("https://www.deepseek.com/", "DeepSeek"),
+         "a Cigánd-oldal hírösszefoglalói, mesterséges intelligenciával készülnek, hibázhatnak"),
+    ]
+    src_li = "\n".join(f"      <li>{a}: {b}</li>" for a, b in sources)
+    mail_js = ("(function(){var e=document.getElementById('kapcsolat-mail');if(!e)return;"
+               "var a=['info','holazeso','hu'],m=a[0]+String.fromCharCode(64)+a[1]+'.'+a[2],"
+               "l=document.createElement('a');l.href='mailto:'+m;l.textContent=m;"
+               "e.textContent='';e.appendChild(l);})();")
+    body = f"""    <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
+    <h1>Az oldalról</h1>
+    <p class="vz-sentence">A hol az eső? egy magánszemély nem kereskedelmi hobbi- és tanulóprojektje.</p>
+    <p>Megkeresi, hol esik a hozzád legközelebb, mutatja a folyók és tavak vízállását, és van egy külön oldala a cigándi tározó zsilipnyitásáról. Nincs mögötte cég, nincs hirdetés, és nem ad el semmit.</p>
+
+    <h2>Adatforrások</h2>
+    <ul class="cg-list">
+{src_li}
+    </ul>
+
+    <h2>Kapcsolat</h2>
+    <p>E-mail: <span id="kapcsolat-mail"><noscript>info kukac holazeso pont hu</noscript></span></p>
+    <p>Hibát vagy ötletet a {ext("https://github.com/kovizozi/holazeso/issues", "GitHubon")} is bejelenthetsz. Az oldal forráskódja publikus: {ext("https://github.com/kovizozi/holazeso", "github.com/kovizozi/holazeso")}.</p>
+
+    <h2>Adatvédelem</h2>
+    <p>Az oldal nem kér regisztrációt, nem használ sütit, és nincs benne hirdetés.</p>
+    <h3>Ami a böngésződben marad</h3>
+    <p>Az utoljára használt helyed (név, koordináta, országkód), az utolsó legfeljebb 5 helyed, és hogy bekapcsoltad-e az értesítést. Ezeket a böngésző helyi tárolója (localStorage) őrzi, csak a te eszközödön van, a böngészőadatok törlésével eltűnik.</p>
+    <h3>Amit a böngésződ közvetlenül más szolgáltatóknak küld</h3>
+    <p>Kereséskor a böngésző a helyed koordinátáját (4 tizedesre kerekítve) az Open-Meteónak küldi a csapadékadatért, a pontos koordinátát a BigDataCloudnak a helynévért. Ha helyet gépelsz be, a beírt név az Open-Meteóhoz megy. A RainViewertől a radarkép csempéi töltődnek le a környékedről. Ezekhez az oldal nem közvetít: a kérés a böngésződből indul, így ezek a szolgáltatók látják az IP-címedet, és a saját szabályaik szerint kezelik.</p>
+    <h3>Értesítés, ha esni kezd</h3>
+    <p>Ha bekapcsolod, a szerverünkre (Cloudflare Worker és KV-tároló) kerül a böngésződ push-feliratkozása (a böngésző szolgáltatójának címe és titkosítási kulcsai), a mentett helyed pontos koordinátája és neve, valamint hogy éppen szárazat vagy esőt jeleztünk-e. Ebből percenként lekérjük az Open-Meteótól az ottani csapadékot, és ha elkezd esni, értesítést küldünk. Másra nem használjuk. A kikapcsoló gombbal a feliratkozás azonnal törlődik. Ha a böngésző érvénytelennek jelzi a feliratkozást, az értesítés küldési kísérletekor szintén törlődik. Más időkorlát nincs. Törlést e-mailben is kérhetsz.</p>
+    <h3>Tárhely és látogatottság</h3>
+    <p>Az oldalt a Cloudflare szolgáltatja (Cloudflare Pages), ezért a kérések adatait, például az IP-címet, a Cloudflare a tárhely működtetéséhez kezeli. A látogatottságot a GoatCounter (minden oldalon) és a Cloudflare Web Analytics (az esőkereső oldalakon) méri sütik nélkül, összesítve. Egyéni profilt nem építünk.</p>
+    <h3>Kérdés, törlés</h3>
+    <p>Ha kérdésed van, vagy törölni kérnéd az értesítési feliratkozásodat, írj az e-mail-címre.</p>
+    <script>{mail_js}</script>"""
+    return [doc_page(ctx, path="/az-oldalrol/",
+                     title=f"Az oldalról: kapcsolat és adatvédelem | {SITE_NAME}",
+                     description="Ki áll az oldal mögött, honnan jönnek az adatok, hogyan érhetsz el minket, és mit tárol az oldal rólad.",
+                     h1="Az oldalról", body_html=body)]
+
+
 # ---------------------------------------------------------------------------
 # 3. fázis: /ho/ (hómód) és /widget/ (beágyazható doboz)
 
@@ -1368,7 +1426,7 @@ def build_widget_page(ctx):
     return [Page("/widget/", WIDGET_HTML, indexable=False)]
 
 
-PAGE_BUILDERS = [build_home, build_town_pages, build_cigand_page, build_water_pages,
+PAGE_BUILDERS = [build_home, build_town_pages, build_cigand_page, build_about_page, build_water_pages,
                  build_snow_page, build_widget_page]
 
 

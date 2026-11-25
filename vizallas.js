@@ -833,12 +833,13 @@
     function downloadPng() {
       const model = chart === "friss" ? frissModel(data, state.key) : yearsModel(data, state.key);
       const ts = exportTitleAndSub();
-      const r = buildSvg(model, { W: 1200, H: 675, pal: PRINT, uid: "x" + uid, exp: true, title: ts.title, subtitle: ts.subtitle, aria: ts.title });
+      // 800x450 logikai méret 1,5x-re nagyítva: 1200x675 képpontos, cikkbe illő PNG, olvasható betűkkel
+      const r = buildSvg(model, { W: 800, H: 450, pal: PRINT, uid: "x" + uid, exp: true, title: ts.title, subtitle: ts.subtitle, aria: ts.title });
       const url = URL.createObjectURL(new Blob([r.svg], { type: "image/svg+xml;charset=utf-8" }));
       const img = new Image();
       img.onload = () => {
         const c = document.createElement("canvas");
-        c.width = 2400; c.height = 1350;
+        c.width = 1200; c.height = 675;
         const ctx2 = c.getContext("2d");
         ctx2.fillStyle = "#ffffff";
         ctx2.fillRect(0, 0, c.width, c.height);
@@ -956,6 +957,10 @@
     let chart = q.get("grafikon") === "hossz" ? "hossz" : "friss";
     if (!/^[a-z0-9-]+$/.test(slug)) { root.textContent = "Ismeretlen állomás."; return; }
     const url = "/data/vizallas/" + slug + ".json?h=" + new Date().toISOString().slice(0, 13).replace(/\D/g, "");
+    // Kis iframe-ben (pl. 480x300) a keret 200 px-es minimuma kilógatná a forrás-sort: engedjük kisebbre.
+    const st = document.createElement("style");
+    st.textContent = ".vz-embed .vz-frame{min-height:120px}.vz-embed-main{min-height:0}";
+    document.head.appendChild(st);
     const fig = document.createElement("figure");
     fig.className = "vz-fig is-embed";
     fig.dataset.vzChart = chart;
