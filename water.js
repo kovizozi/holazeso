@@ -2612,7 +2612,7 @@ function renderLakeCards(container, cards) {
 // A negyedik, MÉRT csempe (a Tisza szintje Cigánd közelében) csak akkor
 // jelenik meg, ha a rivers-snapshotban van "Dombrád" nevű állomás - a
 // gyűjtő bővítése nélkül egyszerűen hiányzik.
-const CIGAND_URL = "/cigand.json?v=2";
+const CIGAND_URL = "/cigand.json?v=3";
 const CIGAND_GEO_URL = "/cigand-geo.json?v=2";
 const CIGAND_STEP_MS = 2000;
 const CIGAND_STEPS = [
@@ -2683,27 +2683,6 @@ function cigandTilesHtml(data, rivers) {
   return tiles.map(t =>
     `<div class="cigand-tile"><span class="cigand-tile-label">${t.label}</span>` +
     `<span class="cigand-tile-value">${t.value}</span><span class="cigand-tile-sub">${t.sub}</span>${cigandTagHtml(t.kind)}</div>`).join("");
-}
-
-function cigandCompareHtml(data, minCellLiters) {
-  const f = data.facts;
-  const pools = Math.round(f.volume_m3 / 2500 / 50) * 50;
-  const cm = Math.round(f.volume_m3 / (f.area_km2 * 1e6) * 100);
-  const icons = {
-    pool: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="4" width="44" height="24" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M6 14 q4 -4 8 0 t8 0 t8 0 t8 0 M6 21 q4 -4 8 0 t8 0 t8 0 t8 0" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>`,
-    depth: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="4" width="44" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"></rect><rect x="2" y="25" width="44" height="3" fill="currentColor"></rect></svg>`,
-    cell: `<svg viewBox="0 0 48 32" aria-hidden="true"><rect x="2" y="2" width="44" height="28" fill="none" stroke="currentColor" stroke-width="1.5"></rect><rect x="2" y="2" width="2" height="28" fill="currentColor"></rect></svg>`,
-  };
-  const items = [
-    { icon: icons.pool, text: `kb. ${waterNum(pools, 0)} olimpiai medence` },
-    { icon: icons.depth, text: `kb. ${cm} cm vastag réteg, ha az egész tározót elborítaná` },
-  ];
-  if (minCellLiters > 0) {
-    const share = (f.volume_m3 * 1000) / minCellLiters * 100;
-    items.push({ icon: icons.cell, text: `kb. ${waterNum(Math.round(share), 0)} % abból, amennyit ma a legszárazabb mintaterület talaja tart (${waterNum(minCellLiters / 1e9, 0)} milliárd liter)` });
-  }
-  return items.map(i => `<div class="cigand-compare-item">${i.icon}<p>${i.text}</p></div>`).join("") +
-    `<p class="cigand-compare-tag">${cigandTagHtml("számolt")}</p>`;
 }
 
 // "mennyi fér bele, és mennyi van benne?": vázlatos függőleges metszet. A
@@ -2838,15 +2817,26 @@ function cigandSectionListHtml(data) {
 
 
 
+// A cigand.json válaszaiban a **kiemelt** részek <strong>-gá alakulnak
+// (előbb escape-elünk, így a JSON-ból nem kerülhet markup az oldalra).
+function cigandRichText(text) {
+  const esc = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return esc.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
 function cigandFaqHtml(data) {
   return (data.faq || []).map(i =>
-    `<div class="cigand-faq-item"><h5 class="cigand-faq-q">${i.q}</h5><p class="cigand-faq-a">${i.a}</p>` +
-    `<p class="cigand-faq-meta">${cigandTagHtml(i.kind)}${i.source ? ` <a href="${i.source.url}" target="_blank" rel="noopener">${i.source.name}</a>` : ""}</p></div>`).join("");
+    `<li class="cigand-faq-item"><h5 class="cigand-faq-q">${cigandRichText(i.q)}</h5><p class="cigand-faq-a">${cigandRichText(i.a)}</p>` +
+    `<p class="cigand-faq-meta">${cigandTagHtml(i.kind)}${i.source ? ` <a href="${i.source.url}" target="_blank" rel="noopener">${i.source.name}</a>` : ""}</p></li>`).join("");
 }
 
 function cigandTimelineHtml(data) {
-  return data.timeline.map(e =>
-    `<li><span class="cigand-tl-date">${e.date}</span><span class="cigand-tl-text">${e.text} ` +
+  // --n és az egyes li grid-column-ja a vízszintes idővonalhoz (CSS, >= 720 px);
+  // keskeny kijelzőn a függőleges idővonal ezeket figyelmen kívül hagyja.
+  const list = document.getElementById("cigand-timeline");
+  if (list) list.style.setProperty("--n", String(data.timeline.length));
+  return data.timeline.map((e, i) =>
+    `<li style="--c: ${i + 1}"><span class="cigand-tl-date">${e.date}</span><span class="cigand-tl-text">${e.text} ` +
     `${cigandTagHtml(e.kind)} <a href="${e.source.url}" target="_blank" rel="noopener">${e.source.name}</a></span></li>`).join("");
 }
 
@@ -3109,7 +3099,7 @@ async function buildCigandNews(data) {
         `(<a href="${esc(ls.link)}" target="_blank" rel="noopener">${esc(ls.source)}</a>, ${new Intl.DateTimeFormat("hu-HU", { month: "short", day: "numeric" }).format(when)})`;
       latestEl.hidden = false;
     }
-    const items = (news.items || []).filter(it => it.relevant !== false).slice(0, 5);
+    const items = (news.items || []).filter(it => it.relevant !== false).slice(0, 6);
     if (!items.length) return;
     const fmt = new Intl.DateTimeFormat("hu-HU", { month: "short", day: "numeric" });
     document.getElementById("cigand-news-list").innerHTML = items.map(it => {
@@ -3179,11 +3169,6 @@ async function buildCigand(soil, rivers) {
     document.getElementById("cigand-title").textContent = data.title;
     document.getElementById("cigand-lead").textContent = data.lead;
     document.getElementById("cigand-tiles").innerHTML = cigandTilesHtml(data, rivers && rivers.stations);
-    const cells = soil.points.filter(p => p.in_hungary && p.liters_total > 0);
-    const minCell = cells.length ? Math.min(...cells.map(p => p.liters_total)) : 0;
-    document.getElementById("cigand-compare").innerHTML = cigandCompareHtml(data, minCell);
-    document.getElementById("cigand-caveat").innerHTML =
-      `Ez nem árvízi elárasztás: a tározó kb. 2 százalékáról van szó. A víz a vápát és a Tiszakarádi-főcsatornát tölti fel, onnan mellékcsatornákba jut (${data.operator}). Élő mérés nincs róla: a számok bejelentések.`;
     document.getElementById("cigand-faq").innerHTML = cigandFaqHtml(data);
     document.getElementById("cigand-timeline").innerHTML = cigandTimelineHtml(data);
     document.getElementById("cigand-sources").innerHTML = "Források: " +
@@ -3210,8 +3195,7 @@ async function buildCigand(soil, rivers) {
         expand.textContent = open ? "elrejtés" : "részletek";
       };
     } else {
-      const firstSection = document.getElementById("water-local-section");
-      firstSection.parentNode.insertBefore(section, firstSection);
+      // Aktív esemény: a szakasz a markup szerinti helyén, a vízpanel végén marad.
       summary.hidden = true;
       body.hidden = false;
     }

@@ -2116,7 +2116,7 @@ circle.water-channel-hit {
 
 .cigand-lead {
   max-width: 46em;
-  margin: var(--sp-2) auto 0;
+  margin: var(--sp-3) auto 0;
   font-size: 18px;
   line-height: 1.5;
 }
@@ -2129,18 +2129,22 @@ circle.water-channel-hit {
 .cigand-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   max-width: 960px;
-  margin: var(--sp-3) auto 0;
+  margin: var(--sp-4) auto 0;
 }
 
+/* Kártya (CLAUDE.md 2. szabály): --surface háttér, nincs keret. A --muted
+   felirat a #f3f3f3-on 4,8:1, a #1c1c1c-n 6,1:1. */
 .cigand-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: var(--sp-2);
-  border: 1px solid var(--border);
+  padding: var(--sp-3);
+  border: none;
+  background: var(--surface);
+  border-radius: var(--radius-card);
 }
 
 .cigand-tile-label {
@@ -2163,32 +2167,43 @@ circle.water-channel-hit {
 /* Minden szám címkét kap: tény / bejelentett / számolt / mért. */
 .cigand-chip {
   display: inline-block;
-  padding: 0 6px;
-  border: 1px solid var(--muted);
-  border-radius: 2px;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.6;
+  padding: 2px var(--sp-1);
+  border: 1px solid var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
 }
 
 .cigand-chip-unknown {
   border-style: dashed;
 }
 
+/* Sorszámozott, kék kérdések. A #027cff fehéren csak 3,94:1, ezért a kérdés
+   19 px félkövér (WCAG nagy szöveg, 3:1 elég); sötét módban #6ea3ff a #111-en
+   7,5:1. A válasz --fg marad, a lényeg félkövér (<strong>). */
 .cigand-faq {
   max-width: 46em;
   margin: 0 auto;
+  padding: 0;
+  list-style: none;
   text-align: left;
+  counter-reset: faq;
 }
 
 .cigand-faq-item {
-  margin: 0 0 var(--sp-3);
+  margin: var(--sp-4) 0 0;
 }
 
 .cigand-faq-q {
   margin: 0 0 var(--sp-1);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cigand-faq-q::before {
+  counter-increment: faq;
+  content: counter(faq) ". ";
 }
 
 .cigand-faq-a {
@@ -2217,6 +2232,10 @@ circle.water-channel-hit {
   font-size: 12px;
   color: var(--muted);
   pointer-events: none;
+}
+
+.cigand-figure figcaption {
+  margin-top: var(--sp-1);
 }
 
 .cigand-step-caption {
@@ -2278,50 +2297,17 @@ circle.water-channel-hit {
   font-size: 15px;
 }
 
+/* Alcím: 22 px, félkövér, --fg (a korábbi halvány 16 px-es nem látszott alcímnek). */
 .cigand-subhead {
-  margin: var(--sp-4) 0 var(--sp-2);
-  font-size: 16px;
+  margin: var(--sp-5) 0 var(--sp-3);
+  font-size: 22px;
   font-weight: 600;
-  color: var(--muted);
-}
-
-.cigand-compare {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--sp-3);
-  max-width: 960px;
-  margin: 0 auto;
-}
-
-.cigand-compare-item {
-  text-align: center;
-}
-
-.cigand-compare-item svg {
-  display: block;
-  width: 48px;
-  height: 32px;
-  margin: 0 auto var(--sp-1);
   color: var(--fg);
 }
 
-.cigand-compare-item p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-.cigand-compare-tag {
-  grid-column: 1 / -1;
-  margin: 0;
-}
-
-.cigand-caveat {
-  max-width: 46em;
-  margin: var(--sp-3) auto 0;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--muted);
+/* D4: a térkép lejjebb, hogy ne tapadjon a csempékhez / a legfrissebb hírhez. */
+.cigand-figure:first-of-type {
+  margin-top: var(--sp-5);
 }
 
 .cigand-timeline {
@@ -2352,6 +2338,63 @@ circle.water-channel-hit {
   border-radius: 50%;
 }
 
+/* Vízszintes idővonal asztalon: a vonal középen, az események felváltva a
+   vonal fölött (páratlan) és alatt (páros). Az oszlopot a li --c változója
+   adja (water.js cigandTimelineHtml), az oszlopszámot az ol --n változója. */
+@media (min-width: 720px) {
+  .cigand-timeline {
+    display: grid;
+    grid-template-columns: repeat(var(--n, 4), minmax(200px, 1fr));
+    grid-template-rows: auto 26px auto;
+    column-gap: var(--sp-3);
+    max-width: 960px;
+    width: 100%;
+    left: 0;
+    padding: 0;
+    border-left: none;
+    overflow-x: auto;
+  }
+
+  .cigand-timeline::before {
+    content: "";
+    grid-row: 2;
+    grid-column: 1 / -1;
+    align-self: center;
+    border-top: 1.5px solid var(--fg);
+  }
+
+  .cigand-timeline li {
+    grid-column: var(--c);
+    margin: 0;
+  }
+
+  .cigand-timeline li:nth-child(odd) {
+    grid-row: 1;
+    align-self: end;
+    padding-bottom: var(--sp-1);
+  }
+
+  .cigand-timeline li:nth-child(even) {
+    grid-row: 3;
+    align-self: start;
+    padding-top: var(--sp-1);
+  }
+
+  /* A pötty a vonalon ül, az esemény szövegének bal széle fölött/alatt. */
+  .cigand-timeline li::before {
+    left: 0;
+    top: auto;
+  }
+
+  .cigand-timeline li:nth-child(odd)::before {
+    bottom: -17px;
+  }
+
+  .cigand-timeline li:nth-child(even)::before {
+    top: -17px;
+  }
+}
+
 .cigand-tl-date {
   display: block;
   font-size: 14px;
@@ -2364,9 +2407,12 @@ circle.water-channel-hit {
   line-height: 1.5;
 }
 
-.cigand-tl-text a,
 .cigand-news-list {
-  max-width: 46em;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0;
   list-style: none;
@@ -2375,8 +2421,23 @@ circle.water-channel-hit {
   line-height: 1.5;
 }
 
+/* Kártya: a magasság a szöveghez igazodik (align-items: start). */
 .cigand-news-list li {
-  margin: 0 0 var(--sp-2);
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  padding: var(--sp-3);
+}
+
+@media (min-width: 560px) {
+  .cigand-news-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .cigand-news-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .cigand-news-list a {
@@ -2403,7 +2464,7 @@ circle.water-channel-hit {
 
 .cigand-latest {
   max-width: 46em;
-  margin: var(--sp-2) auto 0;
+  margin: var(--sp-3) auto;
   font-size: 14px;
   color: var(--muted);
 }

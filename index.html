@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=83">
+<link rel="stylesheet" href="style.css?v=85">
 </head>
 <body>
 
@@ -234,7 +234,6 @@
              ugyanazokkal a #id-kkel, amik a lenti section-okon megvannak. A
              tapadó sávban az éppen látott szakasz aria-current-et kap. -->
         <nav class="water-toc" id="water-toc" aria-label="vízadatok tartalomjegyzéke">
-          <a href="#water-cigand-section" id="water-toc-cigand" hidden>Cigánd</a>
           <a href="#water-local-section">Itt</a>
           <a href="#water-soil-section">Talaj</a>
           <a href="#water-map-section">Térkép</a>
@@ -242,64 +241,8 @@
           <a href="#water-channels-section">Csatornák</a>
           <a href="#water-balance-section">Vízmérleg</a>
           <a href="#water-lakes-section">Tavak</a>
+          <a href="#water-cigand-section" id="water-toc-cigand" hidden>Cigánd</a>
         </nav>
-
-        <!-- Cigánd: aktuális hír, a tartalmát a cigand.json adja (kézzel
-             karbantartva), a térképét a cigand-geo.json (OpenStreetMap).
-             Aktív eseménynél a vízpanel TETEJÉN áll, lejárt esemény
-             (active: false) egy soros összefoglalóvá zsugorodik, és az
-             országos szakaszok alá költözik (script.js buildCigand). -->
-        <section class="water-section cigand" id="water-cigand-section" hidden>
-          <p class="cigand-tag" id="cigand-tag"></p>
-          <p class="cigand-summary" id="cigand-summary" hidden>
-            <span id="cigand-summary-text"></span>
-            <button type="button" class="link-btn" id="cigand-expand" aria-expanded="false" aria-controls="cigand-body">részletek</button>
-          </p>
-          <div id="cigand-body">
-            <h3 class="question" id="cigand-title">A cigándi tározó</h3>
-            <p class="cigand-lead" id="cigand-lead"></p>
-            <div class="cigand-tiles" id="cigand-tiles"></div>
-            <p class="cigand-latest" id="cigand-latest" hidden></p>
-
-            <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
-              <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
-              <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
-              <span class="cigand-badge" id="cigand-badge">szemléltető ábra, nem élő mérés</span>
-              <figcaption>
-                <p class="cigand-badge-line" id="cigand-badge-line" hidden>szemléltető ábra, nem élő mérés</p>
-                <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
-                <div class="cigand-controls">
-                  <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
-                  <button type="button" class="link-btn" id="cigand-replay">lejátszás újra</button>
-                </div>
-              </figcaption>
-            </figure>
-            <ol class="cigand-steps" id="cigand-steps" hidden></ol>
-
-            <h4 class="cigand-subhead">mennyi fér bele, és mennyi van benne?</h4>
-            <figure class="water-figure fig-medium cigand-figure" style="--ar: 1.259">
-              <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
-              <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
-            </figure>
-            <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
-
-            <h4 class="cigand-subhead">amit érdemes tudni</h4>
-            <div class="cigand-faq" id="cigand-faq"></div>
-
-            <h4 class="cigand-subhead">Mekkora ez valójában?</h4>
-            <div class="cigand-compare" id="cigand-compare"></div>
-            <p class="cigand-caveat" id="cigand-caveat"></p>
-
-            <h4 class="cigand-subhead">Időrend</h4>
-            <ol class="cigand-timeline" id="cigand-timeline"></ol>
-            <div id="cigand-news" hidden>
-              <h4 class="cigand-subhead">Friss hírek</h4>
-              <ul class="cigand-news-list" id="cigand-news-list"></ul>
-              <p class="cigand-news-note" id="cigand-news-note"></p>
-            </div>
-            <p class="cigand-sources" id="cigand-sources"></p>
-          </div>
-        </section>
 
         <!-- Személyes: a keresett helyszín talajminta-profilja. Legfelül,
              mert ez szól a keresett helyre; az országos adatok utána jönnek. -->
@@ -488,6 +431,59 @@
             <svg id="water-lake-compare" viewBox="0 0 400 140" preserveAspectRatio="xMidYMid meet"></svg>
             <figcaption>Azonos léptékben; a Fertő teljes tava látszik, déli része magyar.</figcaption>
           </figure>
+        </section>
+
+        <!-- Cigánd: aktuális hír, a tartalmát a cigand.json adja (kézzel
+             karbantartva), a térképét a cigand-geo.json (OpenStreetMap).
+             A vízpanel VÉGÉN áll (a Tavak után, a tartalomjegyzék utolsó
+             eleme); lejárt esemény (active: false) egy soros összefoglalóvá
+             zsugorodik, és a módszertan elé költözik (water.js buildCigand). -->
+        <section class="water-section cigand" id="water-cigand-section" hidden>
+          <p class="cigand-tag" id="cigand-tag"></p>
+          <p class="cigand-summary" id="cigand-summary" hidden>
+            <span id="cigand-summary-text"></span>
+            <button type="button" class="link-btn" id="cigand-expand" aria-expanded="false" aria-controls="cigand-body">részletek</button>
+          </p>
+          <div id="cigand-body">
+            <h3 class="question" id="cigand-title">A cigándi tározó</h3>
+            <p class="cigand-lead" id="cigand-lead"></p>
+            <div class="cigand-tiles" id="cigand-tiles"></div>
+            <p class="cigand-latest" id="cigand-latest" hidden></p>
+
+            <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
+              <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
+              <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
+              <span class="cigand-badge" id="cigand-badge">szemléltető ábra, nem élő mérés</span>
+              <figcaption>
+                <p class="cigand-badge-line" id="cigand-badge-line" hidden>szemléltető ábra, nem élő mérés</p>
+                <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
+                <div class="cigand-controls">
+                  <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
+                  <button type="button" class="link-btn" id="cigand-replay">lejátszás újra</button>
+                </div>
+              </figcaption>
+            </figure>
+            <ol class="cigand-steps" id="cigand-steps" hidden></ol>
+
+            <h4 class="cigand-subhead">mennyi fér bele, és mennyi van benne?</h4>
+            <figure class="water-figure fig-medium cigand-figure" style="--ar: 1.259">
+              <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
+              <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
+            </figure>
+            <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
+
+            <h4 class="cigand-subhead">amit érdemes tudni</h4>
+            <ol class="cigand-faq" id="cigand-faq"></ol>
+
+            <h4 class="cigand-subhead">Időrend</h4>
+            <ol class="cigand-timeline" id="cigand-timeline"></ol>
+            <div id="cigand-news" hidden>
+              <h4 class="cigand-subhead">Friss hírek</h4>
+              <ul class="cigand-news-list" id="cigand-news-list"></ul>
+              <p class="cigand-news-note" id="cigand-news-note"></p>
+            </div>
+            <p class="cigand-sources" id="cigand-sources"></p>
+          </div>
         </section>
 
         <nav class="water-links" aria-label="Vízállás és Cigánd oldalak">
@@ -699,7 +695,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=103"></script>
+  <script src="script.js?v=104"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

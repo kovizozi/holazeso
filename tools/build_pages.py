@@ -1200,6 +1200,11 @@ CIGAND_FIGURES = """    <div id="cigand-figures">
 CIGAND_PAGE_JS = "/cigand-page.js?v=2"
 
 
+def bold_md(text):
+    """A cigand.json **kiemelés** jelölése <strong>-gá (az escape UTÁN hívandó)."""
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+
+
 def build_cigand_page(ctx):
     cg = json.loads((ROOT / "cigand.json").read_text(encoding="utf-8"))
     nf = ROOT / "cigand-news.json"
@@ -1221,7 +1226,7 @@ def build_cigand_page(ctx):
         f'      <li><span class="cg-date">{esc(t["date"])}</span> {esc(t["text"])}{ex(t.get("source"))}'
         f'{kind(t.get("kind"))}</li>' for t in cg["timeline"])
     faq = "\n".join(
-        f'      <dt>{esc(q["q"])}</dt>\n      <dd>{esc(q["a"])}{ex(q.get("source"))}{kind(q.get("kind"))}</dd>'
+        f'      <dt>{esc(q["q"])}</dt>\n      <dd>{bold_md(esc(q["a"]))}{ex(q.get("source"))}{kind(q.get("kind"))}</dd>'
         for q in cg.get("faq", []))
     parts = [f'    <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>',
              f'    <h1>{esc(cg["title"])}</h1>',
