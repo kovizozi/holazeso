@@ -414,6 +414,18 @@ elempáron belül (pl. kérdés → rá adott válasz), arányosan nagyobb ugrá
 (34px) csoportváltásnál (fő válasz blokk → pontos hely blokk), legnagyobb
 (89px) a tartalomtól teljesen független részek előtt (pl. lábléc).
 
+**Doboztípusok (2026-11-25)**: két egységes típus. *Kártya* (statisztika,
+Cigánd-csempék és -hírek, tó-kártyák, folyógrafikon `.vz-fig`, a
+`.water-howto`/`.about-details` nyitók, a SEO-blokk): `background:
+var(--surface)`, nincs keret, `border-radius: var(--radius-card)`, padding
+`--sp-3`. *Keretes táblázat* (`.water-pick`, `.water-river-net-table ul`,
+`.water-sankey-list ul`, `.water-balaton-table`): `1.5px solid var(--frame)`
+(= `--accent`) keret, lekerekítve, `overflow: hidden`, cellák `--sp-2/--sp-3`,
+sorok közt `1px --border`. Gombok, mezők, tooltip, nagyítógombok: 8px. A
+`--accent` kis szöveg színe nem lehet (fehéren 3,9:1): csak nagy félkövér
+(CTA, FAQ-kérdések) vagy aláhúzás/keret. Alcím: `.water-subhead`,
+`.cigand-subhead` (22px, 600, `--fg`, `--sp-5` felső hely).
+
 ### Layout-stabilitás (CLS)
 
 A `#app` `min-height: 100svh` (style.css): a keresés fázisai közben az app

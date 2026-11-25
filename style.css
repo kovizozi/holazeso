@@ -255,7 +255,7 @@ input[type="text"] {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--fg);
-  border-radius: 4px;
+  border-radius: 8px;
   width: 220px;
 }
 
@@ -266,7 +266,7 @@ button[type="submit"] {
   border: 1px solid var(--fg);
   background: var(--fg);
   color: var(--bg);
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -544,6 +544,14 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
   cursor: pointer;
 }
 
+.radar-zoom button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.radar-zoom button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
 .radar-zoom button:disabled {
   color: var(--muted);
   cursor: default;
@@ -775,7 +783,11 @@ footer a {
    aláhúzott, halvány. Az alapértelmezett háromszöget elrejtjük, mert nem
    illik a tipográfia-vezérelt megjelenéshez. */
 .about-details {
-  margin-bottom: var(--sp-3);
+  max-width: 46em;
+  margin: 0 auto var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border-radius: var(--radius-card);
 }
 
 .about-details summary {
@@ -1081,7 +1093,7 @@ noscript .about {
   font-size: 14px;
   line-height: 1.2;
   padding: 4px var(--sp-1);
-  border-radius: 3px;
+  border-radius: 8px;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -1214,17 +1226,21 @@ noscript .about {
 
 /* A saját hely és az országos blokk eleje ne tapadjon a tartalomjegyzékhez. */
 .water-toc + .water-section {
-  margin-top: var(--sp-4);
+  margin-top: var(--sp-5);
 }
 
 .water-section + .water-section {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
   border-top: 1px solid var(--border);
 }
 
+/* Alcím (D6/G2): 22 px, félkövér, --fg, nagy felső hellyel. */
 .water-subhead {
-  margin-top: var(--sp-4);
+  margin-top: var(--sp-5);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--fg);
 }
 
 /* E1: a saját hely szekciója asztalon egy hajtásba fér (kérdés, fő szám, két
@@ -1281,7 +1297,7 @@ noscript .about {
   font-size: 14px;
   line-height: 1.4;
   padding: var(--sp-1) var(--sp-2);
-  border-radius: 3px;
+  border-radius: 8px;
   pointer-events: none;
   text-align: left;
 }
@@ -1384,6 +1400,9 @@ noscript .about {
 /* "hogyan olvasd?": a hosszú magyarázat a figyelmet nem viszi el. */
 .water-howto {
   margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border-radius: var(--radius-card);
   text-align: center;
 }
 
@@ -1472,7 +1491,7 @@ noscript .about {
   font-size: 14px;
   color: var(--muted);
   text-align: center;
-  margin: var(--sp-2) 0 0;
+  margin: var(--sp-1) 0 0;
   line-height: 1.6;
 }
 
@@ -1506,6 +1525,7 @@ noscript .about {
   font-size: 15px;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--bg);
   color: var(--fg);
 }
@@ -1558,18 +1578,28 @@ noscript .about {
   margin: 0 0 var(--sp-1);
 }
 
+/* Keretes táblázat (CLAUDE.md 2. szabály): --frame keret, lekerekítve,
+   cellák sp-2/sp-3, a sorok közt 1 px --border. */
 .water-river-net-table ul {
   list-style: none;
   padding: 0;
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
+  border: 1.5px solid var(--frame);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .water-river-net-table li {
   display: flex;
   justify-content: space-between;
   gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.water-river-net-table li + li {
+  border-top: 1px solid var(--border);
 }
 
 .water-river-net-table-muted {
@@ -1609,12 +1639,20 @@ noscript .about {
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
+  border: 1.5px solid var(--frame);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .water-sankey-list li {
   display: flex;
   justify-content: space-between;
   gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.water-sankey-list li + li {
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 600px) {
@@ -1870,6 +1908,14 @@ circle.water-channel-hit {
   cursor: pointer;
 }
 
+.water-map-zoom-controls button:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.water-map-zoom-controls button:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
 /* A csatorna-térkép legendája valódi mini-vonalmintával, nem csak prózában
    leírva - ld. script.js buildChannelsMap legenda-sora. */
 .water-legend-row {
@@ -1946,8 +1992,10 @@ circle.water-channel-hit {
 }
 
 .water-lake-card {
-  border: 1px solid var(--border);
-  padding: var(--sp-3) var(--sp-2);
+  border: none;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  padding: var(--sp-3);
   text-align: center;
 }
 
@@ -2035,13 +2083,19 @@ circle.water-channel-hit {
    a /vizallas/ oldalakkal közös grafikon (vizallas.js, a .vz-* szabályok lent).
    A választó sorai gombok (aria-pressed); a grafikon helyét a .vz-frame
    aspect-ratio-ja előre foglalja. */
+/* Keretes táblázat; a két CSS-oszlop miatt a sorok elválasztója a li
+   felső vonala, amit a -1 px margó a keret alá tol (az overflow: hidden
+   levágja), így az oszlopok tetején nincs dupla vonal. */
 .water-pick {
   list-style: none;
   padding: 0;
   margin: var(--sp-3) 0 0;
   columns: 2;
-  column-gap: var(--sp-4);
+  column-gap: 0;
   text-align: left;
+  border: 1.5px solid var(--frame);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 @media (max-width: 700px) {
@@ -2052,6 +2106,7 @@ circle.water-channel-hit {
 
 .water-pick li {
   border-top: 1px solid var(--border);
+  margin-top: -1px;
   break-inside: avoid;
 }
 
@@ -2062,7 +2117,7 @@ circle.water-channel-hit {
   gap: var(--sp-1);
   width: 100%;
   min-height: 40px;
-  padding: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
   font: inherit;
   font-size: 14px;
   color: var(--fg);
@@ -2909,9 +2964,20 @@ circle.water-channel-hit {
   margin: var(--sp-1) 0 0;
 }
 
+/* Folyógrafikon: kártya (--surface, lekerekítve). A beágyazott nézet (iframe)
+   nem kártya, ott a teljes keretet a grafikon tölti ki. */
 .vz-fig {
   position: relative;
   margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  background: var(--surface);
+  border-radius: var(--radius-card);
+}
+
+.vz-embed .vz-fig {
+  padding: 0;
+  background: none;
+  border-radius: 0;
 }
 
 .vz-bar {
@@ -2937,7 +3003,7 @@ circle.water-channel-hit {
 .vz-seg {
   display: inline-flex;
   border: 1px solid var(--fg);
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
   max-width: 100%;
 }
@@ -2992,7 +3058,7 @@ circle.water-channel-hit {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .vz-menu {
@@ -3003,7 +3069,7 @@ circle.water-channel-hit {
   min-width: 190px;
   background: var(--bg);
   border: 1px solid var(--fg);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .vz-menu[hidden] {
@@ -3087,7 +3153,7 @@ circle.water-channel-hit {
   font-size: 13px;
   line-height: 1.4;
   padding: var(--sp-1) var(--sp-2);
-  border-radius: 3px;
+  border-radius: 8px;
   pointer-events: none;
   text-align: left;
 }
@@ -3112,7 +3178,7 @@ circle.water-channel-hit {
 
 .vz-embedbox {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
   padding: var(--sp-2);
   margin: 0 0 var(--sp-1);
 }
@@ -3189,7 +3255,7 @@ circle.water-channel-hit {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--fg);
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
