@@ -721,7 +721,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
 # összefoglaló marad (keresők, JS nélkül), a grafikon helye aspect-ratio-val előre foglalt.
 HISTORY_FILE = ROOT / "water-history.json"
 ALERTS_FILE = ROOT / "water-alerts.json"
-VIZALLAS_JS = "/vizallas.js?v=3"
+VIZALLAS_JS = "/vizallas.js?v=4"
 DATA_DIR = "data/vizallas"
 # oldal-állomás neve -> archívum-kód (éves sor és napi sor)
 HIST_CODE = {"Siófok": "si", "Agárd": "ag", "Budapest": "bp", "Mohács": "mo", "Szolnok": "so",
@@ -1197,7 +1197,7 @@ CIGAND_FIGURES = """    <div id="cigand-figures">
     </figure>
     <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
     </div>"""
-CIGAND_PAGE_JS = "/cigand-page.js?v=1"
+CIGAND_PAGE_JS = "/cigand-page.js?v=2"
 
 
 def build_cigand_page(ctx):

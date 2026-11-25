@@ -634,6 +634,9 @@
 
   function buildFigure(fig, data, opts) {
     opts = opts || {};
+    if (fig._vzDestroy) fig._vzDestroy();
+    const cleanups = [];
+    const onDoc = fn => { document.addEventListener("pointerdown", fn); cleanups.push(() => document.removeEventListener("pointerdown", fn)); };
     const chart = fig.dataset.vzChart;
     const uid = ++uidCounter;
     const filters = chart === "friss" ? frissFilters(data) : yearsFilters(data);
@@ -766,7 +769,7 @@
       showAt(clamp(next, 0, n - 1), true);
     });
     holder.addEventListener("focusin", () => { if (state.geo && state.idx === null && !fig.matches(".is-pointer")) showAt(state.geo.pts.length - 1, true); });
-    document.addEventListener("pointerdown", ev => { if (!fig.contains(ev.target)) { if (state.idx !== null) hide(); } });
+    onDoc(ev => { if (!fig.contains(ev.target)) { if (state.idx !== null) hide(); } });
 
     // ⋯ menü
     const existingMenu = bar.querySelector(".vz-menu-wrap");
@@ -815,7 +818,7 @@
       else if (ev.key === "Escape") { ev.preventDefault(); closeMenu(true); }
       else if (ev.key === "Tab") closeMenu(false);
     });
-    document.addEventListener("pointerdown", ev => { if (!wrap.contains(ev.target)) closeMenu(false); });
+    onDoc(ev => { if (!wrap.contains(ev.target)) closeMenu(false); });
     menu.addEventListener("click", ev => {
       const b = ev.target.closest("button");
       if (!b) return;
@@ -907,6 +910,17 @@
     ro.observe(frame);
     draw();
     fig._vzRedraw = () => { if (embedBox && !embedBox.hidden) embedBox.fill(); draw(); };
+    fig._vzKey = () => state.key;
+    // Újraépítés (másik állomás) vagy eltávolítás előtt: figyelők, menü és beágyazó doboz leszedése.
+    fig._vzDestroy = () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      cleanups.forEach(fn => fn());
+      wrap.remove();
+      if (embedBox) embedBox.remove();
+      fig.classList.remove("is-ready", "is-pointer");
+      fig._vzDestroy = null; fig._vzRedraw = null; fig._vzKey = null;
+    };
     holder.addEventListener("pointerenter", ev => { if (ev.pointerType === "mouse") fig.classList.add("is-pointer"); });
     holder.addEventListener("pointerleave", () => fig.classList.remove("is-pointer"));
     fig.classList.add("is-ready");
@@ -919,6 +933,36 @@
       loadLive().then(live => { if (applyLive(data, live) && fig._vzRedraw) fig._vzRedraw(); });
     }).catch(err => { console.error(err); });
   }
+
+  // ---- Nyilvános API: grafikon beszerelése egy tetszőleges helyre (a főoldali vízpanel is ezt használja) ----
+  // mount(container, data, { chart: "friss", filter: "8"|"30"|"365", live: <rivers-snapshot>, embed: false })
+  //   container: elem; ha nincs benne .vz-fig, a rajzoló létrehozza (cím, szűrősor, keret), ha van, újra felhasználja
+  //   (így a hívó előre foglalhatja a keretet). data: egy data/vizallas/<slug>.json tartalma.
+  //   live: a worker /rivers-snapshot objektuma (generated_at, stations): a mai szint, a történet és az előrejelzés
+  //   ebből frissül; ha nincs megadva, a holazeso.hu-n a rajzoló maga kéri le (egyszer oldalanként).
+  // Visszaad: { destroy(), filter() }. Ugyanarra a konténerre újrahívva az előző grafikon lebomlik.
+  function mount(container, data, opts) {
+    opts = opts || {};
+    const chart = opts.chart === "hossz" && data.years ? "hossz" : "friss";
+    let fig = container.querySelector(".vz-fig");
+    if (!fig) {
+      fig = document.createElement("figure");
+      fig.className = "vz-fig";
+      fig.innerHTML = '<div class="vz-bar"><h3 class="vz-title"></h3></div><div class="vz-ctl"></div><div class="vz-frame"></div>';
+      container.appendChild(fig);
+    }
+    fig.dataset.vzChart = chart;
+    const title = fig.querySelector(".vz-title");
+    if (title) title.textContent = titleOf(data, chart);
+    if (opts.live) applyLive(data, opts.live);
+    buildFigure(fig, data, { embed: !!opts.embed, filter: opts.filter });
+    if (!opts.live) loadLive().then(live => { if (fig._vzRedraw && applyLive(data, live)) fig._vzRedraw(); });
+    return {
+      destroy() { if (fig._vzDestroy) fig._vzDestroy(); },
+      filter() { return fig._vzKey ? fig._vzKey() : null; },
+    };
+  }
+  window.HolazesoVizallas = { mount };
 
   // ---- Térkép: a víz nevének kiírása rámutatáskor ----
   function initMap(svg) {

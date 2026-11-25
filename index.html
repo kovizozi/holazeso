@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=74">
+<link rel="stylesheet" href="style.css?v=77">
 </head>
 <body>
 
@@ -371,13 +371,13 @@
             <p class="about">Még hiányzik a térképről: Bodrog, Berettyó, Kraszna, Kapos, Lajta, Marcal és a kisebb patakok, csatornák. Ezekhez az OpenStreetMap vízfolyás-adatai kellenének.</p>
           </div>
 
-          <!-- Az élő vízállások: ugyanaz a grafikon nyílik, ha a térképen egy
-               folyóra koppintasz, és ha itt egy sorra. A lista a billentyűzettel
-               és képernyőolvasóval elérhető megfelelője a térképnek. -->
+          <!-- Az élő vízállások: állomás-választó lista és egy nagy, interaktív
+               grafikon (vizallas.js, a /vizallas/ oldalakkal közös); a térképen
+               egy folyóra koppintva is ez a grafikon vált (water.js buildRiverList). -->
           <h3 class="question water-subhead">milyen magas most a víz a folyókban?</h3>
           <p class="place-line" id="water-rivers-headline"></p>
           <p class="context" id="water-rivers-detail"></p>
-          <div id="water-river-list" class="water-river-list"></div>
+          <div id="water-rivers" class="water-rivers"></div>
         </section>
 
         <!-- 2d. Csatornák: a felhasználó kérésére ÖNÁLLÓ térkép, nem a
@@ -696,7 +696,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=95"></script>
+  <script src="script.js?v=96"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

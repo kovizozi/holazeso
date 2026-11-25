@@ -841,18 +841,25 @@ const WATER_RIVER_NET_SVG = `
   </g>
 `;
 
-// ---- 2b. Folyók: önálló lista, kattintható állomások ----
+// ---- 2b. Folyók: állomás-választó és EGY nagy, interaktív grafikon ----
 //
-// Minden sor koppintásra nyit/csuk, és csak ELSŐ nyitáskor rajzolja fel a
-// grafikonját (nem mindegyiket előre, ha a felhasználó sosem nyitja ki).
-// A grafikon a hydroinfo.hu 6 napos előrejelzését (ingyen jön a már
-// amúgy is lekért táblából) és a soil-moisture-mapper saját historikus
-// naplójából visszaolvasott korábbi vízállást (history.jsonl, ld. a
-// rivers-snapshot station.history mezőjét) köti össze egy közös
-// grafikonon, "most" elválasztóval.
-// A térkép egy folyójára kattintva a hozzá tartozó sorok nyílnak ebben a
-// listában (ld. buildRiverNet): a sorokat itt jegyezzük meg folyónév szerint.
-let riverListRows = [];
+// A /vizallas/ oldalak "friss" grafikonja (vizallas.js: 8 nap, 30 nap, 1 év,
+// előrejelzés, készültségi szintek, hover/érintés/billentyű, "⋯" menü) a
+// főoldalon is: a kiválasztott állomásra. A vizallas.js lustán töltődik (a
+// panel maga is lusta), az állomás adata (/data/vizallas/<slug>.json)
+// kiválasztáskor jön, állomásonként egyszer. A választó egy tiszta lista
+// (víz, állomás, mai szint, 7 napos változás), soronként egy gomb
+// (aria-pressed). A folyóhálózat-térkép egy folyójára kattintva is ez a
+// grafikon vált (ld. buildRiverNet). A grafikon helye előre foglalt (a
+// .vz-frame aspect-ratio-ja), így nincs elmozdulás a betöltéskor.
+// A VIZALLAS_JS_URL ?v=-jét a tools/build_pages.py VIZALLAS_JS konstansával
+// együtt kell emelni.
+const VIZALLAS_JS_URL = "/vizallas.js?v=4";
+const RIVER_DEFAULT_STATION = "Budapest";
+const RIVER_NEAREST_MAX_KM = 60; // ugyanaz, mint a tools/build_pages.py WATER_MAX_KM
+let riverPicker = { items: [], current: -1, mount: null, token: 0, live: null, host: null };
+const riverDataCache = new Map();
+let vizallasJsPromise = null;
 
 // A generált /vizallas/<slug>/ oldalak (tools/build_pages.py RIVER_PAGES / LAKE_PAGES): a víz neve -> slug.
 const WATER_PAGE_SLUG = {
@@ -860,54 +867,167 @@ const WATER_PAGE_SLUG = {
   "Dráva": "drava", "Balaton": "balaton", "Velencei-tó": "velencei-to", "Fertő": "ferto",
 };
 
-// "Részletes adatok" link a vízoldalra; üres szöveg, ha nincs oldala a víznek.
-function waterDetailsLinkHtml(waterName) {
-  const slug = WATER_PAGE_SLUG[waterName];
-  return slug ? `<p class="water-more"><a href="/vizallas/${slug}/">Részletes adatok és 150 év vízállása: ${waterName}</a></p>` : "";
+// Ugyanaz, mint a tools/build_pages.py station_slug: "Kisköre alsó" -> "kiskore-also".
+function waterStationSlug(name) {
+  return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function buildRiverList(container, stations) {
-  container.innerHTML = "";
-  riverListRows = [];
-  stations.forEach((station, i) => {
-    const row = document.createElement("div");
-    row.className = "water-river-row";
-    // UX-audit A01: korábban ez egy sima <div onclick> volt - Tab-bal
-    // átugorható, képernyőolvasóval észrevehetetlen. Valódi <button>, hogy a
-    // nyitás/csukás billentyűzettel (Enter/Space) is elérhető legyen, az
-    // aria-expanded/aria-controls pedig jelezze az állapotát és a célját.
-    const chartId = `water-river-chart-${i}`;
-    const head = document.createElement("button");
-    head.type = "button";
-    head.className = "water-river-row-head";
-    head.setAttribute("aria-expanded", "false");
-    head.setAttribute("aria-controls", chartId);
-    head.innerHTML =
-      `<span class="water-river-name">${station.river} · ${station.name}</span>` +
-      `<span class="water-river-level">${waterNum(station.level_cm, 0)} cm</span>`;
-    const chartWrap = document.createElement("div");
-    chartWrap.className = "water-river-chart-wrap";
-    chartWrap.id = chartId;
-    const chartSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    chartSvg.setAttribute("viewBox", "0 0 400 150");
-    chartWrap.appendChild(chartSvg);
+// A mostani szint változása ~7 nappal korábbihoz képest (cm), vagy null, ha a history nem fedi le
+// (ugyanaz a szabály, mint a tools/build_pages.py week_change).
+function riverWeekChange(st) {
+  const hist = st.history || [];
+  if (hist.length < 2) return null;
+  const last = Date.parse(hist[hist.length - 1].at);
+  const target = last - 7 * 86400000;
+  if (Date.parse(hist[0].at) > target + 3600000) return null;
+  let base = hist[0];
+  for (const h of hist) if (Math.abs(Date.parse(h.at) - target) < Math.abs(Date.parse(base.at) - target)) base = h;
+  return st.level_cm - base.level_cm;
+}
 
-    let built = false;
-    head.addEventListener("click", () => {
-      const open = row.classList.toggle("open");
-      head.setAttribute("aria-expanded", open ? "true" : "false");
-      if (open && !built) {
-        renderRiverChart(chartWrap, station, chartId);
-        chartWrap.insertAdjacentHTML("beforeend", waterDetailsLinkHtml(station.river));
-        built = true;
-      }
+function loadVizallasJs() {
+  if (window.HolazesoVizallas) return Promise.resolve(window.HolazesoVizallas);
+  if (!vizallasJsPromise) {
+    vizallasJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = VIZALLAS_JS_URL;
+      s.onload = () => (window.HolazesoVizallas ? resolve(window.HolazesoVizallas) : reject(new Error("vizallas.js")));
+      s.onerror = () => { vizallasJsPromise = null; reject(new Error("vizallas.js")); };
+      document.head.appendChild(s);
     });
+  }
+  return vizallasJsPromise;
+}
 
-    row.appendChild(head);
-    row.appendChild(chartWrap);
-    container.appendChild(row);
-    riverListRows.push({ river: station.river, row, head });
+function loadRiverStationData(slug) {
+  if (!riverDataCache.has(slug)) {
+    const hour = new Date().toISOString().slice(0, 13).replace(/\D/g, "");
+    riverDataCache.set(slug, fetch(`/data/vizallas/${slug}.json?h=${hour}`)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .catch(err => { riverDataCache.delete(slug); throw err; }));
+  }
+  return riverDataCache.get(slug);
+}
+
+function riverChangeMarkup(delta) {
+  if (delta === null) return `<span class="water-pick-chg water-pick-chg-none" aria-hidden="true">&ndash;</span>`;
+  const sign = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const glyph = delta > 0 ? "&#9650;" : delta < 0 ? "&#9660;" : "&#9644;";
+  const txt = (delta === 0 ? "0" : waterNum(Math.abs(delta), 0)) + " cm";
+  return `<span class="water-pick-chg water-pick-chg-${sign}" aria-hidden="true"><span class="water-pick-arrow">${glyph}</span> ${txt}</span>`;
+}
+
+function riverPickLabel(st, delta) {
+  const change = delta === null ? "a heti változás nem ismert"
+    : delta === 0 ? "egy hete ugyanennyi"
+    : `${waterNum(Math.abs(delta), 0)} cm-rel ${delta > 0 ? "magasabb" : "alacsonyabb"}, mint egy hete`;
+  return `${st.river}, ${st.name}: ${waterNum(st.level_cm, 0)} cm, ${change}`;
+}
+
+// A főoldali "friss" grafikon helye: ugyanaz a váz, mint a vizallas.js-é, előre foglalt kerettel.
+function riverChartSkeleton(st) {
+  return `<figure class="vz-fig" data-vz-chart="friss"><div class="vz-bar"><h4 class="vz-title">${st.river}, ${st.name}: vízállás</h4></div>` +
+    `<div class="vz-ctl"></div><div class="vz-frame"><p class="vz-fallback" role="status">grafikon betöltése&hellip;</p></div></figure>`;
+}
+
+// idx: a riverPicker.items indexe; opts.scroll: a grafikonhoz görget (térképről vagy keskeny képernyőn)
+function selectRiverStation(idx, opts) {
+  const P = riverPicker;
+  const item = P.items[idx];
+  if (!item || !P.host) return;
+  opts = opts || {};
+  const token = ++P.token;
+  const st = item.station;
+  const slug = waterStationSlug(st.name);
+  const chartBox = P.host.querySelector(".water-river-chart");
+  const more = P.host.querySelector(".water-more");
+  P.items.forEach((it, i) => it.btn.setAttribute("aria-pressed", String(i === idx)));
+  const previousFilter = P.mount ? P.mount.filter() : null;
+  if (!chartBox.querySelector(".vz-fig")) chartBox.innerHTML = riverChartSkeleton(st);
+  else {
+    const t = chartBox.querySelector(".vz-title");
+    if (t) t.textContent = `${st.river}, ${st.name}: vízállás`;
+  }
+  P.current = idx;
+  const wslug = WATER_PAGE_SLUG[st.river];
+  more.innerHTML = wslug ? `<a href="/vizallas/${wslug}/">Részletek és 150 év vízállása: ${st.river} &rarr;</a>` : "";
+  if (opts.scroll) {
+    const r = chartBox.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) {
+      chartBox.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
+  }
+  Promise.all([loadVizallasJs(), loadRiverStationData(slug)]).then(([api, data]) => {
+    if (token !== P.token || !chartBox.isConnected) return;
+    if (P.mount) P.mount.destroy();
+    P.mount = api.mount(chartBox, data, { chart: "friss", filter: previousFilter, live: P.live });
+  }).catch(err => {
+    console.error(err);
+    if (token !== P.token || !chartBox.isConnected) return;
+    const f = chartBox.querySelector(".vz-frame");
+    if (f && !chartBox.querySelector(".vz-svg")) f.innerHTML = `<p class="vz-fallback" role="status">A grafikon nem tölthető be.</p>`;
   });
+}
+
+// A térkép egy folyójára kattintva: a folyó (fő)állomása kerül a grafikonra.
+function selectRiverByName(gaugeRiverName, primaryName) {
+  const cands = riverPicker.items.filter(it => it.station.river === gaugeRiverName);
+  if (!cands.length) return false;
+  const pick = cands.find(it => it.station.name === primaryName) || cands.find(it => it.station.role === "interior") || cands[0];
+  selectRiverStation(riverPicker.items.indexOf(pick), { scroll: true });
+  return true;
+}
+
+// Az alapértelmezett állomás: a keresett helyhez legközelebbi (<= 60 km), különben Budapest.
+function defaultRiverStationIndex(stations, point) {
+  let best = -1, bestKm = Infinity;
+  if (point && typeof point.lat === "number" && typeof point.lon === "number") {
+    stations.forEach((st, i) => {
+      if (typeof st.lat !== "number" || typeof st.lon !== "number") return;
+      const km = distanceKm(point.lat, point.lon, st.lat, st.lon);
+      if (km < bestKm) { bestKm = km; best = i; }
+    });
+  }
+  if (best >= 0 && bestKm <= RIVER_NEAREST_MAX_KM) return best;
+  const bp = stations.findIndex(st => st.name === RIVER_DEFAULT_STATION);
+  return bp >= 0 ? bp : 0;
+}
+
+function buildRiverList(container, snapshot, point) {
+  const P = riverPicker;
+  if (P.mount) P.mount.destroy();
+  P.token++;
+  container.innerHTML = "";
+  const stations = (snapshot.stations || []).filter(st => typeof st.level_cm === "number");
+  P.items = []; P.current = -1; P.mount = null; P.live = snapshot; P.host = container;
+  if (!stations.length) return;
+  const list = document.createElement("ul");
+  list.className = "water-pick";
+  list.setAttribute("aria-label", "Mérőállomások");
+  stations.forEach((st, i) => {
+    const delta = riverWeekChange(st);
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "water-pick-btn";
+    btn.setAttribute("aria-pressed", "false");
+    btn.setAttribute("aria-label", riverPickLabel(st, delta));
+    btn.innerHTML = `<span class="water-pick-name"><strong>${st.river}</strong> ${st.name}</span>` +
+      `<span class="water-pick-lvl" aria-hidden="true">${waterNum(st.level_cm, 0)} cm</span>${riverChangeMarkup(delta)}`;
+    btn.addEventListener("click", () => selectRiverStation(i, { scroll: window.innerWidth < 700 }));
+    li.appendChild(btn);
+    list.appendChild(li);
+    P.items.push({ station: st, btn });
+  });
+  container.appendChild(list);
+  container.insertAdjacentHTML("beforeend", `<p class="water-pick-note">mai vízállás (cm a mérce nullpontjához), jobbra a változás egy hét alatt</p>`);
+  const chartBox = document.createElement("div");
+  chartBox.className = "water-river-chart";
+  container.appendChild(chartBox);
+  const more = document.createElement("p");
+  more.className = "water-more";
+  container.appendChild(more);
+  selectRiverStation(defaultRiverStationIndex(stations, point));
 }
 
 // ---- Folyóhálózat: rámutatás / koppintás ----
@@ -1011,11 +1131,7 @@ function buildRiverNet(svgEl, popupEl, stations) {
   const clear = () => { highlight(null); mapPopupHide(popupEl); };
   const openInList = i => {
     const [name] = RIVER_NET_PATHS[i];
-    const gaugeName = RIVER_NET_GAUGE_NAME[name] || name;
-    const rows = riverListRows.filter(r => r.river === gaugeName);
-    if (!rows.length) return;
-    rows.forEach(r => { if (!r.row.classList.contains("open")) r.head.click(); });
-    rows[0].row.scrollIntoView({ block: "center", behavior: "smooth" });
+    selectRiverByName(RIVER_NET_GAUGE_NAME[name] || name, RIVER_NET_PRIMARY_STATION[name]);
   };
   svgEl.querySelectorAll(".water-river-hit").forEach(hit => {
     const i = Number(hit.dataset.hit);
@@ -1055,123 +1171,6 @@ function watchFigureScale(svgEl, viewBoxWidth) {
   const observer = new ResizeObserver(apply);
   observer.observe(svgEl);
   figureScaleObservers.set(svgEl, observer);
-}
-
-// Rövid "nov. 13." formátum, ugyanúgy mint formatStatsDate - itt viszont
-// Date objektumból, nem ISO dátum-stringből indulunk.
-function formatShortDate(d) {
-  return d.toLocaleDateString("hu-HU", { timeZone: "Europe/Budapest", month: "short", day: "numeric" });
-}
-
-function renderRiverChart(wrapEl, station, chartId) {
-  const svgEl = wrapEl.querySelector("svg");
-  const history = station.history || [];
-  const historyVals = history.map(h => h.level_cm);
-  const forecastVals = station.forecast_cm || [];
-  const series = [...historyVals, station.level_cm, ...forecastVals];
-  const todayIdx = historyVals.length;
-
-  // A grafikon a MEGJELENÍTETT képpont-szélességre készül (1 egység = 1
-  // képpont), nem nyújtott viewBox-ra: korábban a szöveg is torzult, és
-  // nagy képernyőn óriásira nőtt. A max-width (CSS) 720 px.
-  const W = Math.max(280, Math.min(720, Math.round(wrapEl.clientWidth || 400)));
-  const H = 170;
-  svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svgEl.removeAttribute("preserveAspectRatio");
-
-  if (series.length < 2) {
-    svgEl.innerHTML = `<text x="8" y="40" font-size="13" fill="var(--muted)">még nincs elég adat a grafikonhoz</text>`;
-    return;
-  }
-
-  // UX-audit D03: a grafikonnak eddig nem volt sem cm-tengelye, sem
-  // dátumai - csak "múlt"/"most"/"6 napos előrejelzés" szavak. A tényleges
-  // dátumokat a history[].at mezőkből (múlt) és a mai naptól számolva
-  // (előrejelzés, napi bontású) kapjuk - nem kitalált, a snapshot saját
-  // adata.
-  const today = new Date();
-  const dateFor = i => {
-    if (i < history.length) return new Date(history[i].at);
-    const daysAhead = i - todayIdx; // 0 a "most" pontnál, 1.. az előrejelzésnél
-    const d = new Date(today);
-    d.setDate(d.getDate() + daysAhead);
-    return d;
-  };
-
-  // A hydroinfo.hu értékei naponta változnak, a gyűjtő viszont óránként
-  // naplóz: a múltat ezért idő-arányos x-tengelyen, egyetlen vonalként
-  // rajzoljuk (nem egy pont minden órás mintán - ez ~200 egymásra rajzolt
-  // pötty volt). Az előrejelzés napi, ott kis pont jelöli a napokat.
-  const tOf = i => dateFor(i).getTime();
-  const tNow = today.getTime();
-  const dayMs = 86400000;
-  const tFor = i => (i < todayIdx ? tOf(i) : tNow + (i - todayIdx) * dayMs);
-  const tMin = tFor(0), tMax = tFor(series.length - 1);
-
-  const minV = Math.min(...series), maxV = Math.max(...series);
-  const span = Math.max(maxV - minV, 1);
-  const padL = 40, padR = 14, padTop = 22, padBottom = 28;
-  const w = W - padL - padR, h = H - padTop - padBottom;
-  const xFor = t => padL + ((t - tMin) / Math.max(tMax - tMin, 1)) * w;
-  const yFor = v => padTop + h - ((v - minV) / span) * h;
-
-  const pastPoints = series.slice(0, todayIdx + 1).map((v, i) => `${xFor(tFor(i)).toFixed(1)},${yFor(v).toFixed(1)}`);
-  const futurePoints = series.slice(todayIdx).map((v, i) => `${xFor(tFor(todayIdx + i)).toFixed(1)},${yFor(v).toFixed(1)}`);
-  const todayX = xFor(tNow).toFixed(1);
-
-  let forecastDots = "";
-  for (let i = todayIdx + 1; i < series.length; i++) {
-    forecastDots += `<circle cx="${xFor(tFor(i)).toFixed(1)}" cy="${yFor(series[i]).toFixed(1)}" r="2.5" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.2"></circle>`;
-  }
-
-  svgEl.setAttribute("role", "img");
-  svgEl.setAttribute("aria-label",
-    `${station.river} ${station.name}, vízállás centiméterben, ${formatShortDate(dateFor(0))}-tól ${formatShortDate(dateFor(series.length - 1))}-ig - a pontos értékek a lenti táblázatban`);
-  const axisY = padTop + h;
-  svgEl.innerHTML = `
-    <text x="${padL - 6}" y="${(yFor(maxV) + 4).toFixed(1)}" font-size="12" fill="var(--muted)" text-anchor="end">${waterNum(maxV, 0)}</text>
-    <text x="${padL - 6}" y="${(yFor(minV) + 4).toFixed(1)}" font-size="12" fill="var(--muted)" text-anchor="end">${waterNum(minV, 0)}</text>
-    <line x1="${padL}" y1="${axisY}" x2="${padL + w}" y2="${axisY}" stroke="var(--border)" stroke-width="1"></line>
-    <line x1="${todayX}" y1="${padTop - 4}" x2="${todayX}" y2="${axisY}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 3"></line>
-    <polyline points="${pastPoints.join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"></polyline>
-    <polyline points="${futurePoints.join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linejoin="round"></polyline>
-    ${forecastDots}
-    <circle cx="${todayX}" cy="${yFor(station.level_cm).toFixed(1)}" r="3.5" fill="var(--accent)"></circle>
-    <text x="${todayX}" y="${(padTop - 8).toFixed(1)}" font-size="12" font-weight="600" fill="var(--fg)" text-anchor="middle">most: ${waterNum(station.level_cm, 0)} cm</text>
-    <text x="${padL}" y="${axisY + 18}" font-size="12" fill="var(--muted)">${history.length > 0 ? formatShortDate(dateFor(0)) : ""}</text>
-    <text x="${padL + w}" y="${axisY + 18}" font-size="12" fill="var(--muted)" text-anchor="end">${forecastVals.length ? `${formatShortDate(dateFor(series.length - 1))} (előrejelzés vége)` : formatShortDate(dateFor(series.length - 1))}</text>`;
-
-  // Ugyanaz az adat táblázatként is - billentyűzettel/képernyőolvasóval
-  // elérhető, és pontos érték olvasható ki belőle, nem csak a vonal alakja.
-  // A múltbeli (gyakran óránkénti) mérésekből naponta csak az utolsót
-  // mutatjuk, a diagram vizuális sűrűségét nem kell táblában is visszaadni.
-  const dayRows = new Map();
-  history.forEach(h => {
-    const day = formatShortDate(new Date(h.at));
-    dayRows.set(day, h.level_cm); // az utolsó felülírja a napon belüli korábbiakat
-  });
-  let tableRows = [...dayRows.entries()]
-    .map(([day, cm]) => `<tr><td>${day}</td><td>${waterNum(cm, 0)} cm</td><td>mért</td></tr>`)
-    .join("");
-  tableRows += `<tr><td>${formatShortDate(today)}</td><td>${waterNum(station.level_cm, 0)} cm</td><td>most</td></tr>`;
-  tableRows += forecastVals
-    .map((cm, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i + 1);
-      return `<tr><td>${formatShortDate(d)}</td><td>${waterNum(cm, 0)} cm</td><td>előrejelzés</td></tr>`;
-    })
-    .join("");
-
-  let detailsEl = wrapEl.querySelector("details");
-  if (!detailsEl) {
-    detailsEl = document.createElement("details");
-    detailsEl.className = "water-river-chart-table-details";
-    detailsEl.innerHTML = `<summary>értékek táblázatban</summary><table class="water-river-chart-table"></table>`;
-    wrapEl.appendChild(detailsEl);
-  }
-  detailsEl.querySelector("table").innerHTML = `<caption>${station.river} ${station.name}, napi vízállás</caption>
-    <thead><tr><th>dátum</th><th>vízállás</th><th>típus</th></tr></thead>
-    <tbody>${tableRows}</tbody>`;
 }
 
 // ---- 2d. Csatornák: önálló térkép (a felhasználó kérése szerint "külön" a
@@ -3403,8 +3402,8 @@ async function buildWaterPanel(point) {
     document.getElementById("water-rivers-headline").textContent =
       `${riverCount} mérőállomás, ${riverNames.length} nagyobb folyón`;
     document.getElementById("water-rivers-detail").textContent =
-      "élő mérce-adat (hydroinfo.hu) - koppints egy folyóra az előrejelzéshez és a korábbi vízálláshoz";
-    buildRiverList(document.getElementById("water-river-list"), rivers.stations);
+      "élő mérce-adat (hydroinfo.hu) - válassz egy állomást, vagy koppints egy folyóra a térképen";
+    buildRiverList(document.getElementById("water-rivers"), rivers, point);
     buildRiverNet(
       document.getElementById("water-river-net"),
       document.getElementById("water-river-net-tooltip"),
