@@ -1113,13 +1113,8 @@ noscript .about {
 
 .stats-svg-text {
   font-family: var(--font);
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--muted);
-}
-
-.stats-next12-mm,
-.stats-next12-prob {
-  font-size: 10px;
 }
 
 .stats-svg-text-strong {

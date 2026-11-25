@@ -1932,7 +1932,28 @@ function fillForecastStats(stats, todayIdx) {
 // Mai és holnapi min-max egy közös hőmérséklet-skálán, a fagypont
 // (0 °C) jelölt vonalával. Az SVG szövegei 1 egység = ~1 képpont méretűek
 // (a kártya kb. 300 px széles), ezért a betűméret nem torzul.
+// A geometria a konténer tényleges szélességéből számolódik (1 egység = 1
+// képpont), így a feliratok mindig 12 px-esek, és a sávok kitöltik a kártyát;
+// a ResizeObserver átméretezéskor újrarajzol (observeStatsChart).
+const statsChartState = new WeakMap();
+
+function observeStatsChart(container, draw) {
+  statsChartState.set(container, { draw, w: 0 });
+  if (typeof ResizeObserver === "undefined" || container.dataset.observed) return;
+  container.dataset.observed = "1";
+  new ResizeObserver(() => {
+    const st = statsChartState.get(container);
+    const w = Math.round(container.clientWidth);
+    if (st && w > 0 && Math.abs(w - st.w) >= 1) { st.w = w; st.draw(w); }
+  }).observe(container);
+}
+
 function renderTempBars(container, rows) {
+  observeStatsChart(container, w => drawTempBars(container, rows, w));
+  drawTempBars(container, rows, Math.round(container.clientWidth) || 300);
+}
+
+function drawTempBars(container, rows, W) {
   const valid = rows.filter(r => typeof r.min === "number" && typeof r.max === "number");
   if (!valid.length) {
     container.innerHTML = "";
@@ -1942,7 +1963,7 @@ function renderTempBars(container, rows) {
   const showZero = lo <= 1 && hi >= -1;
   const scaleLo = (showZero ? Math.min(lo, 0) : lo) - 1;
   const scaleMax = (showZero ? Math.max(hi, 0) : hi) + 1;
-  const trackX0 = 62, trackX1 = 238, W = 300, rowH = 30, topPad = 14;
+  const trackX0 = 62, trackX1 = Math.max(trackX0 + 60, W - 46), rowH = 34, topPad = 18;
   const H = topPad + valid.length * rowH + 4;
   const xFor = t => trackX0 + ((t - scaleLo) / (scaleMax - scaleLo)) * (trackX1 - trackX0);
   let body = "";
@@ -2033,10 +2054,19 @@ function fillNext12hStats(stats) {
 }
 
 function renderNext12hChart(container, hours) {
-  const W = 300, baseY = 60, plotH = 44;
+  observeStatsChart(container, w => drawNext12hChart(container, hours, w));
+  drawNext12hChart(container, hours, Math.round(container.clientWidth) || 300);
+}
+
+// ~2:1 arányú diagram a kártya szélességében, 12 px-es feliratokkal. Az
+// egymásba érő mm / esély feliratokból a kisebb érték kimarad (az oszlop és a
+// aria-label továbbra is hordozza).
+function drawNext12hChart(container, hours, W) {
+  const H = Math.max(130, Math.round(W / 2)), baseY = H - 34, plotH = baseY - 22;
   const pitch = W / hours.length;
   const max = Math.max(...hours.map(h => h.mm), 1);
   let body = `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
+  let lastMmX = -99, lastProbX = -99;
   hours.forEach((h, i) => {
     const wet = h.mm >= RAIN_THRESHOLD_MM;
     const bh = wet ? Math.max((h.mm / max) * plotH, 2) : 1;
@@ -2047,17 +2077,22 @@ function renderNext12hChart(container, hours) {
       body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="var(--accent)" opacity="${wet ? 0.9 : 0.15}"></rect>`;
     }
     if (wet) {
-      body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${cx.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="middle">${formatMm(h.mm)}</text>`;
-      if (h.prob !== null) {
-        body += `<text class="stats-svg-text stats-next12-prob" x="${cx.toFixed(1)}" y="${baseY + 25}" text-anchor="middle">${h.prob}%</text>`;
+      const mmTxt = formatMm(h.mm);
+      if (cx - lastMmX >= mmTxt.length * 6.6 + 4) {
+        body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${cx.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="middle">${mmTxt}</text>`;
+        lastMmX = cx;
+      }
+      if (h.prob !== null && cx - lastProbX >= 30) {
+        body += `<text class="stats-svg-text stats-next12-prob" x="${cx.toFixed(1)}" y="${baseY + 30}" text-anchor="middle">${h.prob}%</text>`;
+        lastProbX = cx;
       }
     }
     if (i % 3 === 0) {
-      body += `<text class="stats-svg-text" x="${(i === 0 ? x : cx).toFixed(1)}" y="${baseY + 13}" text-anchor="${i === 0 ? "start" : "middle"}">${h.label}</text>`;
+      body += `<text class="stats-svg-text" x="${(i === 0 ? x : cx).toFixed(1)}" y="${baseY + 15}" text-anchor="${i === 0 ? "start" : "middle"}">${h.label}</text>`;
     }
   });
   const desc = hours.map(h => `${h.label}: ${h.mm >= RAIN_THRESHOLD_MM ? `${formatMm(h.mm)} mm${h.snow ? " hó" : ""}${h.prob !== null ? `, ${h.prob}% esély` : ""}` : "száraz"}`).join("; ");
-  container.innerHTML = `<svg viewBox="0 0 ${W} ${baseY + 29}" role="img" aria-label="Csapadék a következő ${NEXT_HOURS} órában. ${desc}">${body}</svg>`;
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Csapadék a következő ${NEXT_HOURS} órában. ${desc}">${body}</svg>`;
 }
 
 // ---- UI-vezérlés ----
