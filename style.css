@@ -854,7 +854,7 @@ noscript .about {
 /* A statisztika-panel mindig látható (nincs nyitógomb), a #result-on kívül,
    egy elválasztó felső szegéllyel - mint a .detail-block -, mert egy új
    tartalmi szakasz elejére kerül. A szöveg-blokkokhoz hasonlóan középre
-   igazított, a tartalma kb. 46 em-re korlátozott szélességű. */
+   igazított; a kártyák a teljes tartalom-szélességet kapják. */
 .stats-section {
   text-align: center;
   margin-bottom: var(--sp-3);
@@ -864,16 +864,29 @@ noscript .about {
 }
 
 .stats-body {
-  max-width: 46em;
-  margin: var(--sp-3) auto 0;
+  margin: var(--sp-3) 0 0;
   text-align: left;
 }
 
-/* 2 x 2 kártya asztali gépen, egy oszlop mobilon. */
+/* Négy kártya egy sorban széles képernyőn (>= 1100 px), 2 x 2 tabletten,
+   egy oszlop mobilon. A kártyák címe nem látszik (aria-label viseli), ezért
+   a tartalmuk függőlegesen és vízszintesen is középre zárt, és a kártya
+   szélességéhez arányosan skálázódik (container query egységek). */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
+}
+
+@media (min-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .stats-card {
+    padding: var(--sp-3);
+  }
 }
 
 @media (max-width: 640px) {
@@ -894,6 +907,8 @@ noscript .about {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  container-type: inline-size;
 }
 
 .stats-card > * {
@@ -911,13 +926,6 @@ noscript .about {
   font-weight: 600;
   text-align: center;
   margin: 0 0 var(--sp-3);
-}
-
-.stats-heading {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  margin: 0 0 var(--sp-2);
 }
 
 .stats-line {
@@ -1040,6 +1048,15 @@ noscript .about {
   right: 0;
   bottom: 0;
   background: var(--accent);
+}
+
+/* Keskeny kártyán (4 oszlopos kiosztás) a négy nap 2 x 2-ben áll, különben a
+   "Holnapután" és a "szombat" egymásba érne. */
+@container (max-width: 250px) {
+  .stats-days {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--sp-3);
+  }
 }
 
 /* Havazásos nap: ugyanaz a sraffozás, mint az SVG #snow-hatch mintája. */

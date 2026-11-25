@@ -1727,7 +1727,7 @@ async function buildStatsPanel(point) {
   // Egyértelművé tesszük, hogy minden alábbi adat a KERESETT helyre szól,
   // nem arra a településre, ahol a radar esőt talált.
   document.getElementById("stats-place").textContent =
-    `Az adatok helye: ${point.name || "a keresett helyszín"}`;
+    point.name ? `${point.name} adatai` : "A keresett hely adatai";
   const statusEl = document.getElementById("stats-status");
   statusEl.hidden = false;
   statusEl.textContent = "töltés…";

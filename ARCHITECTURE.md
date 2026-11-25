@@ -229,8 +229,16 @@ csapadék-história, az elmúlt 3 év ugyanezen időszaka, előrejelzés,
 hőmérséklet, órás csapadék/esély/hó), keresésenként
 egyszer (a `statsRunId` eldobja az elavult választ). Nem fut bele az 5
 percenkénti automatikus frissítésbe. A tetején a `#stats-place` sor
-("Az adatok helye: <név>") mondja ki, melyik helyre vonatkoznak a számok.
+("<név> adatai", a h2) mondja ki, melyik helyre vonatkoznak a számok.
 Minden adata Open-Meteo-alapú, ezért bármely országban működik.
+
+A kártyáknak nincs látható címe (2026-11-25, 2. kör): a cím a `<section>`
+`aria-label`-je. A rács >= 1100 px-en 4 oszlop, tabletten 2 x 2, mobilon 1
+oszlop; a kártya `container-type: inline-size`, tartalma középre zárt, és
+250 px-nél keskenyebb kártyán az Előrejelzés négy napja 2 x 2-ben áll.
+Cím nélkül a kártyák a saját feliratukból érthetők (most / órák, Ma / Holnap,
+24 óra / 7 nap / 30 nap, °C); a legkevésbé magától értetődő a Következő 12 óra
+oszlopdiagramja (mm számok az oszlopok fölött, óra és % alatta).
 
 Négy kártya: Csapadék, Előrejelzés, Hőmérséklet és **Következő 12 óra**
 (`fillNext12hStats`). Az utóbbi a korábbi "Víz" kártya (talajskála és
