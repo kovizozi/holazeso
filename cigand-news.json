@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-25T07:41:57Z",
+  "updated": "2026-11-25T07:51:42Z",
   "sources": [
     "telex.hu",
     "HVG",
@@ -16,42 +16,95 @@
       "link": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518",
       "source": "Pénzcentrum (MTI)",
       "published": "2026-11-23T15:15:00Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "A cikk a bodrogközi vízpótlásról szól, amelynek keretében a Felsőberecki-főcsatornába vizet vezetnek. A Vissi-Holt-Bodrog vízszintje egy hét alatt 129 centiméterrel emelkedett."
     },
     {
       "title": "Ilyen még nem volt Magyarországon: 2 millió köbméter vizet engedtek ki a tájba",
       "link": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849",
       "source": "Agrárszektor",
       "published": "2026-11-22T11:34:00Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "2026. november 21-én megnyitották a Cigándi-víztározó zsilipeit, hogy a Tisza megemelkedett vízszintjét kihasználva közel 2 millió köbméter vizet juttassanak vissza a tájba. A tározót 2008-as építése óta korábban még soha nem vették igénybe.",
+      "facts": {
+        "evidence": "2026. november 21-én megnyitották a Cigándi-víztározón a zsilipeket, hogy a Tisza megemelkedett vízszintjét kihasználva közel 2 millió köbméter vizet juttassanak vissza a tájba.",
+        "stored_volume_m3": 2000000,
+        "gate_status": "nyitva",
+        "fact_date": "2026-11-21"
+      }
     },
     {
       "title": "Először töltik fel vízzel a 2008-ban átadott cigándi víztározót – fotókkal, videóval",
       "link": "https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval",
       "source": "pecaverzum.hu",
       "published": "2026-11-22T10:01:37Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "A cigándi árapasztó tározót most először töltik fel vízzel, mintegy 2 millió köbméter Tisza-vizet vezetve bele a Bodrogköz vízkészletének növelésére. A vízbevezetés gravitációs úton, a megemelkedett tiszai vízszint miatt vált lehetővé.",
+      "facts": {
+        "evidence": "közel 2 millió köbméter vizet vezetnek a Tiszából",
+        "stored_volume_m3": 2000000,
+        "fact_date": "2026-11-21"
+      }
     },
     {
       "title": "A cigándi árapasztó tározóba közel 2 millió köbméter vizet vezettek a Tiszából",
       "link": "https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol",
       "source": "hajdupress.hu",
       "published": "2026-11-22T09:38:37Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "A Tisza vízszintjének emelkedése miatt a cigándi árapasztó tározóba közel 2 millió köbméter vizet vezettek be, amely a tájban marad és a Bodrogközbe kerül. Ez az első alkalom, hogy a 2008-ban megépült tározóba Tisza-vizet vezettek.",
+      "facts": {
+        "evidence": "a cigándi árapasztó tározóba bevezettek kb. 2 millió köbméter vizet",
+        "stored_volume_m3": 2000000,
+        "fact_date": "2026-11-22"
+      }
     },
     {
       "title": "Megnyílt a Cigándi-tározó, közel kétmillió köbméter víz juthat a Bodrogközbe",
       "link": "https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe",
       "source": "Magyar Hírlap",
       "published": "2026-11-21T20:35:00Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "Szombaton megnyitották a Cigándi-tározó zsilipjeit, hogy a Tisza megemelkedett vízszintjét kihasználva vizet juttassanak a Bodrogközbe. A cél, hogy a nyáron kiszáradt csatornákba is eljusson a víz.",
+      "facts": {
+        "evidence": "Szombaton megnyitották a Cigándi-tározó zsilipjeit.",
+        "gate_status": "nyitva",
+        "fact_date": "2026-11-21"
+      }
     },
     {
       "title": "Meglépte a kormány, amit 2008 óta még senki",
       "link": "https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248",
       "source": "Portfolio",
       "published": "2026-11-21T19:17:00Z",
-      "first_seen": "2026-11-25T07:41:57Z"
+      "first_seen": "2026-11-25T07:41:57Z",
+      "ai": true,
+      "relevant": true,
+      "summary": "A cigándi árapasztó tározó zsilipjeit először nyitották meg, hogy a Tisza vizét a Bodrogköz vízpótlására vezessék. A cél nem árvízvédelem, hanem a kiszáradt csatornák újranedvesítése.",
+      "facts": {
+        "evidence": "közel kétmillió köbméter vizet juttassanak vissza a tájba",
+        "stored_volume_m3": 2000000,
+        "fact_date": "2026-11-21"
+      }
     }
-  ]
+  ],
+  "latest_status": {
+    "stored_volume_m3": 2000000,
+    "gate_status": null,
+    "fact_date": "2026-11-22",
+    "when": "2026-11-22",
+    "source": "hajdupress.hu",
+    "link": "https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol",
+    "title": "A cigándi árapasztó tározóba közel 2 millió köbméter vizet vezettek a Tiszából"
+  }
 }
