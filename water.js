@@ -196,8 +196,9 @@ function cssVarRgb(name) {
 }
 
 // Talajnedvesség-skála: az --accent hányada a háttéren (0 = üres, 1 = folyószín).
-const SOIL_TINTS = [0, 0.1, 0.2, 0.3, 0.42];
-const SOIL_TINTS_DARK = [0, 0.14, 0.28, 0.42, 0.56]; // sötét háttéren erősebb keverés kell ugyanahhoz a láthatósághoz
+const SOIL_TINTS = [0, 0.12, 0.25, 0.38, 0.5];
+// Sötét módban a skála két vége: sötét, kékes tónus (--bg + 12% --accent) -> halvány, élénk kék (--accent + 55% fehér); köztük lineáris átmenet.
+const SOIL_DARK_LOW = 0.12, SOIL_DARK_HIGH_WHITE = 0.55;
 
 function tierGradientRgb(frac, stops) {
   const t = Math.min(Math.max(frac, 0), 1) * (stops.length - 1);
@@ -533,13 +534,23 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(canvasW, canvasH);
   // Az 5 fokozat a háttér (--bg) és az akcentus (--accent) keveréke: világos
-  // módban fehértől világoskékig, sötétben sötéttől tompa kékig, mindig sokkal
-  // halványabb, mint a folyók (maga az --accent). A --t0..--t4 tokenek (szürke)
+  // módban fehértől világoskékig, sötétben sötétkéktől halvány élénk kékig; a
+  // folyókat (--accent) a háttérszínű keret választja el a rastertől. A --t0..--t4 tokenek (szürke)
   // ide már nem kellenek; a kevert színt itt számoljuk, mert a canvas nem
   // olvas CSS color-mix()-et.
   const bgRgb = cssVarRgb("--bg"), accentRgb = cssVarRgb("--accent");
-  const tints = bgRgb[0] + bgRgb[1] + bgRgb[2] < 384 ? SOIL_TINTS_DARK : SOIL_TINTS;
-  const tierStops = tints.map(p => bgRgb.map((c, k) => c + (accentRgb[k] - c) * p));
+  const isDark = bgRgb[0] + bgRgb[1] + bgRgb[2] < 384;
+  let tierStops;
+  if (isDark) {
+    const lo = bgRgb.map((c, k) => c + (accentRgb[k] - c) * SOIL_DARK_LOW);
+    const hi = accentRgb.map(c => c + (255 - c) * SOIL_DARK_HIGH_WHITE);
+    // A középső fokozat telített mély kék (az --accent 80%-a), hogy az átmenet ne csússzon szürkébe.
+    const mid = accentRgb.map(c => c * 0.8);
+    const lerp = (a, b, f) => a.map((c, k) => c + (b[k] - c) * f);
+    tierStops = [lo, lerp(lo, mid, 0.5), mid, lerp(mid, hi, 0.5), hi];
+  } else {
+    tierStops = SOIL_TINTS.map(p => bgRgb.map((c, k) => c + (accentRgb[k] - c) * p));
+  }
 
   for (let y = 0; y < canvasH; y++) {
     const rowF = y / cellH - PAD - 0.5;
@@ -590,9 +601,9 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   let geoMarkup = "";
   if (waterGeo) {
     const riverD = ringsToPath(waterGeo.rivers);
-    if (riverD) geoMarkup += `<path class="water-map-river" d="${riverD}"></path>`;
+    if (riverD) geoMarkup += `<path class="water-map-river-casing" d="${riverD}"></path><path class="water-map-river" d="${riverD}"></path>`;
     const lakeD = ringsToPath(waterGeo.lakes);
-    if (lakeD) geoMarkup += `<path class="water-map-lake" d="${lakeD}"></path>`;
+    if (lakeD) geoMarkup += `<path class="water-map-lake-casing" d="${lakeD}"></path><path class="water-map-lake" d="${lakeD}"></path>`;
   }
 
   // Mérő-jelölők: billentyűzettel is elérhetők (tabindex + aria-label), a

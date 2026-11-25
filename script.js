@@ -2067,6 +2067,14 @@ function drawNext12hChart(container, hours, W) {
   const max = Math.max(...hours.map(h => h.mm), 1);
   let body = `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
   let lastMmX = -99, lastProbX = -99;
+  // Szélső feliratok: ha a középre igazított szöveg kilógna a diagramból, a
+  // széléhez igazítjuk (start / end), hogy semmilyen kártyaszélességnél se vágódjon le.
+  const edge = (cx, len) => {
+    const half = len * 6.6 / 2;
+    if (cx - half < 0) return { x: 0, anchor: "start" };
+    if (cx + half > W) return { x: W, anchor: "end" };
+    return { x: cx, anchor: "middle" };
+  };
   hours.forEach((h, i) => {
     const wet = h.mm >= RAIN_THRESHOLD_MM;
     const bh = wet ? Math.max((h.mm / max) * plotH, 2) : 1;
@@ -2079,16 +2087,19 @@ function drawNext12hChart(container, hours, W) {
     if (wet) {
       const mmTxt = formatMm(h.mm);
       if (cx - lastMmX >= mmTxt.length * 6.6 + 4) {
-        body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${cx.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="middle">${mmTxt}</text>`;
+        const e = edge(cx, mmTxt.length);
+        body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${e.x.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="${e.anchor}">${mmTxt}</text>`;
         lastMmX = cx;
       }
       if (h.prob !== null && cx - lastProbX >= 30) {
-        body += `<text class="stats-svg-text stats-next12-prob" x="${cx.toFixed(1)}" y="${baseY + 30}" text-anchor="middle">${h.prob}%</text>`;
+        const e = edge(cx, `${h.prob}%`.length);
+        body += `<text class="stats-svg-text stats-next12-prob" x="${e.x.toFixed(1)}" y="${baseY + 30}" text-anchor="${e.anchor}">${h.prob}%</text>`;
         lastProbX = cx;
       }
     }
     if (i % 3 === 0) {
-      body += `<text class="stats-svg-text" x="${(i === 0 ? x : cx).toFixed(1)}" y="${baseY + 15}" text-anchor="${i === 0 ? "start" : "middle"}">${h.label}</text>`;
+      const e = edge(cx, h.label.length);
+      body += `<text class="stats-svg-text" x="${e.x.toFixed(1)}" y="${baseY + 15}" text-anchor="${e.anchor}">${h.label}</text>`;
     }
   });
   const desc = hours.map(h => `${h.label}: ${h.mm >= RAIN_THRESHOLD_MM ? `${formatMm(h.mm)} mm${h.snow ? " hó" : ""}${h.prob !== null ? `, ${h.prob}% esély` : ""}` : "száraz"}`).join("; ");
@@ -2669,7 +2680,7 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // megjelenik (a helyfoglaló vázzal), a kód viszont csak később jön.
 // ============================================================================
 
-const WATER_JS_URL = "/water.js?v=14";
+const WATER_JS_URL = "/water.js?v=15";
 // A generált oldalakon (/eso/<slug>/, /ho/) a panel markupja nincs a HTML-ben
 // (üres #water-panel[data-fragment]): a generátor egyszer, ebbe a fájlba írja
 // az index.html sablonból. A főoldalon inline marad. A ?v= együtt emelendő a
