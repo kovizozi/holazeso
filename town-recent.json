@@ -4,7 +4,7 @@
   "ajka": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.4,
+   "tomorrow_mm": 8.5,
    "tomorrow_prob": 100,
    "water": {
     "km": 33,
@@ -53,7 +53,7 @@
   "balatonboglar": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 12.2,
+   "tomorrow_mm": 12.9,
    "tomorrow_prob": 100,
    "water": {
     "km": 20,
@@ -67,7 +67,7 @@
   "balatonfured": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.7,
+   "tomorrow_mm": 8.9,
    "tomorrow_prob": 100,
    "water": {
     "km": 5,
@@ -88,7 +88,7 @@
   "barcs": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 6.6,
+   "tomorrow_mm": 8.3,
    "tomorrow_prob": 100,
    "week_mm": 48.7
   },
@@ -200,7 +200,7 @@
   "buk": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 14.4,
+   "tomorrow_mm": 16.8,
    "tomorrow_prob": 98,
    "water": {
     "km": 38,
@@ -228,7 +228,7 @@
   "celldomolk": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.9,
+   "tomorrow_mm": 9.8,
    "tomorrow_prob": 98,
    "week_mm": 11.5
   },
@@ -263,7 +263,7 @@
   "csorna": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.7,
+   "tomorrow_mm": 10.6,
    "tomorrow_prob": 100,
    "water": {
     "km": 31,
@@ -277,7 +277,7 @@
   "csurgo": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 10.8,
+   "tomorrow_mm": 11.7,
    "tomorrow_prob": 100,
    "water": {
     "km": 26,
@@ -424,7 +424,7 @@
   "fonyod": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 10.0,
+   "tomorrow_mm": 10.6,
    "tomorrow_prob": 100,
    "water": {
     "km": 29,
@@ -599,7 +599,7 @@
   "kaposvar": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 3.1,
+   "tomorrow_mm": 3.8,
    "tomorrow_prob": 100,
    "water": {
     "km": 60,
@@ -613,7 +613,7 @@
   "kapuvar": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 12.0,
+   "tomorrow_mm": 13.2,
    "tomorrow_prob": 98,
    "water": {
     "km": 32,
@@ -662,7 +662,7 @@
   "keszthely": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.9,
+   "tomorrow_mm": 9.2,
    "tomorrow_prob": 100,
    "water": {
     "km": 49,
@@ -746,14 +746,14 @@
   "kormend": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 12.2,
+   "tomorrow_mm": 12.9,
    "tomorrow_prob": 98,
    "week_mm": 20.0
   },
   "koszeg": {
    "last": "2026-11-19",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 19.0,
+   "tomorrow_mm": 21.6,
    "tomorrow_prob": 100,
    "water": {
     "km": 37,
@@ -781,7 +781,7 @@
   "lenti": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 11.4,
+   "tomorrow_mm": 11.1,
    "tomorrow_prob": 98,
    "water": {
     "km": 41,
@@ -795,7 +795,7 @@
   "letenye": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 11.8,
+   "tomorrow_mm": 10.8,
    "tomorrow_prob": 100,
    "water": {
     "km": 16,
@@ -823,7 +823,7 @@
   "marcali": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 10.6,
+   "tomorrow_mm": 10.8,
    "tomorrow_prob": 100,
    "water": {
     "km": 49,
@@ -949,7 +949,7 @@
   "mor": {
    "last": "2026-11-19",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 7.3,
+   "tomorrow_mm": 7.4,
    "tomorrow_prob": 100,
    "water": {
     "km": 36,
@@ -977,7 +977,7 @@
   "mosonmagyarovar": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.3,
+   "tomorrow_mm": 10.3,
    "tomorrow_prob": 100,
    "water": {
     "km": 31,
@@ -991,7 +991,7 @@
   "nagyatad": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.1,
+   "tomorrow_mm": 8.4,
    "tomorrow_prob": 100,
    "water": {
     "km": 46,
@@ -1005,7 +1005,7 @@
   "nagykanizsa": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 9.8,
+   "tomorrow_mm": 11.8,
    "tomorrow_prob": 100,
    "water": {
     "km": 26,
@@ -1089,7 +1089,7 @@
   "pannonhalma": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 5.6,
+   "tomorrow_mm": 6.9,
    "tomorrow_prob": 100,
    "water": {
     "km": 17,
@@ -1103,7 +1103,7 @@
   "papa": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.7,
+   "tomorrow_mm": 9.2,
    "tomorrow_prob": 98,
    "water": {
     "km": 42,
@@ -1250,7 +1250,7 @@
   "sarvar": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 11.4,
+   "tomorrow_mm": 9.8,
    "tomorrow_prob": 98,
    "water": {
     "km": 56,
@@ -1271,7 +1271,7 @@
   "siofok": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 18.0,
+   "tomorrow_mm": 17.9,
    "tomorrow_prob": 98,
    "water": {
     "km": 1,
@@ -1285,7 +1285,7 @@
   "sopron": {
    "last": "2026-11-19",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 17.0,
+   "tomorrow_mm": 18.9,
    "tomorrow_prob": 100,
    "water": {
     "km": 6,
@@ -1418,7 +1418,7 @@
   "szentgotthard": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 13.5,
+   "tomorrow_mm": 13.2,
    "tomorrow_prob": 100,
    "week_mm": 17.5
   },
@@ -1439,7 +1439,7 @@
   "szigetvar": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 4.6,
+   "tomorrow_mm": 3.2,
    "tomorrow_prob": 98,
    "water": {
     "km": 54,
@@ -1481,7 +1481,7 @@
   "szombathely": {
    "last": "2026-11-19",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 13.2,
+   "tomorrow_mm": 13.4,
    "tomorrow_prob": 100,
    "water": {
     "km": 54,
@@ -1523,7 +1523,7 @@
   "tapolca": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 10.5,
+   "tomorrow_mm": 9.4,
    "tomorrow_prob": 100,
    "water": {
     "km": 32,
@@ -1656,7 +1656,7 @@
   "varpalota": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 11.1,
+   "tomorrow_mm": 10.9,
    "tomorrow_prob": 100,
    "water": {
     "km": 33,
@@ -1684,7 +1684,7 @@
   "veszprem": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 6.0,
+   "tomorrow_mm": 5.5,
    "tomorrow_prob": 98,
    "water": {
     "km": 20,
@@ -1705,14 +1705,14 @@
   "zalaegerszeg": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.8,
+   "tomorrow_mm": 9.1,
    "tomorrow_prob": 98,
    "week_mm": 25.7
   },
   "zalaszentgrot": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.4,
+   "tomorrow_mm": 8.7,
    "tomorrow_prob": 100,
    "water": {
     "km": 60,
@@ -1726,7 +1726,7 @@
   "zirc": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-26",
-   "tomorrow_mm": 8.2,
+   "tomorrow_mm": 8.1,
    "tomorrow_prob": 100,
    "water": {
     "km": 39,
