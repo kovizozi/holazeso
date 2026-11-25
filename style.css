@@ -5,6 +5,11 @@
   /* Az EGYETLEN akcentusszín (kitöltött sávok, víz, vonalkázás): itt hangolható. */
   --accent: #027cff;
   --border: #dddddd;
+  /* Kártyák: lekerekítés (a gombok/mezők/tooltip fele: 8px), pasztell szürke
+     háttér, keretes táblázatok kerete (felhasználói döntés, 2026-11-25). */
+  --radius-card: 12px;
+  --surface: #f3f3f3;
+  --frame: var(--accent);
   --error: #b3261e;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
@@ -35,6 +40,7 @@
     --muted: #9a9a9a;
     --accent: #6ea3ff;
     --border: #333333;
+    --surface: #1c1c1c;
     --error: #ff6b60;
     --t0: #232323;
     --t1: #353535;
@@ -814,22 +820,41 @@ noscript .about {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-2);
+  gap: 24px;
 }
 
 @media (max-width: 640px) {
   .stats-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
   }
 }
 
+/* Kártya: --surface háttér keret nélkül, a tartalom középre zárva. A belső
+   grafikonok a teljes szélességet kapják (width: 100%), a méretüket a saját
+   szabályaik adják, ezért nem nyúlnak torzan. */
 .stats-card {
-  border: 1px solid var(--border);
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stats-card > * {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .stats-card {
+    padding: var(--sp-3);
+  }
 }
 
 .stats-place {
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 600;
   text-align: center;
   margin: 0 0 var(--sp-3);
@@ -861,7 +886,7 @@ noscript .about {
 }
 
 .stats-big {
-  font-size: 32px;
+  font-size: calc(32px * 1.35);
   font-weight: 600;
   line-height: 1.15;
   margin: 0 0 var(--sp-2);
@@ -877,12 +902,15 @@ noscript .about {
 
 .stats-figure-value {
   display: block;
-  font-size: 26px;
+  font-size: calc(26px * 1.35);
   font-weight: 600;
   line-height: 1.1;
 }
 
 .stats-figure-value small {
+  display: block;
+  margin-top: 2px;
+  line-height: 1.2;
   font-size: 12px;
   font-weight: 400;
   color: var(--muted);
