@@ -716,11 +716,6 @@
     <!--h:cdd4cd4643bc-->
   </url>
   <url>
-    <loc>https://holazeso.hu/ho/</loc>
-    <lastmod>2026-11-25</lastmod>
-    <!--h:d957bc071cf9-->
-  </url>
-  <url>
     <loc>https://holazeso.hu/vizallas/</loc>
     <lastmod>2026-11-25</lastmod>
     <!--h:bcaeb4486373-->
@@ -769,5 +764,10 @@
     <loc>https://holazeso.hu/vizallas/ferto/</loc>
     <lastmod>2026-11-25</lastmod>
     <!--h:4278a4078e2b-->
+  </url>
+  <url>
+    <loc>https://holazeso.hu/ho/</loc>
+    <lastmod>2026-11-25</lastmod>
+    <!--h:d957bc071cf9-->
   </url>
 </urlset>
