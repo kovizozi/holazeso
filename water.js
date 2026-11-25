@@ -195,6 +195,10 @@ function cssVarRgb(name) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+// Talajnedvesség-skála: az --accent hányada a háttéren (0 = üres, 1 = folyószín).
+const SOIL_TINTS = [0, 0.1, 0.2, 0.3, 0.42];
+const SOIL_TINTS_DARK = [0, 0.14, 0.28, 0.42, 0.56]; // sötét háttéren erősebb keverés kell ugyanahhoz a láthatósághoz
+
 function tierGradientRgb(frac, stops) {
   const t = Math.min(Math.max(frac, 0), 1) * (stops.length - 1);
   const i0 = Math.floor(t), i1 = Math.min(i0 + 1, stops.length - 1), f = t - i0;
@@ -528,7 +532,14 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   canvas.height = canvasH;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(canvasW, canvasH);
-  const tierStops = [0, 1, 2, 3, 4].map(i => cssVarRgb(`--t${i}`));
+  // Az 5 fokozat a háttér (--bg) és az akcentus (--accent) keveréke: világos
+  // módban fehértől világoskékig, sötétben sötéttől tompa kékig, mindig sokkal
+  // halványabb, mint a folyók (maga az --accent). A --t0..--t4 tokenek (szürke)
+  // ide már nem kellenek; a kevert színt itt számoljuk, mert a canvas nem
+  // olvas CSS color-mix()-et.
+  const bgRgb = cssVarRgb("--bg"), accentRgb = cssVarRgb("--accent");
+  const tints = bgRgb[0] + bgRgb[1] + bgRgb[2] < 384 ? SOIL_TINTS_DARK : SOIL_TINTS;
+  const tierStops = tints.map(p => bgRgb.map((c, k) => c + (accentRgb[k] - c) * p));
 
   for (let y = 0; y < canvasH; y++) {
     const rowF = y / cellH - PAD - 0.5;
@@ -769,7 +780,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
 
   const howtoEl = document.getElementById("water-map-howto");
   if (howtoEl) {
-    howtoEl.innerHTML = `<p class="about">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel, a színe a területen lévő víz mennyisége (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között). A talajnedvesség itt Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet a szín erőssége mutatja. Egérrel rámutatva, érintőképernyőn rákoppintva megjelenik a mintaterület kerete és a leolvasott érték. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-, a teli gyémánt tó-mérőállomás: ezek élő mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
+    howtoEl.innerHTML = `<p class="about">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel, a színe a területen lévő víz mennyisége: minél sötétebb a kék, annál több (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között). A talajnedvesség itt Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet a szín erőssége mutatja. Egérrel rámutatva, érintőképernyőn rákoppintva megjelenik a mintaterület kerete és a leolvasott érték. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-, a teli gyémánt tó-mérőállomás: ezek élő mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
   }
 }
 
@@ -2031,7 +2042,7 @@ function buildChannelsMap(svgEl, legendEl, channelsSnapshot) {
     <button type="button" class="water-legend-item" data-type="${type}" aria-pressed="true">
       <svg class="water-legend-swatch" viewBox="0 0 24 6" aria-hidden="true"><line x1="0" y1="3" x2="24" y2="3" class="water-channel-${type}"></line></svg>${CHANNEL_TYPE_LABEL[type]}
     </button>`).join("");
-  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások és tavak; a teli pont egy kis tó. Kattints a térképre, utána a görgő nagyít, a húzás mozgat (Escape: elengedi); érintőképernyőn csippentéssel nagyítható. Minél közelebb nagyítasz, annál több vízfolyás, város és megyehatár látszik. Rámutatva (vagy rákoppintva) a vízfolyás neve és hossza jelenik meg. A jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.${elevationDataUrl ? " A háttér domborzat-árnyékolás (Copernicus DEM GLO-30)." : ""}`;
+  legendEl.innerHTML = `<span class="water-legend-row">${swatchRow}</span>Csak a nevesített vízfolyások és tavak; a teli pont egy kis tó. Kattints a térképre, utána a görgő nagyít, a húzás mozgat (Escape: elengedi); érintőképernyőn csippentéssel nagyítható. Minél közelebb nagyítasz, annál több vízfolyás, város és megyehatár látszik. Rámutatva (vagy rákoppintva) a vízfolyás neve és hossza jelenik meg. A jelmagyarázatra kattintva ki-/bekapcsolható az adott típus.${elevationDataUrl ? " A háttér a terep magassága: a magasabb vidék erősebb szürke (világos módban sötétebb, sötét módban világosabb), a síkság halvány (AWS Terrain Tiles: SRTM, GMTED)." : ""}`;
 
   legendEl.addEventListener("click", event => {
     const btn = event.target.closest(".water-legend-item");

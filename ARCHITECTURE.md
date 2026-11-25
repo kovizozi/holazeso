@@ -322,6 +322,21 @@ kézzel), Bearer tokenes `POST`-tal. A folyó- és tó-vízállás a hydroinfo.h
 fájlok mellette: `water-geo.json` (folyók, Balaton), `borders.json`
 (országhatár), `elevation.json` (domborzat a csatorna-térképhez).
 
+**Térkép-színek (2026-11-25, 2. kör)**: a talajnedvesség-dombormű (`#water-relief-map`)
+5 fokozata a háttér (`--bg`) és az akcentus (`--accent`) keveréke (`SOIL_TINTS`,
+`buildReliefMap`): világos módban fehértől világoskékig (max. 42% akcentus), sötét
+módban sötéttől tompa kékig (`SOIL_TINTS_DARK`, max. 56%), így mindkét témában
+sokkal halványabb a folyóknál (`--accent`). A canvas nem olvas CSS `color-mix()`-et,
+ezért a keverést a JS végzi a `--bg`/`--accent` hex értékéből; a `--t0..--t4` szürke
+tokenek csak a `.water-skeleton` háttéréhez maradtak. A csatorna-térkép háttere
+(`elevation.json`) a TEREPMAGASSÁG: magasabb vidék sötétebb szürke (sötét módban a
+`filter: invert(1)` miatt világosabb). A korábbi fájl hillshade volt (lejtés és
+kitettség, magasságot nem hordozott, ezért nem lehetett simán megfordítani); most
+az AWS Terrain Tiles (terrarium, z8) ugyanazon 90x40-es rácsra mintázva, cellánként
+5x5 minta átlaga, `shade = 245 - 165 * ((m - 80) / 470) ^ 0,6` (80 m alatt 245, 550 m
+felett 80). Újragenerálás: a rács paraméterei (`min_lat`, `min_lon`, `step_deg`,
+`rows`, `cols`) változatlanok, csak a `shade` értékei cserélődtek.
+
 **Lokális tesztelés**: a worker CORS-a csak az éles originekre válaszol, ezért
 `localhost`-ról a vízadat-panel "a vízadatok most nem érhetők el" üzenettel
 áll meg. Ez nem hiba. Teszteléshez a kéréseket éles `Origin` fejléccel kell
