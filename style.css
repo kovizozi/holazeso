@@ -1737,6 +1737,19 @@ circle.water-channel-hit {
   margin: 0 0 var(--sp-2);
 }
 
+.water-lake-card-name a {
+  color: inherit;
+}
+
+.water-more {
+  font-size: 13px;
+  margin: var(--sp-1) 0 0;
+}
+
+.water-more a {
+  color: var(--muted);
+}
+
 .water-lake-card-shape {
   display: block;
   width: auto;
@@ -2631,155 +2644,443 @@ circle.water-channel-hit {
   color: inherit;
 }
 
-.spark-fig {
-  margin: var(--sp-2) 0 0;
-  max-width: 320px;
-}
-
-.spark {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.spark-line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-
-.spark-dot {
-  fill: var(--accent);
-}
-
-.spark-fig figcaption {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* Vízállás évenként (tools/build_pages.py history_block): JS nélkül, rádiógombbal váltott SVG-k */
-.vh {
-  margin-top: var(--sp-3);
-}
-
-.doc-main .vh h3 {
-  font-size: 15px;
-  margin: 0 0 var(--sp-1);
-}
-
+/* Vízállás-grafikonok (vizallas.js rajzolja az SVG-t; a keret aspect-ratio-ja előre foglalt, nincs CLS) */
 .vh-text {
   font-size: 15px;
-  margin: 0 0 var(--sp-2);
+  margin: var(--sp-1) 0 0;
 }
 
-.vh-box {
+.vz-fig {
   position: relative;
-  max-width: 560px;
+  margin: var(--sp-3) 0 0;
 }
 
-.vh-r {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+.vz-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 34px;
+}
+
+.doc-main .vz-title,
+.vz-title {
+  font-size: 16px;
+  line-height: 1.3;
   margin: 0;
-  pointer-events: none;
 }
 
-.vh-tabs {
+.vz-ctl {
+  min-height: 34px;
+  margin: var(--sp-1) 0;
+}
+
+.vz-seg {
   display: inline-flex;
   border: 1px solid var(--fg);
   border-radius: 4px;
   overflow: hidden;
-  margin-bottom: var(--sp-1);
+  max-width: 100%;
 }
 
-.vh-l {
+.vz-seg button,
+.vz-seg label {
+  font: inherit;
   font-size: 13px;
   line-height: 1;
   padding: var(--sp-1) var(--sp-2);
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
   cursor: pointer;
   color: var(--fg);
   background: var(--bg);
   white-space: nowrap;
 }
 
-.vh-l + .vh-l {
+.vz-seg button + button,
+.vz-seg label + label {
   border-left: 1px solid var(--fg);
 }
 
-.vh-r10:checked ~ .vh-tabs .vh-l10,
-.vh-r30:checked ~ .vh-tabs .vh-l30,
-.vh-r50:checked ~ .vh-tabs .vh-l50,
-.vh-rall:checked ~ .vh-tabs .vh-lall {
+.vz-seg button[aria-pressed="true"] {
   background: var(--fg);
   color: var(--bg);
 }
 
-.vh-r10:focus-visible ~ .vh-tabs .vh-l10,
-.vh-r30:focus-visible ~ .vh-tabs .vh-l30,
-.vh-r50:focus-visible ~ .vh-tabs .vh-l50,
-.vh-rall:focus-visible ~ .vh-tabs .vh-lall {
+.vz-seg button:focus-visible,
+.vz-menu-btn:focus-visible,
+.vz-menu button:focus-visible,
+.vz-svg:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.vh-c {
-  display: none;
-  width: 100%;
-  height: auto;
-  font-size: 12px;
-  fill: var(--muted);
-  font-variant-numeric: tabular-nums;
+.vz-menu-wrap {
+  position: relative;
+  flex: none;
 }
 
-.vh-r10:checked ~ .vh-charts .vh-c10,
-.vh-r30:checked ~ .vh-charts .vh-c30,
-.vh-r50:checked ~ .vh-charts .vh-c50,
-.vh-rall:checked ~ .vh-charts .vh-call {
+.vz-menu-btn {
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  width: 38px;
+  height: 34px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.vz-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 6;
+  min-width: 190px;
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  border-radius: 4px;
+}
+
+.vz-menu[hidden] {
+  display: none;
+}
+
+.vz-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.vz-menu button + button {
+  border-top: 1px solid var(--border);
+}
+
+.vz-menu button:hover {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.vz-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .vz-frame {
+    aspect-ratio: 10 / 11;
+  }
+}
+
+.vz-svgbox {
+  position: absolute;
+  inset: 0;
+}
+
+.vz-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-variant-numeric: tabular-nums;
+  touch-action: pan-y;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vz-fallback {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.vz-tip {
+  position: absolute;
+  z-index: 4;
+  max-width: 260px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 3px;
+  pointer-events: none;
+  text-align: left;
+}
+
+.vz-tip[hidden] {
+  display: none;
+}
+
+.vz-tip strong,
+.vz-tip span {
   display: block;
 }
 
-.vh-grid,
-.vh-axis {
+.vz-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.vz-embedbox {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+}
+
+.vz-embedbox[hidden] {
+  display: none;
+}
+
+.vz-embed-h {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 var(--sp-1);
+}
+
+.vz-sizes label {
+  position: relative;
+}
+
+.vz-sizes input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.vz-sizes label:has(input:checked) {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.vz-sizes label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.vz-embedbox textarea {
+  display: block;
+  width: 100%;
+  margin-top: var(--sp-1);
+  padding: var(--sp-1);
+  font: 12px/1.4 ui-monospace, monospace;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  resize: vertical;
+}
+
+.vz-embed-act {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+.vz-embed-act button {
+  font: inherit;
+  font-size: 13px;
+  padding: var(--sp-1) var(--sp-2);
+  min-height: 34px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.vz-embed-act .vz-copy {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.vz-copied {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Térkép (tools/build_pages.py water_map): minden víz szürke és kattintható, az aktuális --accent */
+.vz-mapfig {
+  position: relative;
+  margin: var(--sp-3) 0 0;
+}
+
+.vz-map {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.vz-map-border {
   fill: none;
   stroke: var(--border);
-  stroke-width: 1;
+  stroke-width: 1.5;
 }
 
-.vh-bar {
+.vz-map-foreign path,
+.vz-map-other path {
   fill: none;
+  stroke: var(--muted);
+  stroke-opacity: 0.4;
+  stroke-width: 0.75;
+}
+
+.vz-map-water .vz-map-line {
+  fill: none;
+  stroke: var(--muted);
+  stroke-opacity: 0.55;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vz-map-water.is-lake .vz-map-line {
+  fill: var(--muted);
+  fill-opacity: 0.55;
+  stroke-width: 0.5;
+}
+
+.vz-map-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 9;
+  pointer-events: stroke;
+}
+
+.vz-map-water.is-lake .vz-map-hit {
+  fill: transparent;
+  stroke-width: 6;
+  pointer-events: all;
+}
+
+.vz-map-water.is-active .vz-map-line,
+.vz-map-all .vz-map-water .vz-map-line,
+.vz-map-water:hover .vz-map-line,
+.vz-map-water:focus-visible .vz-map-line {
   stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 2.6;
 }
 
-.vh-p {
-  stroke-dasharray: 3 2;
+.vz-map-water.is-lake.is-active .vz-map-line,
+.vz-map-all .vz-map-water.is-lake .vz-map-line,
+.vz-map-water.is-lake:hover .vz-map-line {
+  fill: var(--accent);
+  fill-opacity: 1;
+  stroke-width: 0.5;
 }
 
-.vh-mean {
-  fill: none;
+.vz-map-all .vz-map-water:not(:hover) .vz-map-line {
+  stroke-width: 1.8;
+}
+
+.vz-map a:focus {
+  outline: none;
+}
+
+.vz-map a:focus-visible .vz-map-line {
   stroke: var(--fg);
 }
 
-.vh-today {
-  fill: none;
+.vz-map-pt circle:first-child {
+  fill: var(--bg);
   stroke: var(--fg);
-  stroke-width: 1;
-  stroke-dasharray: 4 3;
+  stroke-width: 1.2;
 }
 
-.vh-dot {
-  fill: var(--fg);
+.vz-map-pt.is-active circle:first-child {
+  fill: var(--accent);
+  stroke: var(--bg);
 }
 
-.vh-lab {
+.vz-map-pt text {
+  font-size: calc(11px / var(--k, 1));
   fill: var(--fg);
-  font-weight: 600;
   paint-order: stroke;
   stroke: var(--bg);
-  stroke-width: 3;
+  stroke-width: calc(3px / var(--k, 1));
   stroke-linejoin: round;
+}
+
+.vz-maplegend {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: var(--sp-1);
+}
+
+.vz-maptip {
+  white-space: nowrap;
+}
+
+/* Beágyazó oldal (/beagyaz/vizallas/): a grafikon kitölti az ablakot */
+body.vz-embed {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.vz-embed-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--sp-1) var(--sp-1) 0;
+}
+
+.vz-embed .vz-fig {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  min-height: 0;
+}
+
+.vz-embed .vz-title {
+  font-size: 14px;
+}
+
+.vz-embed .vz-bar,
+.vz-embed .vz-ctl {
+  min-height: 34px;
+}
+
+.vz-embed .vz-ctl {
+  margin: 4px 0;
+}
+
+.vz-embed .vz-frame {
+  flex: 1;
+  aspect-ratio: auto;
+  min-height: 200px;
+}
+
+.vz-embed-foot {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px var(--sp-1) var(--sp-1);
+}
+
+.vz-embed-foot a {
+  color: inherit;
 }
 
 .vz-table {

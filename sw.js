@@ -43,6 +43,9 @@ self.addEventListener("fetch", (event) => {
   // cache-eljük: a hálózat az igazság, a böngésző HTTP-cache-e elég.
   if (url.pathname.endsWith("/cigand-news.json")) return;
 
+  // A vízállás-grafikonok napi adata ugyanígy: a hálózat az igazság (?h= kulcsos kérés).
+  if (url.pathname.startsWith("/data/vizallas/")) return;
+
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const cached = await cache.match(event.request);

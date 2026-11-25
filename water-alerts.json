@@ -1,0 +1,20 @@
+{
+  "source": "10/1997. (V. 28.) KHVM rendelet 1. melléklete, a 49/2016. (XII. 21.) BM rendelettel módosítva",
+  "urls": ["https://njt.hu/jogszabaly/1997-10-20-6B.12", "https://jogkodex.hu/jsz/2016_49_bm_rendelet_3502091"],
+  "note": "Készültségi szintek (cm a mérce 0 pontjához). Az LNV a hivatalos legnagyobb vízállás.",
+  "stations": {
+    "Nagybajcs": {"levels": [470, 540, 610], "lnv": [908, "2013-06-07"]},
+    "Budapest": {"levels": [620, 700, 800], "lnv": [891, "2013-06-09"], "note": "Több védvonalszakaszon eltérő a készültségi szint."},
+    "Mohács": {"levels": [700, 850, 950], "lnv": [984, "1965-06-19"]},
+    "Tiszabecs": {"levels": [300, 400, 500], "lnv": [736, "2001-03-06"]},
+    "Kisköre alsó": {"levels": [600, 700, 800], "lnv": [1030, "2000-04-17"]},
+    "Szolnok": {"levels": [650, 750, 800], "lnv": [1041, "2000-04-19"]},
+    "Szeged": {"levels": [650, 750, 850], "lnv": [1009, "2006-04-21"]},
+    "Makó": {"levels": [400, 450, 500], "lnv": [625, "1975-07-10"]},
+    "Szarvas": {"levels": [600, 700, 800], "lnv": [986, "2006-04-21"]},
+    "Drávaszabolcs": {"levels": [430, 480, 520], "lnv": [596, "1972-07-22"]}
+  },
+  "lake_limits": {
+    "Siófok": {"cm": 120, "label": "szabályozási felső határ, 120 cm", "note": "A Siófok-mérce nullpontjához; másodlagos forrásokból."}
+  }
+}

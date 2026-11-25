@@ -24,3 +24,15 @@
 /widget/*
   Content-Security-Policy: frame-ancestors *
   X-Robots-Tag: noindex
+
+# A beágyazható vízállás-grafikon bármely oldalon iframe-ben megjeleníthető.
+/beagyaz/*
+  Content-Security-Policy: frame-ancestors *
+  X-Robots-Tag: noindex
+
+# A vízállás-grafikonok napi adata: a böngésző ellenőrizze újra (a ?h= kulcs úgyis változik).
+/data/vizallas/*
+  Cache-Control: no-cache
+
+/vizallas.js
+  Cache-Control: no-cache

@@ -120,7 +120,7 @@ def import_station(code, cache, offline, prev):
     years = {y: v for y, v in (prev.get("years") or {}).items() if v.get("src") not in OWN_SRC}
     zeros, missing, changes = {}, [], []
     first = last = None
-    if code != "fe":  # a Fertőnek nincs régi archívuma
+    if code not in hh.TB_ONLY:  # a TB_ONLY állomásoknak nincs régi archívuma
         idx = fetch(f"{code}.htm", cache, offline)
         rng = year_range(idx) if idx else None
         if not rng:
@@ -156,7 +156,7 @@ def import_station(code, cache, offline, prev):
             if pmax is not None:
                 s["pmax"] = pmax + shift
             years[str(y)] = s
-    else:  # Fertő: 1965-2001 burgenlandi tószint, 2002-től hydroinfo
+    elif code == "fe":  # Fertő: 1965-2001 burgenlandi tószint, 2002-től hydroinfo
         for y in range(1965, 2002):
             cf = cache / f"bgld-{y}.txt"
             data = hh.get(hh.BGLD.format(year=y), cf, offline)
@@ -167,7 +167,7 @@ def import_station(code, cache, offline, prev):
                 missing.append(y)
         first, last = 1965, 2001
     if code in hh.TB_CODE:  # az archívum vége után az újabb táblák, a folyó évig
-        start = 2002 if code == "fe" else last + 1
+        start = 2002 if code in hh.TB_ONLY else last + 1
         for y in range(start, today.year + 1):
             s = hh.fetch_year_tb(code, y, today, cache, offline)
             if s:
@@ -188,6 +188,8 @@ def import_station(code, cache, offline, prev):
           "years": dict(sorted(years.items())), "zero_changes": changes}
     if zero_now is not None:
         st["zero_m"] = zero_now
+    if prev.get("daily"):       # a napi sort a hydro_history.refresh_current kezeli
+        st["daily"] = prev["daily"]
     ys = sorted(int(y) for y in years)
     print(f"{code}: archívum {first}-{last}, összesen {len(years)} év ({ys[0] if ys else '-'}-{ys[-1] if ys else '-'}), "
           f"hiányzik: {missing or '-'}, nullpont {zero_now}, eltérő nullpont: {changes or '-'}")

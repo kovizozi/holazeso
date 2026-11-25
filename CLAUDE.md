@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Nincs build lépés, nincs csomagkezelő a webhelyhez (`holazeso-v0`), nincs formális teszt suite.
 
 - **Lokális futtatás**: nyisd meg VS Code-ban, jobb klikk `index.html` → **Open with Live Server**. (Közvetlen `file://` megnyitásnál a `fetch` hívások CORS-hibába futhatnak.)
-- **Szintaxis-ellenőrzés módosítás után**: `node --check script.js` és `node --check water.js` (a `sw.js`-re is, ha azt módosítod).
+- **Szintaxis-ellenőrzés módosítás után**: `node --check script.js`, `node --check water.js` és `node --check vizallas.js` (a `sw.js`-re is, ha azt módosítod).
 - **Em dash ellenőrzés** (ez a projekt szigorú szabálya, lásd lent): `grep -n "—" script.js water.js index.html style.css README.md ARCHITECTURE.md`
 - **Cigánd-hírfigyelő kézzel** (a GitHub Action óránként ugyanezt futtatja): `python3 .github/scripts/cigand_news.py`; csak változásnál írja újra a `cigand-news.json`-t.
 - **Generált oldalak** (`/eso/<slug>/`, `sitemap.xml`, a főoldal településlistája): `python3 tools/build_pages.py` (hálózat nélkül); `--fetch-climate [--climate-limit 3]` a hiányzó `climate-hu.json` bejegyzéseket kéri le (helyben legfeljebb 3 helyre, a többit a GitHub Action végzi); `--fetch-recent [--recent-limit 3]` a települések friss csapadékát és holnapi előrejelzését kéri (`town-recent.json`; helyben legfeljebb 3 helyre, a teljes lekérést az Action végzi); `--fetch-water` a worker vízállás-pillanatképéből építi a `/vizallas/` oldalakat (a `/cigand/` mindig épül; ha a víz nem elérhető, a meglévő vízoldalak maradnak). Az `index.html` a sablon: a `<!--GEN:...-->` jelölők közti részt a generátor írja, ne kézzel szerkeszd. Második futás nem változtathat semmit.

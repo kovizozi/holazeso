@@ -854,6 +854,18 @@ const WATER_RIVER_NET_SVG = `
 // listában (ld. buildRiverNet): a sorokat itt jegyezzük meg folyónév szerint.
 let riverListRows = [];
 
+// A generált /vizallas/<slug>/ oldalak (tools/build_pages.py RIVER_PAGES / LAKE_PAGES): a víz neve -> slug.
+const WATER_PAGE_SLUG = {
+  "Duna": "duna", "Tisza": "tisza", "Rába": "raba", "Maros": "maros", "Hármas-Körös": "harmas-koros",
+  "Dráva": "drava", "Balaton": "balaton", "Velencei-tó": "velencei-to", "Fertő": "ferto",
+};
+
+// "Részletes adatok" link a vízoldalra; üres szöveg, ha nincs oldala a víznek.
+function waterDetailsLinkHtml(waterName) {
+  const slug = WATER_PAGE_SLUG[waterName];
+  return slug ? `<p class="water-more"><a href="/vizallas/${slug}/">Részletes adatok és 150 év vízállása: ${waterName}</a></p>` : "";
+}
+
 function buildRiverList(container, stations) {
   container.innerHTML = "";
   riverListRows = [];
@@ -886,6 +898,7 @@ function buildRiverList(container, stations) {
       head.setAttribute("aria-expanded", open ? "true" : "false");
       if (open && !built) {
         renderRiverChart(chartWrap, station, chartId);
+        chartWrap.insertAdjacentHTML("beforeend", waterDetailsLinkHtml(station.river));
         built = true;
       }
     });
@@ -2576,7 +2589,7 @@ function renderLakeCards(container, cards) {
       ? card.history.map(h => (typeof h === "number" ? h : h.level_cm)).filter(v => typeof v === "number")
       : [];
     el.innerHTML =
-      `<h4 class="water-lake-card-name">${card.name}</h4>` +
+      `<h4 class="water-lake-card-name">${WATER_PAGE_SLUG[card.name] ? `<a href="/vizallas/${WATER_PAGE_SLUG[card.name]}/">${card.name}</a>` : card.name}</h4>` +
       lakeShapeSvg(card.shapeKey, fraction, `${card.name} körvonala, kitöltve az aktuális szint arányában`) +
       `<p class="water-lake-card-value${level === null ? " water-lake-gauge-value-missing" : ""}">${valueText}</p>` +
       (hasBand && level !== null ? lakeGaugeSvg(card.shapeKey, band, level, `${card.name}: ${valueText}, ideális sáv ${band.lowCm} és ${band.highCm} cm között`) : "") +

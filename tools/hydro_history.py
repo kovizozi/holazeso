@@ -8,6 +8,10 @@ Forrás-jelölők (az évek `src` mezője):
   hydroinfo-current   az aktuális év táblája (partial: true, through: utolsó nap)
   balaton-avg         a Balaton átlagos vízállása (Siófok-adat híján, 2021-től)
   bgld                burgenlandi (osztrák) tószint, cm-re átszámítva (Fertő, 1965-2001)
+
+Napi sor (`daily`, állomásonként): az utolsó DAILY_DAYS nap reggeli (7 órás) értékei,
+{"start": "ÉÉÉÉ-HH-NN", "cm": [...]} (null = hiányzó nap). Ebből rajzol a /vizallas/ grafikon
+(30 nap, 1 év). A Siófoknak nincs napi táblája: a Balaton átlag ("ba") sorát használja az oldal.
 """
 import datetime
 import json
@@ -27,15 +31,21 @@ BGLD = "https://wasser.bgld.gv.at/export/hjpRalsA7imnA-XjIsk6qQ/1d/{year}"
 BGLD_ZERO_M = 114.975          # Fertő-szint (m Adria), amit a Fertőrákos-mérce nullájának veszünk
 # állomás-kód -> újabb tábla kódja (Siófoknak nincs; a 2021 utáni Balaton-szakasz a ba kódból jön)
 TB_CODE = {"bp": "442027", "nm": "442527", "mo": "442032", "so": "444229", "se": "444231",
-           "vn": "444227", "ag": "442558", "ba": "442600", "fe": "442613"}
+           "vn": "444227", "ag": "442558", "ba": "442600", "fe": "442613",
+           "nb": "442502", "tb": "444226", "ka": "444537", "sz": "444569"}
+# nincs régi (1876-) archívumuk: az újabb táblák 2002-től (a Fertő előtte a burgenlandi adat)
+TB_ONLY = {"fe", "nb", "tb", "ka", "sz"}
 STATIONS = {
     "si": ("Siófok", "Balaton"), "ba": ("Balaton átlag", "Balaton"),
     "ag": ("Agárd", "Velencei-tó"), "bp": ("Budapest", "Duna"),
     "nm": ("Nagymaros", "Duna"), "mo": ("Mohács", "Duna"),
     "so": ("Szolnok", "Tisza"), "se": ("Szeged", "Tisza"),
     "vn": ("Vásárosnamény", "Tisza"), "fe": ("Fertőrákos", "Fertő"),
+    "nb": ("Nagybajcs", "Duna"), "tb": ("Tiszabecs", "Tisza"),
+    "ka": ("Kisköre alsó", "Tisza"), "sz": ("Szarvas", "Hármas-Körös"),
 }
 MAX_ABS_CM = 2000   # ennél nagyobb abszolút érték hibajelző (pl. a Szeged 1972-es 30002), kihagyjuk
+DAILY_DAYS = 400    # a napi sor hossza (egy év + tartalék a grafikon 1 éves nézetéhez)
 LAST_FETCH = [0.0]
 
 
@@ -170,8 +180,9 @@ def station(data, code):
     return st
 
 
-def fetch_year_tb(code, year, today, cache=None, offline=False):
-    """Egy év összegzése az újabb táblából (a folyó év a "current" oldalról, gyorsítótár nélkül)."""
+def fetch_grid(code, year, today, cache=None, offline=False):
+    """(grid, src): egy év napi rácsa az újabb táblából (a folyó év a "current" oldalról,
+    gyorsítótár nélkül), vagy (None, None)."""
     if year == today.year:
         data = get(TB_CURRENT.format(code=TB_CODE[code]), None, offline)
         src = "hydroinfo-current"
@@ -180,11 +191,42 @@ def fetch_year_tb(code, year, today, cache=None, offline=False):
         data = get(TB_PAST.format(year=year, code=TB_CODE[code]), cf, offline)
         src = "hydroinfo-tb"
     if not data:
-        return None
+        return None, None
     y, grid = parse_tb(data)
     if y != year or not grid:
-        return None
-    return summarize(year, grid, src, today)
+        return None, None
+    return grid, src
+
+
+def fetch_year_tb(code, year, today, cache=None, offline=False):
+    """Egy év összegzése az újabb táblából."""
+    grid, src = fetch_grid(code, year, today, cache, offline)
+    return summarize(year, grid, src, today) if grid else None
+
+
+def merge_daily(old, grids, today):
+    """A napi sor összefésülése: old a tárolt {"start", "cm"}, grids: {év: {(hó, nap): cm}}
+    (az újabb érték felülír). Az ablak az utolsó DAILY_DAYS nap, az utolsó ismert napig."""
+    vals = {}
+    if old and old.get("start"):
+        d0 = datetime.date.fromisoformat(old["start"])
+        for i, v in enumerate(old["cm"]):
+            if v is not None:
+                vals[d0 + datetime.timedelta(days=i)] = v
+    for year, grid in grids.items():
+        for (mo, day), v in grid.items():
+            try:
+                vals[datetime.date(year, mo, day)] = v
+            except ValueError:
+                pass
+    lo = today - datetime.timedelta(days=DAILY_DAYS - 1)
+    vals = {d: v for d, v in vals.items() if lo <= d <= today}
+    if not vals:
+        return old
+    first, last = min(vals), max(vals)
+    n = (last - first).days + 1
+    return {"start": first.isoformat(),
+            "cm": [vals.get(first + datetime.timedelta(days=i)) for i in range(n)]}
 
 
 def link_balaton(data):
@@ -201,24 +243,37 @@ def link_balaton(data):
     si["years"] = dict(sorted(si["years"].items()))
 
 
-def refresh_current(today=None, path=OUT):
-    """Napi frissítés: csak a folyó év táblái (9 GET), januárban az előző év is. Hálózati hiba
-    esetén a meglévő adat marad. True, ha a fájl változott."""
+def refresh_current(today=None, path=OUT, cache=None):
+    """Napi frissítés: csak a folyó év táblái (9 GET), januárban az előző év is; a napi sorhoz
+    (DAILY_DAYS nap) az előző évi tábla is kell, ha a tárolt sor még nem éri el az ablak elejét
+    (egyszer, aztán a gyorsítótárba/sorba kerül). Hálózati hiba esetén a meglévő adat marad.
+    True, ha a fájl változott."""
     today = today or datetime.date.today()
     data = load(path)
     if not data.get("stations"):
         print("history: nincs water-history.json, előbb tools/import_hydro_archive.py")
         return False
     years = [today.year] + ([today.year - 1] if today.month == 1 else [])
+    win_start = today - datetime.timedelta(days=DAILY_DAYS - 1)
     for code in TB_CODE:
         if code not in data["stations"]:
             continue
         st = data["stations"][code]
-        for y in years:
-            s = fetch_year_tb(code, y, today)
-            if s:
-                st["years"][str(y)] = s
+        grids = {}
+        for y in sorted(set(years) | set(range(win_start.year, today.year + 1))):
+            have = st.get("daily")
+            if y != today.year and y not in years and have and have["start"] <= win_start.isoformat():
+                continue            # a régebbi évet már beolvastuk a sorba
+            grid, src = fetch_grid(code, y, today, cache)
+            if not grid:
+                continue
+            grids[y] = grid
+            if y in years:
+                st["years"][str(y)] = summarize(y, grid, src, today)
         st["years"] = dict(sorted(st["years"].items()))
+        daily = merge_daily(st.get("daily"), grids, today)
+        if daily:
+            st["daily"] = daily
     link_balaton(data)
     changed = save(data, path)
     print("history:", "frissítve" if changed else "változatlan")

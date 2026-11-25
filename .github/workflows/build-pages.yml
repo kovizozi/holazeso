@@ -10,6 +10,8 @@ on:
       - tools/**
       - cigand.json
       - cigand-news.json
+      - water-alerts.json
+      - water.js
       - .github/workflows/build-pages.yml
   schedule:
     - cron: "23 5 * * *"
@@ -34,7 +36,7 @@ jobs:
         run: python3 tools/build_pages.py --fetch-climate --fetch-water --fetch-recent --fetch-history
       - name: Kommit, ha változott
         run: |
-          git add -A index.html water-panel.html eso vizallas cigand sitemap.xml climate-hu.json town-recent.json water-history.json
+          git add -A index.html water-panel.html eso vizallas beagyaz data cigand sitemap.xml climate-hu.json town-recent.json water-history.json
           if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898583+github-actions[bot]@users.noreply.github.com"
