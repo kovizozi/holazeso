@@ -2979,7 +2979,7 @@ circle.water-channel-hit {
   justify-content: space-between;
   align-items: baseline;
   gap: var(--sp-3);
-  max-width: 736px;
+  max-width: 1300px;
   width: 100%;
   margin: 0 auto;
   padding: var(--sp-3) var(--sp-3) 0;
@@ -3003,11 +3003,25 @@ circle.water-channel-hit {
 
 .doc-main {
   flex: 1;
-  max-width: 736px;
+  max-width: 1300px;
   width: 100%;
   margin: 0 auto;
   padding: var(--sp-4) var(--sp-3) 0;
   line-height: 1.6;
+}
+
+/* Az aloldalak oszlopa ugyanolyan széles, mint a főoldalé (1300 px); a
+   folyó szöveg sorhossza olvasható marad (72 em-nyi karakter), az ábrák, a
+   térkép és a táblázatok a teljes szélességet kapják. */
+.doc-main p,
+.doc-main .cg-list,
+.doc-main .cg-faq {
+  max-width: 72ch;
+}
+
+.doc-main .vz-fig p,
+.doc-main .vz-mapfig p {
+  max-width: none;
 }
 
 .doc-crumb {
@@ -3195,6 +3209,17 @@ circle.water-channel-hit {
 @media (max-width: 600px) {
   .vz-frame {
     aspect-ratio: 10 / 11;
+  }
+}
+
+/* Széles oszlopban (aloldalak, 1300 px) a 16:9 túl magas lenne. */
+@media (min-width: 1000px) {
+  .doc-main .vz-frame {
+    aspect-ratio: 2.4 / 1;
+  }
+
+  .doc-main .vz-map {
+    max-height: 70vh;
   }
 }
 

@@ -457,6 +457,13 @@ idővonal dobozaiban: kék keret és kék szöveg, a vonal `--accent`). Alcím: 
 szöveg, világosban 4,8:1, sötétben 6,1:1). Közvetlenül a szürke SEO-blokk után
 következik, nincs közte fehér sáv.
 
+**Aloldalak szélessége (2026-11-25, 2. kör)**: a `/vizallas/*`, `/cigand/`,
+`/az-oldalrol/` és `/beagyaz/*` oldalak (`.doc-top`, `.doc-main`) ugyanúgy 1300 px-es
+oszlopban állnak, mint a főoldal és a `/eso/<slug>/`, `/ho/` (`#app`). A folyó szöveg
+(`p`, `.cg-list`, `.cg-faq`) sorhossza 72ch-ra korlátozott, az ábrák, a térkép, a
+grafikonok és a táblázatok a teljes szélességet kapják; >= 1000 px-en a grafikon
+kerete 2,4:1 (16:9 helyett), a térkép legfeljebb 70vh magas.
+
 ### Layout-stabilitás (CLS)
 
 A `#app` `min-height: 100svh` (style.css): a keresés fázisai közben az app
