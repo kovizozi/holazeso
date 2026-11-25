@@ -2776,11 +2776,15 @@ circle.water-channel-hit {
 
 /* Statikus, indexelhető tartalom az alkalmazás alatt: cím (h2), rövid leírás és a
    generált (tools/build_pages.py) településlista. */
+/* Teljes szélességű, szürke hátterű blokk (--surface); a tartalom továbbra is
+   1300 px-es oszlopban marad: az oldalsó padding a széles képernyőn kitölti a
+   különbséget, a háttér a széléig fut. A lábléc utána a --bg-n marad. */
 .seo-content {
-  max-width: 1300px;
-  margin: 0 auto;
+  max-width: none;
   width: 100%;
-  padding: var(--sp-6) var(--sp-3) 0;
+  margin: var(--sp-6) 0 0;
+  background: var(--surface);
+  padding: var(--sp-5) max(var(--sp-3), calc((100% - 1300px) / 2)) var(--sp-5);
 }
 
 .seo-content .seo-title {
