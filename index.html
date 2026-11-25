@@ -34,7 +34,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="style.css?v=68">
+<link rel="stylesheet" href="style.css?v=69">
 </head>
 <body>
 
@@ -157,7 +157,7 @@
          elrejti+becsukja, revealPhase(PHASE_DONE) megmutatja). -->
     <section id="stats-panel" class="stats-section" hidden>
       <div id="stats-body" class="stats-body">
-        <p id="stats-place" class="stats-place"></p>
+        <h2 id="stats-place" class="stats-place">Részletek a helyedre</h2>
         <p id="stats-status" class="context">töltés…</p>
 
         <!-- A havazás sraffozása EGY helyen van definiálva (url(#snow-hatch)), a statisztika-kártyák SVG-i erre hivatkoznak. -->
@@ -252,7 +252,7 @@
             <button type="button" class="link-btn" id="cigand-expand" aria-expanded="false" aria-controls="cigand-body">részletek</button>
           </p>
           <div id="cigand-body">
-            <h3 class="question" id="cigand-title"></h3>
+            <h3 class="question" id="cigand-title">A cigándi tározó</h3>
             <p class="cigand-lead" id="cigand-lead"></p>
             <div class="cigand-tiles" id="cigand-tiles"></div>
             <p class="cigand-latest" id="cigand-latest" hidden></p>
@@ -300,7 +300,7 @@
         <!-- Személyes: a keresett helyszín talajminta-profilja. Legfelül,
              mert ez szól a keresett helyre; az országos adatok utána jönnek. -->
         <section class="water-section" id="water-local-section" hidden>
-          <h3 class="question" id="water-local-question"></h3>
+          <h3 class="question" id="water-local-question">Mennyi víz van a környékeden?</h3>
           <p class="place-line" id="water-local-total"></p>
           <p class="context" id="water-local-compare"></p>
           <p class="context" id="water-local-profile-text"></p>
@@ -354,7 +354,7 @@
             <figcaption>A vonal vastagsága a vízhozam. Rámutatva a mért vízállás látszik. Halvány vonal: a folyó határon túli szakasza, szaggatott: nincs pontos adat.</figcaption>
           </figure>
           <div class="water-river-net-table">
-            <h3>Átlagos vízhozam, m³/s</h3>
+            <h4>Átlagos vízhozam, m³/s</h4>
             <ul>
               <li><span>Duna</span><span>kb. 2300</span></li>
               <li><span>Tisza, a déli határnál</span><span>kb. 890</span></li>
@@ -412,7 +412,7 @@
             <ul id="water-channels-search-results" class="water-channels-search-results"></ul>
           </div>
           <div class="water-river-net-table">
-            <h3>A leghosszabb nevesített vízfolyások</h3>
+            <h4>A leghosszabb nevesített vízfolyások</h4>
             <ul id="water-channels-longest"></ul>
             <p class="about" id="water-channels-caveat"></p>
           </div>
@@ -694,7 +694,7 @@
     </p>
   </footer>
 
-  <script src="script.js?v=92"></script>
+  <script src="script.js?v=93"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>

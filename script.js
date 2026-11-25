@@ -2629,7 +2629,7 @@ const WATER_JS_URL = "/water.js?v=2";
 // (üres #water-panel[data-fragment]): a generátor egyszer, ebbe a fájlba írja
 // az index.html sablonból. A főoldalon inline marad. A ?v= együtt emelendő a
 // fragment tartalmának változásakor (CLAUDE.md 3. szabály).
-const WATER_PANEL_URL = "/water-panel.html?v=1";
+const WATER_PANEL_URL = "/water-panel.html?v=2";
 let waterFragmentLoading = null;
 let waterJsLoading = null;
 let waterPendingPoint = null;
