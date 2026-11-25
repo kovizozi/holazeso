@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-24T10:17:19Z",
+  "updated": "2026-11-25T07:41:57Z",
   "sources": [
     "telex.hu",
     "HVG",
@@ -10,5 +10,48 @@
     "Agrárszektor",
     "BOON"
   ],
-  "items": []
+  "items": [
+    {
+      "title": "Több mint egy métert emelkedett a vízszint egy hét alatt: visszatér az élet a hazai folyóvölgybe",
+      "link": "https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518",
+      "source": "Pénzcentrum (MTI)",
+      "published": "2026-11-23T15:15:00Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    },
+    {
+      "title": "Ilyen még nem volt Magyarországon: 2 millió köbméter vizet engedtek ki a tájba",
+      "link": "https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849",
+      "source": "Agrárszektor",
+      "published": "2026-11-22T11:34:00Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    },
+    {
+      "title": "Először töltik fel vízzel a 2008-ban átadott cigándi víztározót – fotókkal, videóval",
+      "link": "https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval",
+      "source": "pecaverzum.hu",
+      "published": "2026-11-22T10:01:37Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    },
+    {
+      "title": "A cigándi árapasztó tározóba közel 2 millió köbméter vizet vezettek a Tiszából",
+      "link": "https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol",
+      "source": "hajdupress.hu",
+      "published": "2026-11-22T09:38:37Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    },
+    {
+      "title": "Megnyílt a Cigándi-tározó, közel kétmillió köbméter víz juthat a Bodrogközbe",
+      "link": "https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe",
+      "source": "Magyar Hírlap",
+      "published": "2026-11-21T20:35:00Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    },
+    {
+      "title": "Meglépte a kormány, amit 2008 óta még senki",
+      "link": "https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248",
+      "source": "Portfolio",
+      "published": "2026-11-21T19:17:00Z",
+      "first_seen": "2026-11-25T07:41:57Z"
+    }
+  ]
 }

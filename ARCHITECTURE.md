@@ -140,8 +140,35 @@ vetíti őket, mint a rácspontokat.
   legeldugottabb pontja (a határtól legtávolabb eső hely) kb. 112 km-re van
   bármelyik határtól, ezért 220 km-es alsó korlát biztosítja, hogy a radar
   MINDIG mutasson legalább egy darab határt, bárhol állunk az országban.
-  `radarEnsureMinRadius()` ezt minden keresés legvégén érvényesíti, egy
-  tisztán vizuális `radarAddTier` hívással (nem keres újra).
+  A `radarAddTier` ezt MINDEN körnél érvényesíti (a kör saját sugara a
+  pontok vetítésére marad, csak a KIJELZETT `radarMaxRadiusKm` legalább 220
+  km), így a keretezés a keresés elejétől a végéig nem ugrik. (Korábban a
+  `radarEnsureMinRadius()` a keresés végén húzta ki a kört.)
+- **Az alaptérkép a keresés indulásakor megjelenik** (`radarDrawBase`):
+  határok, folyók/Balaton, városfeliratok és a RainViewer-kép nem várnak
+  adatra, csak a felhasználó helyétől és a kijelzett sugártól függenek. Korábban
+  egy `bordersVisible` jelző a keresés végéig elrejtette őket (a radar
+  keresés közben csak a pásztázó vonalat mutatta, ~10 mp-ig). A rétegek
+  lusta adatai (`borders.json`, `water-geo.json`, `places-hu.json`, RainViewer
+  katalógus) megérkezéskor maguk rajzolják ki a saját rétegüket. A
+  `radarDrawBase` csak akkor rajzol újra, ha a hely vagy a sugár változott
+  (különben a rétegek belépő animációja a keresés végén újraindulna). Csak a
+  találati pontokra vonatkozik a 6. szabály: azok továbbra is csak a válasz
+  megérkezése után, a pásztázó vonal által festve jelennek meg. A nagyítás
+  (`radarZoomTo`) alapsugara (`radarBaseRadiusKm`) továbbra is a keresés
+  végén áll be, addig a +/- gombok rejtettek.
+- **Találati pontok piktogramként** (`addRainDot`): a pont a csapadék
+  típusának jele (`#ico-rain` csepp, `#ico-snow` hópehely, `#ico-ice` csepp
+  kivágott jégcsillaggal; az index.html `#radar-svg` `<defs>` részében, `--accent`
+  színnel). A `radarRevealTier` térképe `index -> { mm, kind }` (`rainHits`).
+  Az intenzitás továbbra is méretben (`dotRadius`) és átlátszóságban látszik;
+  a pásztázó időzítés és a koppintásos helynév változatlan (a `g.radar-dot`
+  `data-cx/cy` adja a felirat helyét).
+  Sűrítés: `glyphIndexes` képernyőn ~16 px-es cellánként csak a legerősebb
+  találatot rajzolja piktogramnak, a többi sima kis pötty (`radar-dot-plain`),
+  különben a sűrű csoport összefüggő folt lenne; az időzítést ez nem érinti.
+  A `#result` `z-index: 1` és saját háttérrel áll a radar fölött, hogy a
+  fázisváltáskor lecsúszó (FLIP) alaptérkép ne takarja a megjelenő választ.
 
 ### Folyók és a Balaton a radaron (`water-geo.json`)
 
@@ -197,11 +224,24 @@ arra a településre, ahol a radar esőt talált.
 Mindig látható `<section>` (nincs nyitógomb, nincs localStorage-állapot); a
 `revealPhase(PHASE_DONE)` mutatja meg, és ekkor kér le (31+ napos
 csapadék-história, az elmúlt 3 év ugyanezen időszaka, előrejelzés,
-hőmérséklet, talajnedvesség, Open-Meteo Flood API vízhozam), keresésenként
+hőmérséklet, órás csapadék/esély/hó), keresésenként
 egyszer (a `statsRunId` eldobja az elavult választ). Nem fut bele az 5
 percenkénti automatikus frissítésbe. A tetején a `#stats-place` sor
 ("Az adatok helye: <név>") mondja ki, melyik helyre vonatkoznak a számok.
 Minden adata Open-Meteo-alapú, ezért bármely országban működik.
+
+Négy kártya: Csapadék, Előrejelzés, Hőmérséklet és **Következő 12 óra**
+(`fillNext12hStats`). Az utóbbi a korábbi "Víz" kártya (talajskála és
+legközelebbi folyó vízhozama) helyén áll, mert az nem mondott újat, a részletek
+a vízpanelben vannak; a talaj-sáv, a Flood API hívás és a hozzá tartozó
+kód ki lett törölve. A kártya a `fetchUserStats` MÁR meglévő órás
+csapadékát és esélyét használja, kérés csak egy új órás mezővel (`snowfall`)
+bővült, a `soil_moisture_0_to_1cm` kikerült. Az aktuális órától 12 oszlop
+(`--accent`), felettük az mm, alattuk az óra (háromóránként, az első "most") és
+az esély (csak a csapadékos órákra); a havazásos órák (órás `snowfall > 0`)
+sraffozott, körvonalas oszlopot kapnak, és ekkor egy jelmagyarázat-sor
+jelenik meg. Ha mind nulla: "A következő 12 órában nem várható csapadék." és a
+lapos diagram.
 
 ### Vízadat-panel (`#water-panel`, `buildWaterPanel`)
 
@@ -441,7 +481,7 @@ Egyetlen Python-generátor (csak standard könyvtár) állítja elő az aloldala
 
 ### Vízállás- és Cigánd-oldalak (2. fázis)
 
-- **Könnyű sablon**: ezek szöveges oldalak, nem az esőalkalmazás. A `doc_page()` a `render_page()` fejét (meta, canonical, JSON-LD, `style.css?v=N`) használja, a törzs saját: fejléc (főoldal-link, Vízállás, Cigánd), `<main class="doc-main">`, lábléc, GoatCounter. Nincs `script.js`, nincs animáció. Stílus: `style.css` végén a `.doc-*`, `.vz-*`, `.spark-*`, `.cg-*` osztályok.
+- **Könnyű sablon**: ezek szöveges oldalak, nem az esőalkalmazás. A `doc_page()` a `render_page()` fejét (meta, canonical, JSON-LD, `style.css?v=N`) használja, a törzs saját: fejléc (főoldal-link, Vízállás, Cigánd), `<main class="doc-main">`, lábléc, GoatCounter. Nincs `script.js` (az esőalkalmazás); kivétel a `/cigand/`: a törzs tetején a térkép-animáció és a "mennyi fér bele" metszet, amit a `cigand-page.js` (kicsi betöltő) tölt, lásd lent. Stílus: `style.css` végén a `.doc-*`, `.vz-*`, `.spark-*`, `.cg-*` osztályok.
 - **Adat**: `--fetch-water` (az Action ezt használja) a worker `/rivers-snapshot` és `/lakes-snapshot` végpontját kéri `Origin: https://holazeso.hu` fejléccel; `--water-dir DIR` teszthez (DIR/rivers.json, lakes.json). Ha nincs kapcsoló vagy a worker nem elérhető/hibás, a vízoldalak NEM íródnak újra, és a `sitemap.xml` megtartja a meglévő `/vizallas/` bejegyzéseket (üres oldal sosem készül). A `/cigand/` csak repóbeli fájlokból (`cigand.json`, `cigand-news.json`) épül, hálózat nélkül.
 - **Oldalak**: `/vizallas/` (táblázat), `/vizallas/<slug>/`: `duna`, `tisza`, `raba`, `maros`, `harmas-koros`, `drava`, `balaton`, `velencei-to`, `ferto` (a `RIVER_PAGES` / `LAKE_PAGES` listák; a helyhatározós állomásnevek az `STATION_LOC` táblában, kézzel). `EXCLUDE`: a generátorban az ellenőrzésen elbukott állomások neve (most üres).
 - **Mondat és változás**: "A Tisza vízállása Szegednél ma 266 cm, 154 cm-rel magasabb, mint egy hete." A változás a `history`-ból a ~7 nappal korábbi mintához képest, csak ha a history legrégebbi mintája legfeljebb 1 órával a cél (utolsó minta - 7 nap) után van; különben a tagmondat elmarad. A tavaknak nincs history-juk, ott csak a mai érték áll. A kijelzett dátum a pillanatkép `generated_at` napja (Budapest-idő), órát nem írunk ki, hogy a második futás ne változtasson semmit; a hydroinfo értékei amúgy is naponta változnak.
@@ -450,10 +490,12 @@ Egyetlen Python-generátor (csak standard könyvtár) állítja elő az aloldala
 - **Workflow**: a `build-pages.yml` a `--fetch-water` kapcsolóval fut (napi cron 05:23 frissíti a vizet), és a `cigand.json` / `cigand-news.json` változására is indul. A `cigand-news.yml` kommit után `gh workflow run build-pages.yml`-t hív (`actions: write` jogosultság, `GH_TOKEN`), mert a `GITHUB_TOKEN`-nel végzett push nem indít másik workflow-t.
 - **Főoldali linkek**: a vízpanel alján (`nav.water-links`, a "honnan vannak a számok?" nyitó előtt) két kis szöveges link: `/vizallas/` és `/cigand/`.
 
+- **Cigánd-ábrák a `/cigand/` oldalon**: a törzs a szöveg felett a főoldali panel ábráit mutatja (térkép + 5 lépéses animáció, metszet), ugyanazokkal az id-kkal (`CIGAND_FIGURES` a `build_pages.py`-ban; a szöveg továbbra is statikus HTML, SEO). A `cigand-page.js?v=N` (az oldal `extra_scripts`-e) deklarálja az egyetlen hiányzó script.js-globálist (`borderRings = null`, ezért a sarok-áttekintő térkép elmarad), majd betölti a `water.js?v=N`-t és hívja a `buildCigandPage()`-et. A `water.js`-ben a rajz a `buildCigandFigures(data, geo)` függvénybe került, amit a `buildCigand` (főoldal, változatlan viselkedés) és a `buildCigandPage` is hív. Az ábrák csak a `cigand.json` és `cigand-geo.json` fájlokat kérik (azonos eredet): worker-pillanatkép nem kell, így CORS-gond sincs. Hiba esetén a `#cigand-figures` doboz elrejtődik. A `water.js?v=` most két helyen van: `script.js` `WATER_JS_URL` és `cigand-page.js`; mindkettőt együtt kell emelni. Az oldal hírblokkja "Legfrissebb hírek", az AI-összefoglalóról szóló megjegyzés csak akkor áll ott, ha van összefoglaló; AI nélküli hír is megjelenik (cím, forrás, dátum).
+
 ### Funkciók (3. fázis)
 
 - **Mikor áll el / mikor ér ide**: a `fetchUserForecast` kérése kibővült `minutely_15=precipitation`-nel (nincs új hívás; a rácspontos kérések nem kapják). `minutelyOutlook()`: a `current.time` 15 percre lefelé kerekített szelete után az első szelet, ami átbillen a 0,1 mm küszöbön (a `minutely_15` az előző 15 perc összege), a hátralévő perc 15-re kerekítve: "Még kb. 45 percig eshet.", "Kb. 30 perc múlva ideérhet." Hiányzó (nem szám) érték vagy hiányzó szelet: semmi nem íródik ki (4 órán belül nincs változás esőnél: "A következő órákban is eshet.", szárazon semmi). A sor a fő válasz alatti első `.context` sor; ha van, kiváltja az órás "még kb. N óráig tart" és az órás "becslés szerint kb. N óra múlva" sort. Hómódban nincs 15 perces sor. A radar logikához nem nyúl: a hívás a már meglévő `fetchUserForecast`-ban van, a rács-körök, a `radarRevealTier` és a `RADAR_SWEEP_MS` változatlanok.
-- **Hó és ónos eső**: a `current` mezői kibővültek (`precipitation,snowfall,weather_code`, a rácskérésekben is; az Open-Meteo pontszám-súlyát a változók száma nem módosítja). `precipKind()`: `weather_code` 56, 57, 66, 67 = "ice" ("Ónos eső esik"), `snowfall > 0` = "snow" ("Havazik"), egyébként "rain" (a régi szövegek). A találati pontok `kind` mezőt kapnak (`sortRaining`), így a legközelebbi hely kártyáján is típus szerinti a szöveg.
+- **Hó és ónos eső**: a `current` mezői kibővültek (`precipitation,snowfall,weather_code`, a rácskérésekben is; az Open-Meteo pontszám-súlyát a változók száma nem módosítja). `precipKind()`: `weather_code` 56, 57, 66, 67 = "ice" ("Ónos eső esik"), `snowfall > 0` VAGY havas `weather_code` (71, 73, 75, 77, 85, 86) = "snow" ("Havazik"), egyébként "rain" (a régi szövegek). A havas kód azért kell, mert az Open-Meteo a `snowfall`-t 0,01 cm-re kerekíti: gyenge havazásnál 0 jöhet, miközben a `precipitation` már küszöb fölött van, és az ilyen találat esőként íródott ki. A találati pontok `kind` mezőt kapnak (`sortRaining`, `rainHits`), így a legközelebbi hely kártyáján is típus szerinti a szöveg; a "de hol esik pontosan?" kérdés is igazodik (`whereQuestion`: "de hol havazik pontosan?", "de hol esik ónos eső pontosan?"), a végleges találat típusa (`showNearestRain`) felülírja az első gyűrűét.
 - **Hómód `/ho/`**: a generált oldal `window.HOLAZESO_MODE = "ho"`-t állít a `script.js` előtt; `SNOW_MODE` esetén az `isRainingNow` csak `snowfall > 0`-t fogad el (ennyi a különbség a keresésben, a radar és minden más ugyanaz), a szövegek: "Havazik-e X környékén?", "Nálad nem havazik.", "a legközelebbi havazás:". A főoldalon a footer elején a `#snow-link` (`hidden`) csak november 1. és március 31. között (kliensoldali dátum) jelenik meg.
 - **Widget `/widget/`**: a `build_widget_page` egyetlen, önálló HTML-t ír (saját inline CSS/JS, NEM tölti a `script.js`-t és a `style.css`-t), `noindex`, nincs a sitemapben. `?hely=<slug>` (a `places-hu.json`-ból) vagy `?lat&lon&name`; egyetlen Open-Meteo `current` hívás: "Ónos eső" / "Havazik" / "Igen" (>= 0,1 mm/óra) / "Nem"; hibánál "?". `prefers-color-scheme` szerint világos/sötét, 320x120-ban elfér. A `_headers` `/widget/*` szabálya `Content-Security-Policy: frame-ancestors *`, így bárhol iframe-be tehető (a többi oldalon nincs framing-tiltás). A településoldalakon a `<details class="embed-box">` "Tedd ki az oldaladra" adja a másolható iframe-kódot.
 
@@ -476,6 +518,7 @@ Egyetlen Python-generátor (csak standard könyvtár) állítja elő az aloldala
 
 - A `.github/scripts/cigand_news.py` (csak Python-standard könyvtár) nyolc magyar hírportál RSS-csatornáját olvassa (telex.hu, HVG, Index, 444, Magyar Nemzet, Portfolio, Agrárszektor, BOON; a lista a script tetején van). Az a hír találat, amelynek címében vagy (HTML nélküli) leírásában szerepel a "cigánd" (a "cigándi" is). Egy hibás csatorna csak naplózódik, nem állítja meg a futást.
 - Hírenként csak cím, link, forrásnév, megjelenés ideje és első észlelés kerül a `cigand-news.json`-ba. Cikkszöveget sosem tárolunk (szerzői jog).
+- A hírlista 2026-11-25-én kézzel feltöltve (backfill) a `cigand.json` forrásai közül hat 2026-os cikkel (cím és dátum az oldalak og:title / datePublished mezőjéből), mert a nov. 21-23-i cikkek a watcher indulása előtt kikerültek az RSS-ből; `ai` mező nélkül, így a következő Action-futás DeepSeekkel dolgozza fel őket (futásonként max. 10).
 - A csatornák csak az utolsó ~20-60 elemet tartják, ezért a script minden futásnál összefésüli az új találatokat a meglévő fájllal: dedupe a normalizált link (query és záró perjel nélkül) és az azonos (kisbetűs) cím szerint, legújabb elöl, legfeljebb 30 elem.
 - A `.github/workflows/cigand-news.yml` óránként (`17 * * * *`) és kézzel is futtatható. A fájlt csak akkor írja újra, ha a hírlista változott, és csak akkor kommitol (`github-actions[bot]`), így nincs óránkénti zajos commit. Emiatt az `updated` mező az utolsó VÁLTOZÁS ideje, nem az utolsó ellenőrzésé. Egy kommit Cloudflare Pages deployt indít.
 - A böngésző `cigand-news.json?h=ÉÉÉÉHHNNÓÓ` címet kér (óránként új kulcs, a custom-domain gyorsítótár miatt); a `sw.js` ezt a fájlt nem gyorsítótárazza. Hiba vagy 0 hír esetén a "Friss hírek" rész nem jelenik meg.

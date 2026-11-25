@@ -462,8 +462,9 @@ def sparkline(st):
             f'</figcaption></figure>')
 
 
-def doc_page(ctx, *, path, title, description, h1, body_html):
-    """Könnyű szöveges oldal: a sablon feje (meta, style.css), saját törzs."""
+def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
+    """Könnyű szöveges oldal: a sablon feje (meta, style.css), saját törzs.
+    extra_scripts: a GoatCounter elé kerülő saját script-címkék."""
     page = render_page(ctx, path=path, title=title, description=description, h1=h1,
                        content_html="")
     head = page.html[:page.html.index("<body>")]
@@ -475,6 +476,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html):
             '  <footer>\n    <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · '
             'Vízállás: <a href="https://www.hydroinfo.hu/" target="_blank" rel="noopener">hydroinfo.hu</a> '
             '(Országos Vízügyi Főigazgatóság)</p>\n  </footer>\n'
+            + extra_scripts +
             '  <script data-goatcounter="https://holazeso.goatcounter.com/count"\n'
             '          async src="//gc.zgo.at/count.js"></script>\n</body>\n</html>\n')
     return Page(path, html)
@@ -592,6 +594,32 @@ def num_hu(x, digits=1):
     return f"{x:.{digits}f}".replace(".", ",").rstrip("0").rstrip(",") if digits else str(int(x))
 
 
+CIGAND_FIGURES = """    <div id="cigand-figures">
+    <h2>Hová jut a víz?</h2>
+    <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
+      <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
+      <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
+      <span class="cigand-badge" id="cigand-badge">szemléltető ábra, nem élő mérés</span>
+      <figcaption>
+        <p class="cigand-badge-line" id="cigand-badge-line" hidden>szemléltető ábra, nem élő mérés</p>
+        <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
+        <div class="cigand-controls">
+          <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
+          <button type="button" class="link-btn" id="cigand-replay">lejátszás újra</button>
+        </div>
+      </figcaption>
+    </figure>
+    <ol class="cigand-steps" id="cigand-steps" hidden></ol>
+    <h2>Mennyi fér bele, és mennyi van benne?</h2>
+    <figure class="water-figure fig-medium cigand-figure" style="--ar: 1.259">
+      <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
+      <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
+    </figure>
+    <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
+    </div>"""
+CIGAND_PAGE_JS = "/cigand-page.js?v=1"
+
+
 def build_cigand_page(ctx):
     cg = json.loads((ROOT / "cigand.json").read_text(encoding="utf-8"))
     nf = ROOT / "cigand-news.json"
@@ -624,6 +652,7 @@ def build_cigand_page(ctx):
         parts.append(f'    <p class="doc-note">Legfrissebb hír szerint: kb. {mm(ls["stored_volume_m3"])} millió m³ '
                      f'(<a href="{esc(ls["link"])}" target="_blank" rel="noopener">{esc(ls["source"])}</a>, '
                      f'{hu_short_date((ls.get("fact_date") or ls["when"]) + "T12:00:00Z")})</p>')
+    parts.append(CIGAND_FIGURES)
     parts += ['    <h2>A tározó adatai</h2>', "    <ul class=\"cg-list\">"
               + "".join(f"\n      <li>{esc(x)}</li>" for x in facts) + "\n    </ul>",
               '    <h2>Időrend</h2>', f'    <ul class="cg-list">\n{tl}\n    </ul>']
@@ -637,10 +666,11 @@ def build_cigand_page(ctx):
             f'<span class="cg-kind">{esc(it["source"])}</span>'
             + (f'<span class="cg-sum">{esc(it["summary"])}</span>' if it.get("summary") else "") + "</li>"
             for it in items)
-        parts += ['    <h2>Friss hírek</h2>', f'    <ul class="cg-list">\n{li}\n    </ul>',
-                  '    <p class="doc-note">Magyar hírportálok RSS-csatornáiból automatikusan gyűjtve, '
-                  'óránként ellenőrizve. Az összefoglalókat mesterséges intelligencia készíti a '
-                  'cikkekből, hibázhat; a pontos tartalomért nyisd meg a cikket.</p>']
+        note = ("Magyar hírportálok RSS-csatornáiból automatikusan gyűjtve, óránként ellenőrizve."
+                + (" Az összefoglalókat mesterséges intelligencia készíti a cikkekből, hibázhat; "
+                   "a pontos tartalomért nyisd meg a cikket." if any(it.get("summary") for it in items) else ""))
+        parts += ['    <h2>Legfrissebb hírek</h2>', f'    <ul class="cg-list">\n{li}\n    </ul>',
+                  f'    <p class="doc-note">{note}</p>']
     src = " · ".join(f'<a href="{esc(s["url"])}" target="_blank" rel="noopener">{esc(s["name"])}</a>'
                      for s in cg.get("sources", []))
     parts += ['    <h2>Források</h2>', f'    <p class="doc-note">{src}</p>',
@@ -649,7 +679,8 @@ def build_cigand_page(ctx):
     desc = ("Cigánd: 2008 óta először nyitották meg a tározó zsilipjeit, közel 2 milliárd liter Tisza-víz "
             "kerül a Bodrogközbe. Tények, időrend és friss hírek.")
     return [doc_page(ctx, path="/cigand/", title=f"Mi történt Cigándnál? A tározó zsilipnyitása | {SITE_NAME}",
-                     description=desc, h1=cg["title"], body_html="\n".join(parts))]
+                     description=desc, h1=cg["title"], body_html="\n".join(parts),
+                     extra_scripts=f'  <script src="{CIGAND_PAGE_JS}"></script>\n')]
 
 
 # ---------------------------------------------------------------------------

@@ -40,7 +40,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="/style.css?v=58">
+<link rel="stylesheet" href="/style.css?v=62">
 </head>
 <body class="doc">
   <header class="doc-top"><a class="doc-home" href="/">hol az eső?</a>
@@ -49,6 +49,29 @@
     <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
     <h1>Mi történt Cigándnál?</h1>
     <p class="vz-sentence">November 21-én megnyitották a cigándi tározó zsilipjeit, 2008 óta először. Nem árvíz miatt: a megáradt Tisza vizéből közel 2 milliárd litert engednek a kiszáradt Bodrogközbe.</p>
+    <div id="cigand-figures">
+    <h2>Hová jut a víz?</h2>
+    <figure class="water-figure fig-medium cigand-figure" id="cigand-figure" style="--ar: 1.2">
+      <svg id="cigand-map" viewBox="0 0 640 533" preserveAspectRatio="xMidYMid meet" role="group" aria-label="a cigándi tározó vázlatos térképe"></svg>
+      <div id="cigand-tooltip" class="water-map-tooltip" hidden></div>
+      <span class="cigand-badge" id="cigand-badge">szemléltető ábra, nem élő mérés</span>
+      <figcaption>
+        <p class="cigand-badge-line" id="cigand-badge-line" hidden>szemléltető ábra, nem élő mérés</p>
+        <p class="cigand-step-caption" id="cigand-step-caption" aria-live="polite"></p>
+        <div class="cigand-controls">
+          <span class="cigand-dots" id="cigand-dots" role="group" aria-label="az animáció lépései"></span>
+          <button type="button" class="link-btn" id="cigand-replay">lejátszás újra</button>
+        </div>
+      </figcaption>
+    </figure>
+    <ol class="cigand-steps" id="cigand-steps" hidden></ol>
+    <h2>Mennyi fér bele, és mennyi van benne?</h2>
+    <figure class="water-figure fig-medium cigand-figure" style="--ar: 1.259">
+      <svg id="cigand-section-svg" viewBox="0 0 720 572" preserveAspectRatio="xMidYMid meet" role="img" aria-label="a cigándi tározó vázlatos függőleges metszete: a Tisza, az árvédelmi gát, a zsilip, a tározó feneke a vápával; teli állapotban 94 millió köbméter, most közel 2 millió"></svg>
+      <figcaption>A magasság erősen túlozva; nem mért vízszint, a bejelentett mennyiségből számolva. <span class="cigand-chip">számolt</span></figcaption>
+    </figure>
+    <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
+    </div>
     <h2>A tározó adatai</h2>
     <ul class="cg-list">
       <li>A tározó 2008-ban készült, 24,7 km² területű, legfeljebb 94 millió m³ víz fér bele, átlagos mélysége 3,8 m.</li>
@@ -75,6 +98,16 @@
       <dt>mi kell ahhoz, hogy ez megismétlődjön?</dt>
       <dd>Elég magas Tisza (a pontos küszöbszintet nem közölték), működő csatornák és zsilipek a tározón belül, és döntés a vízügytől. A kormány 2027-re 49-ről 221 milliárd forintra emelné az uniós vízügyi és környezetvédelmi fejlesztések keretét. <span class="cg-kind">bejelentett</span></dd>
     </dl>
+    <h2>Legfrissebb hírek</h2>
+    <ul class="cg-list">
+      <li><span class="cg-date">nov. 23.</span> <a href="https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" target="_blank" rel="noopener">Több mint egy métert emelkedett a vízszint egy hét alatt: visszatér az élet a hazai folyóvölgybe</a> <span class="cg-kind">Pénzcentrum (MTI)</span></li>
+      <li><span class="cg-date">nov. 22.</span> <a href="https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" target="_blank" rel="noopener">Ilyen még nem volt Magyarországon: 2 millió köbméter vizet engedtek ki a tájba</a> <span class="cg-kind">Agrárszektor</span></li>
+      <li><span class="cg-date">nov. 22.</span> <a href="https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval" target="_blank" rel="noopener">Először töltik fel vízzel a 2008-ban átadott cigándi víztározót – fotókkal, videóval</a> <span class="cg-kind">pecaverzum.hu</span></li>
+      <li><span class="cg-date">nov. 22.</span> <a href="https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol" target="_blank" rel="noopener">A cigándi árapasztó tározóba közel 2 millió köbméter vizet vezettek a Tiszából</a> <span class="cg-kind">hajdupress.hu</span></li>
+      <li><span class="cg-date">nov. 21.</span> <a href="https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe" target="_blank" rel="noopener">Megnyílt a Cigándi-tározó, közel kétmillió köbméter víz juthat a Bodrogközbe</a> <span class="cg-kind">Magyar Hírlap</span></li>
+      <li><span class="cg-date">nov. 21.</span> <a href="https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248" target="_blank" rel="noopener">Meglépte a kormány, amit 2008 óta még senki</a> <span class="cg-kind">Portfolio</span></li>
+    </ul>
+    <p class="doc-note">Magyar hírportálok RSS-csatornáiból automatikusan gyűjtve, óránként ellenőrizve.</p>
     <h2>Források</h2>
     <p class="doc-note"><a href="https://www.agrarszektor.hu/noveny/20261122/ilyen-meg-nem-volt-magyarorszagon-2-millio-kobmeter-vizet-engedtek-ki-a-tajba-65849" target="_blank" rel="noopener">Agrárszektor, nov. 22.</a> · <a href="https://www.portfolio.hu/gazdasag/20261121/meglepte-a-kormany-amit-2008-ota-meg-senki-878248" target="_blank" rel="noopener">Portfolio, nov. 21.</a> · <a href="https://magyarhirlap.hu/gazdasag/20261121-megnyilt-a-cigandi-tarozo-kozel-ketmillio-kobmeter-viz-juthat-a-bodrogkozbe" target="_blank" rel="noopener">Magyar Hírlap, nov. 21.</a> · <a href="https://www.penzcentrum.hu/hellovidek/20261123/tobb-mint-egy-metert-emelkedett-a-vizszint-egy-het-alatt-visszater-az-elet-a-hazai-folyovolgybe-1209518" target="_blank" rel="noopener">Pénzcentrum (MTI), nov. 23.</a> · <a href="https://pecaverzum.hu/aktualis/eloszor-toltik-fel-vizzel-a-2008-ban-atadott-cigandi-viztarozot--fotokkal-videoval" target="_blank" rel="noopener">pecaverzum.hu, nov. 22.</a> · <a href="https://hajdupress.hu/cikk/a-cigandi-arapaszto-tarozoba-kozel-2-millio-kobmeter-vizet-vezettek-a-tiszabol" target="_blank" rel="noopener">hajdupress.hu</a> · <a href="https://index.hu/belfold/cigand8710/" target="_blank" rel="noopener">index.hu, 2008 (a tározó adatai)</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap (térkép)</a></p>
     <p class="doc-more"><a href="/vizallas/tisza/">Tisza vízállás ma</a> · <a href="/vizallas/">Vízállás</a></p>
@@ -82,6 +115,7 @@
   <footer>
     <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · Vízállás: <a href="https://www.hydroinfo.hu/" target="_blank" rel="noopener">hydroinfo.hu</a> (Országos Vízügyi Főigazgatóság)</p>
   </footer>
+  <script src="/cigand-page.js?v=1"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
 </body>

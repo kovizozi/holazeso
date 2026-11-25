@@ -3118,6 +3118,44 @@ async function buildCigandNews(data) {
   }
 }
 
+// A Cigánd-ábrák (térkép + animáció, metszet) rajza. Közös a főoldali panelnek
+// (buildCigand) és a /cigand/ oldalnak (buildCigandPage): csak a cigand.json és
+// a cigand-geo.json kell hozzá, a worker-pillanatképek nem.
+// Keskeny kijelzőn (<= 520 px) külön, valódi képpontban rajzolt, vágott
+// térkép és metszet; az elrendezés váltásakor (pl. forgatás) újrarajzol.
+function buildCigandFigures(data, geo) {
+  const narrowMq = window.matchMedia("(max-width: 520px)");
+  const drawCigandFigures = () => {
+    const narrow = narrowMq.matches;
+    const mapEl = document.getElementById("cigand-map");
+    const info = buildCigandMap(mapEl, document.getElementById("cigand-tooltip"), data, geo, narrow);
+    setupCigandAnimation(mapEl, info, data);
+    buildCigandSection(document.getElementById("cigand-section-svg"), data, narrow);
+    document.getElementById("cigand-xs-list").innerHTML = cigandSectionListHtml(data);
+    document.getElementById("cigand-xs-list").hidden = !narrow;
+    document.getElementById("cigand-badge").hidden = narrow;
+    document.getElementById("cigand-badge-line").hidden = !narrow;
+  };
+  drawCigandFigures();
+  if (buildCigandFigures.mq) buildCigandFigures.mq.removeEventListener("change", buildCigandFigures.onMq);
+  buildCigandFigures.mq = narrowMq;
+  buildCigandFigures.onMq = drawCigandFigures;
+  narrowMq.addEventListener("change", drawCigandFigures);
+}
+
+// A /cigand/ oldal belépési pontja (cigand-page.js hívja): csak az ábrák, a
+// szöveg a generált HTML-ben van. Hiba esetén az ábra-keretek elrejtődnek.
+async function buildCigandPage() {
+  const figs = document.getElementById("cigand-figures");
+  try {
+    const { data, geo } = await loadCigand();
+    buildCigandFigures(data, geo);
+  } catch (err) {
+    console.error(err);
+    if (figs) figs.hidden = true;
+  }
+}
+
 async function buildCigand(soil, rivers) {
   const section = document.getElementById("water-cigand-section");
   const tocLink = document.getElementById("water-toc-cigand");
@@ -3138,26 +3176,8 @@ async function buildCigand(soil, rivers) {
     document.getElementById("cigand-sources").innerHTML = "Források: " +
       data.sources.map(s => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`).join(", ") + `. Frissítve: ${data.updated}.`;
 
-    // Keskeny kijelzőn (<= 520 px) külön, valódi képpontban rajzolt, vágott
-    // térkép és metszet; az elrendezés váltásakor (pl. forgatás) újrarajzol.
-    const narrowMq = window.matchMedia("(max-width: 520px)");
-    const drawCigandFigures = () => {
-      const narrow = narrowMq.matches;
-      const mapEl = document.getElementById("cigand-map");
-      const info = buildCigandMap(mapEl, document.getElementById("cigand-tooltip"), data, geo, narrow);
-      setupCigandAnimation(mapEl, info, data);
-      buildCigandSection(document.getElementById("cigand-section-svg"), data, narrow);
-      document.getElementById("cigand-xs-list").innerHTML = cigandSectionListHtml(data);
-      document.getElementById("cigand-xs-list").hidden = !narrow;
-      document.getElementById("cigand-badge").hidden = narrow;
-      document.getElementById("cigand-badge-line").hidden = !narrow;
-    };
-    drawCigandFigures();
+    buildCigandFigures(data, geo);
     buildCigandNews(data);
-    if (buildCigand.mq) buildCigand.mq.removeEventListener("change", buildCigand.onMq);
-    buildCigand.mq = narrowMq;
-    buildCigand.onMq = drawCigandFigures;
-    narrowMq.addEventListener("change", drawCigandFigures);
 
     // Lejárt esemény: egy soros összefoglaló, az országos szakaszok alatt.
     const body = document.getElementById("cigand-body");

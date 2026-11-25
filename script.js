@@ -66,10 +66,10 @@ const SEARCH_RINGS = [
 // részén áll. Magyarország legeldugottabb pontja (a határtól legtávolabb eső
 // hely, kb. Szolnok térségében) kb. 112 km-re van bármelyik határtól, ezért a
 // 220 km-es alsó korlát bőséges ráhagyással mindenhonnan mutat határt.
-// Ezt a radarEnsureMinRadius() érvényesíti, MINDEN keresés végén (ld.
-// revealPhase PHASE_DONE ága), nem csak egy adott fázisban: nem keresünk
-// újra, csak egy tisztán vizuális, radarAddTier hívással kijjebb húzzuk a
-// kört.
+// Ezt a radarAddTier érvényesíti MINDEN körnél, a keresés legelejétől (az
+// alaptérkép már a töltés alatt látszik, ezért a keretezés nem változhat a
+// végén): a kör saját sugara (tier.maxRadiusKm) a pontok vetítésére marad, a
+// KIJELZETT sugár (radarMaxRadiusKm) legalább ennyi.
 const RADAR_MIN_VISUAL_RADIUS_KM = 220;
 
 function ringBearings(count) {
@@ -132,13 +132,34 @@ function formatMm(mm) {
 // adatérkezéshez kötött felfestés változatlan, csak az "esik-e" feltétel más.
 const SNOW_MODE = window.HOLAZESO_MODE === "ho";
 const FREEZING_RAIN_CODES = [56, 57, 66, 67]; // WMO: ónos szitálás, ónos eső
+const SNOW_CODES = [71, 73, 75, 77, 85, 86]; // WMO: hó, hószemcse, hózáporok
 
 // "rain" | "snow" | "ice": a már találatnak számító pont csapadékának típusa.
+// A hó nem csak a snowfall mezőből ismerhető fel: az Open-Meteo a snowfall-t
+// 0,01 cm-re kerekíti, így gyenge havazásnál 0 jöhet, miközben a precipitation
+// már küszöb fölött van és a weather_code havat mutat. Ha csak a snowfall-t
+// néznénk, ezek a találatok esőként íródnának ki.
 function precipKind(forecast) {
   const cur = forecast.current;
   if (FREEZING_RAIN_CODES.includes(cur.weather_code)) return "ice";
-  if (cur.snowfall > 0) return "snow";
+  if (cur.snowfall > 0 || SNOW_CODES.includes(cur.weather_code)) return "snow";
   return "rain";
+}
+
+// A "de hol esik pontosan?" kérdés a megtalált csapadék típusához igazodik.
+function whereQuestion(kind) {
+  if (SNOW_MODE) return "a legközelebbi havazás:";
+  if (kind === "snow") return "de hol havazik pontosan?";
+  return kind === "ice" ? "de hol esik ónos eső pontosan?" : "de hol esik pontosan?";
+}
+
+// Rácspont-találatok: index -> { mm, kind }. A radar pöttyei (típus szerinti
+// piktogram) és a találati szöveg is ebből dolgozik.
+function rainHits(points, forecasts) {
+  return new Map(points
+    .map((_, i) => i)
+    .filter(i => isRainingNow(forecasts[i]))
+    .map(i => [i, { mm: currentPrecipRate(forecasts[i]), kind: precipKind(forecasts[i]) }]));
 }
 
 // A fő válasz felirata ("Most esik" helyett havazásnál, ónos esőnél mást).
@@ -159,19 +180,6 @@ function formatMinutes(min, until = false) {
 
 function formatC(celsius) {
   return celsius.toFixed(1).replace(".", ",");
-}
-
-// A talajnedvesség (soil_moisture_0_to_1cm, m³/m³) talajtípustól függ, nincs
-// egyetlen "helyes" skála - ez egy durva, laikusnak szóló közelítés, nem
-// kalibrált érték.
-const SOIL_MOISTURE_BANDS = [
-  { max: 0.15, label: "száraz" },
-  { max: 0.35, label: "nedves" },
-  { max: Infinity, label: "vizes" },
-];
-
-function soilMoistureLabel(value) {
-  return SOIL_MOISTURE_BANDS.find(b => value <= b.max).label;
 }
 
 // ---- Segédfüggvények ----
@@ -393,7 +401,7 @@ async function fetchUserStats(point) {
     `${API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}` +
     `&past_days=31&forecast_days=4` +
     `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min,snowfall_sum` +
-    `&hourly=precipitation,precipitation_probability,soil_moisture_0_to_1cm` +
+    `&hourly=precipitation,precipitation_probability,snowfall` +
     `&current=temperature_2m,precipitation,snowfall&timezone=auto`
   );
 }
@@ -426,19 +434,6 @@ async function fetchUsualPrecipitation(point) {
     usual7d: avg(windows.map(w => w.slice(-7))),
     usual30d: avg(windows),
   };
-}
-
-// Folyó-vízhozam (m³/s) a felhasználó helyéhez legközelebbi modellezett
-// folyószakaszra. A flood-api rácsa ritka: kisebb patakoknál a legközelebbi
-// pont messze lehet, vagy zajszintű (nulla közeli) értéket ad. Ezért a hívó
-// félnek külön ellenőriznie kell a visszaadott rács-pont távolságát és a
-// vízhozam nagyságát, mielőtt megjelenítené - lásd buildStatsPanel.
-const FLOOD_API_BASE = "https://flood-api.open-meteo.com/v1/flood";
-
-async function fetchRiverDischarge(point) {
-  return openMeteo(
-    `${FLOOD_API_BASE}?latitude=${coord(point.lat)}&longitude=${coord(point.lon)}&daily=river_discharge&forecast_days=2`
-  );
 }
 
 // Az esős pontokat adja vissza egy pont- és előrejelzés-listából, távolság
@@ -651,10 +646,12 @@ let borderRings = null;
 let bordersLoading = null;
 let radarOrigin = null;
 let radarMaxRadiusKm = 0;
-// A határok (és ugyanígy a folyók/Balaton, ld. radarDrawWaterGeo) csak a
-// keresés legvégén, a végleges válasszal együtt jelennek meg: keresés közben
-// a radar maradjon tiszta, csak a pontokkal.
-let bordersVisible = false;
+// Az alaptérkép (határok, folyók/Balaton, városok, RainViewer-kép) a keresés
+// INDULÁSAKOR megjelenik, még mielőtt bármelyik kör válasza megérkezne: a
+// rétegek csak a felhasználó helyétől és a megjelenített sugártól függnek, a
+// csapadékadattól nem. Csak a találati pontokra vonatkozik a 6. szabály (a
+// válasz előtt nem villanhatnak fel). Lásd radarDrawBase.
+let radarBaseKey = ""; // melyik helyre/sugárra rajzoltuk utoljára az alaptérképet
 
 // Delta-kódolt egészek 0,01 fokos egységekben, gyűrűnként/vonalanként
 // halmozva. Ez a felére csökkenti a fájlt a nyers koordinátalistához képest.
@@ -741,7 +738,7 @@ function loadPlaces() {
   if (placesLoading) return placesLoading;
   placesLoading = fetch(PLACES_URL)
     .then(res => res.json())
-    .then(list => { placesList = list; })
+    .then(list => { placesList = list; radarDrawPlaces(); })
     .catch(err => { console.error(err); placesList = []; });
   return placesLoading;
 }
@@ -798,6 +795,7 @@ function loadRadarFrame() {
       radarFrame = past && past.length
         ? { host: data.host, path: past[past.length - 1].path }
         : null;
+      drawRadarImage().catch(err => console.error(err)); // megérkezéskor azonnal kirajzoljuk
     })
     .catch(err => {
       console.error(err);
@@ -860,7 +858,7 @@ async function drawRadarImage() {
   // Gyors egymás utáni nagyításnál a régebbi kép később is megérkezhet: csak
   // a legutolsó kérés rajzolhat.
   const imageToken = ++radarImageToken;
-  if (!bordersVisible || !radarFrame || !radarOrigin || !radarMaxRadiusKm) return;
+  if (!radarFrame || !radarOrigin || !radarMaxRadiusKm) return;
 
   const zoom = radarImageZoom(radarOrigin.lat, radarMaxRadiusKm);
   const world = 256 * 2 ** zoom;
@@ -889,7 +887,7 @@ async function drawRadarImage() {
     }
   }
   await Promise.all(loads);
-  if (!bordersVisible || imageToken !== radarImageToken) return; // közben új keresés/nagyítás indulhatott
+  if (imageToken !== radarImageToken) return; // közben új keresés/nagyítás indulhatott
 
   const source = stitchedCtx.getImageData(0, 0, stitched.width, stitched.height);
   const out = document.createElement("canvas");
@@ -967,7 +965,7 @@ function radarProjectRingsToPath(rings) {
 function radarDrawBorders() {
   const layer = document.getElementById("radar-borders");
   layer.innerHTML = "";
-  if (!bordersVisible || !borderRings || !radarOrigin || !radarMaxRadiusKm) return;
+  if (!borderRings || !radarOrigin || !radarMaxRadiusKm) return;
 
   const d = radarProjectRingsToPath(borderRings);
   if (!d) return;
@@ -981,7 +979,7 @@ function radarDrawBorders() {
 function radarDrawWaterGeo() {
   const layer = document.getElementById("radar-water");
   layer.innerHTML = "";
-  if (!bordersVisible || !waterGeo || !radarOrigin || !radarMaxRadiusKm) return;
+  if (!waterGeo || !radarOrigin || !radarMaxRadiusKm) return;
 
   const riverD = radarProjectRingsToPath(waterGeo.rivers);
   if (riverD) {
@@ -1006,7 +1004,7 @@ function radarDrawWaterGeo() {
 function radarDrawPlaces() {
   const layer = document.getElementById("radar-places");
   layer.innerHTML = "";
-  if (!bordersVisible || !placesList.length || !radarOrigin || !radarMaxRadiusKm) return;
+  if (!placesList.length || !radarOrigin || !radarMaxRadiusKm) return;
 
   const maxRank = radarMaxRadiusKm >= 150 ? 1 : radarMaxRadiusKm >= 60 ? 2 : 3;
   const k = radarScaleK();
@@ -1066,8 +1064,24 @@ function updateRadarScale() {
 if ("ResizeObserver" in window) {
   new ResizeObserver(() => {
     updateRadarScale();
-    if (bordersVisible) radarDrawPlaces();
+    radarDrawPlaces();
   }).observe(document.getElementById("radar-svg"));
+}
+
+// Az alaptérkép minden rétege egyben. Csak akkor rajzol, ha a hely vagy a
+// sugár változott az utolsó rajzolás óta (különben a rétegek belépő animációja
+// feleslegesen újraindulna, pl. a keresés végén, ha a sugár már jó). A
+// rétegek külön, lusta betöltésű adatai megérkezéskor maguk rajzolják ki a
+// saját rétegüket (loadBorders, loadWaterGeo, loadPlaces, loadRadarFrame).
+function radarDrawBase() {
+  if (!radarOrigin || !radarMaxRadiusKm) return;
+  const key = `${radarOrigin.lat},${radarOrigin.lon},${radarMaxRadiusKm}`;
+  if (key === radarBaseKey) return;
+  radarBaseKey = key;
+  radarDrawBorders();
+  radarDrawWaterGeo();
+  radarDrawPlaces();
+  drawRadarImage().catch(err => console.error(err));
 }
 
 // ---- Nagyítás a keresés VÉGE után ----
@@ -1083,7 +1097,7 @@ let radarBaseRadiusKm = 0;
 let radarZoomLevel = 0;
 
 function radarZoomTo(level) {
-  if (!radarBaseRadiusKm || !bordersVisible) return;
+  if (!radarBaseRadiusKm) return;
   const clamped = Math.max(RADAR_ZOOM_MIN_LEVEL, Math.min(RADAR_ZOOM_MAX_LEVEL, level));
   const radius = radarBaseRadiusKm / 2 ** clamped;
   if (radius < RADAR_ZOOM_MIN_RADIUS_KM) return;
@@ -1091,10 +1105,7 @@ function radarZoomTo(level) {
   radarZoomLevel = clamped;
   clearRadarPlace();
   radarMaxRadiusKm = radius;
-  radarDrawBorders();
-  radarDrawWaterGeo();
-  radarDrawPlaces();
-  drawRadarImage().catch(err => console.error(err));
+  radarDrawBase();
   radarTierGroups.forEach(tier => {
     tier.scale = tier.maxRadiusKm / radius;
     tier.el.style.transform = `scale(${tier.scale})`;
@@ -1125,7 +1136,7 @@ document.getElementById("radar-zoom-reset").addEventListener("click", () => rada
 {
   const svg = document.getElementById("radar-svg");
   svg.addEventListener("wheel", event => {
-    if (!bordersVisible || !radarBaseRadiusKm || !(event.ctrlKey || event.metaKey)) return;
+    if (!radarBaseRadiusKm || !(event.ctrlKey || event.metaKey)) return;
     event.preventDefault();
     radarZoomTo(radarZoomLevel + (event.deltaY < 0 ? 1 : -1));
   }, { passive: false });
@@ -1157,6 +1168,7 @@ document.getElementById("radar-zoom-reset").addEventListener("click", () => rada
 function radarReset() {
   document.getElementById("radar-tiers").innerHTML = "";
   document.getElementById("radar-places").innerHTML = "";
+  radarBaseKey = ""; // a feliratok törlődtek, a következő radarDrawBase újrarajzol
   radarTierGroups = [];
   radarZoomResetState();
   clearRadarPlace();
@@ -1180,8 +1192,8 @@ function radarLabelPosition(dot) {
   const tier = radarTierGroups.find(t => t.el === dot.parentNode);
   const scale = tier ? tier.scale : 1;
   return {
-    x: RADAR_CENTER_X + (Number(dot.getAttribute("cx")) - RADAR_CENTER_X) * scale,
-    y: RADAR_CENTER_Y + (Number(dot.getAttribute("cy")) - RADAR_CENTER_Y) * scale,
+    x: RADAR_CENTER_X + (Number(dot.dataset.cx) - RADAR_CENTER_X) * scale,
+    y: RADAR_CENTER_Y + (Number(dot.dataset.cy) - RADAR_CENTER_Y) * scale,
   };
 }
 
@@ -1275,13 +1287,15 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   clearRadarPlace();
   // A határréteg mindig az aktuális, legnagyobb sugárhoz igazodik, ezért a
   // korábbi körökkel ellentétben nem zoomoljuk, hanem újrarajzoljuk.
+  // A kijelzett sugár sosem kisebb a RADAR_MIN_VISUAL_RADIUS_KM-nél, így a
+  // térkép a töltés alatt is a felhasználó környékét mutatja, és a keresés
+  // végén sem keretez át. A kör pontjai a SAJÁT sugarukhoz vetítve maradnak.
+  const shownRadiusKm = Math.max(maxRadiusKm, RADAR_MIN_VISUAL_RADIUS_KM);
   radarOrigin = userLoc;
-  radarMaxRadiusKm = maxRadiusKm;
-  radarDrawBorders();
-  radarDrawWaterGeo();
-  drawRadarImage().catch(err => console.error(err));
+  radarMaxRadiusKm = shownRadiusKm;
+  radarDrawBase();
   radarTierGroups.forEach(tier => {
-    tier.scale = tier.maxRadiusKm / maxRadiusKm;
+    tier.scale = tier.maxRadiusKm / shownRadiusKm;
     tier.el.style.transform = `scale(${tier.scale})`;
   });
 
@@ -1295,63 +1309,110 @@ function radarAddTier(points, maxRadiusKm, userLoc) {
   radarTierGroups.push({ el: g, maxRadiusKm, scale: 1, points });
 }
 
-// Lásd RADAR_MIN_VISUAL_RADIUS_KM: minden keresés legvégén, mielőtt az
-// országhatár/folyók/Balaton megjelenne, ezzel húzzuk ki a kört, ha a
-// találat ennél közelebb volt. Üres ponttömbbel hívja a radarAddTier-t: nem
-// keresünk újra és nem rajzolunk új esőpöttyöt, csak a léptéket (és vele a
-// korábbi köröket) igazítjuk át.
-function radarEnsureMinRadius() {
-  if (radarMaxRadiusKm > 0 && radarMaxRadiusKm < RADAR_MIN_VISUAL_RADIUS_KM) {
-    radarAddTier([], RADAR_MIN_VISUAL_RADIUS_KM, radarOrigin);
-  }
-}
+// Egyetlen találati pötty létrehozása: a csapadék TÍPUSÁNAK piktogramja
+// (eső: csepp, hó: hópehely, ónos eső: csepp jégjellel; a szimbólumok az
+// index.html #radar-svg <defs> részében vannak). A mérete és árnyalata az
+// intenzitás-sávot követi, és rákoppintva megmutatja a helynevet (lásd
+// showRadarPlace). Az időzítéshez nem nyúlunk: ugyanabból a setTimeoutból
+// hívódik, mint korábban a kör.
+const RADAR_ICON_BY_KIND = { rain: "ico-rain", snow: "ico-snow", ice: "ico-ice" };
 
-// Egyetlen esős pötty létrehozása. A mérete és árnyalata az intenzitás-sávot
-// követi, és rákoppintva megmutatja a helynevet (lásd showRadarPlace).
-function addRainDot(tier, index, mm) {
+function addRainDot(tier, index, hit, plain = false) {
   const point = tier.points[index];
   if (!point) return;
+  const { mm, kind } = hit;
   const band = intensityBand(mm);
   const { x, y } = radarPolarPoint(point.bearing, point.distance, tier.maxRadiusKm);
   const svgNS = "http://www.w3.org/2000/svg";
+  // Az ónos eső jele (csepp kivágott csillaggal) kicsiben nem olvasható, ezért nagyobb.
+  const size = band.dotRadius * (kind === "ice" ? 3.6 : 2.8);
 
-  const dot = document.createElementNS(svgNS, "circle");
-  dot.classList.add("radar-dot", `rain-${band.key}`);
-  dot.setAttribute("cx", x);
-  dot.setAttribute("cy", y);
-  dot.setAttribute("r", band.dotRadius);
+  const dot = document.createElementNS(svgNS, "g");
+  dot.classList.add("radar-dot", `rain-${band.key}`, `kind-${kind}`);
+  dot.dataset.cx = x;
+  dot.dataset.cy = y;
   dot.dataset.lat = point.lat;
   dot.dataset.lon = point.lon;
+  dot.setAttribute("transform", `translate(${x} ${y})`);
+  if (plain) {
+    // Sűrű csoportban csak a legerősebb pont kap piktogramot (lásd
+    // glyphIndexes), a többi az egykori egyszerű kis pötty.
+    dot.classList.add("radar-dot-plain");
+    const hitArea = document.createElementNS(svgNS, "circle");
+    hitArea.setAttribute("r", 8);
+    hitArea.classList.add("radar-dot-hit");
+    dot.appendChild(hitArea);
+    const mark = document.createElementNS(svgNS, "circle");
+    mark.setAttribute("r", 2);
+    mark.classList.add("ico-fill");
+    dot.appendChild(mark);
+    tier.el.appendChild(dot);
+    return;
+  }
+  // Átlátszó, nagyobb tapintási felület a kicsi piktogram köré.
+  const hitArea = document.createElementNS(svgNS, "circle");
+  hitArea.setAttribute("r", 12);
+  hitArea.classList.add("radar-dot-hit");
+  dot.appendChild(hitArea);
+  const icon = document.createElementNS(svgNS, "use");
+  icon.setAttribute("href", `#${RADAR_ICON_BY_KIND[kind] || RADAR_ICON_BY_KIND.rain}`);
+  icon.setAttribute("x", -size / 2);
+  icon.setAttribute("y", -size / 2);
+  icon.setAttribute("width", size);
+  icon.setAttribute("height", size);
+  dot.appendChild(icon);
   tier.el.appendChild(dot);
 
   const pulse = document.createElementNS(svgNS, "circle");
   pulse.setAttribute("cx", x);
   pulse.setAttribute("cy", y);
-  pulse.setAttribute("r", band.dotRadius);
+  pulse.setAttribute("r", band.dotRadius + 2);
   pulse.classList.add("radar-pulse", "pulsing");
   tier.el.appendChild(pulse);
 }
 
-// A rainByIndex egy Map: rácspont indexe -> csapadék mm/órában. Minden pötty
+// A rainByIndex egy Map: rácspont indexe -> { mm (mm/órában), kind } (rainHits). Minden pötty
 // akkor jelenik meg, amikor a pásztázó vonal az ő irányához ér, tehát a vonal
 // "festi fel" őket. Az ígéret egy teljes fordulat után teljesül, akkor is, ha
 // ebben a körben nem volt eső: így a vonal láthatóan végigpásztázza a kört,
 // mielőtt a keresés kijjebb lép.
+// Képernyőn ~16 px-es cellánként legfeljebb egy piktogram marad (a legerősebb
+// találat); a többi sima kis pötty. Különben a sűrű találati csoport egy
+// összefüggő folttá olvadna. Csak a megjelenítést válogatja, az időzítést nem.
+const RADAR_GLYPH_CELL_PX = 16;
+
+function glyphIndexes(tier, rainByIndex) {
+  const k = radarScaleK();
+  const best = new Map();
+  rainByIndex.forEach((hit, index) => {
+    const point = tier.points[index];
+    if (!point) return;
+    const p = radarPolarPoint(point.bearing, point.distance, tier.maxRadiusKm);
+    const sx = (RADAR_CENTER_X + (p.x - RADAR_CENTER_X) * tier.scale) * k;
+    const sy = (RADAR_CENTER_Y + (p.y - RADAR_CENTER_Y) * tier.scale) * k;
+    const cell = `${Math.floor(sx / RADAR_GLYPH_CELL_PX)},${Math.floor(sy / RADAR_GLYPH_CELL_PX)}`;
+    const cur = best.get(cell);
+    if (cur === undefined || hit.mm > rainByIndex.get(cur).mm) best.set(cell, index);
+  });
+  return new Set(best.values());
+}
+
 function radarRevealTier(rainByIndex, { instant = false } = {}) {
   const tier = radarTierGroups[radarTierGroups.length - 1];
   if (!tier) return Promise.resolve();
+  const glyphs = glyphIndexes(tier, rainByIndex);
 
   if (instant) {
-    rainByIndex.forEach((mm, index) => addRainDot(tier, index, mm));
+    rainByIndex.forEach((hit, index) => addRainDot(tier, index, hit, !glyphs.has(index)));
     return Promise.resolve();
   }
 
   const sweepAngle = sweepAngleNow();
-  rainByIndex.forEach((mm, index) => {
+  rainByIndex.forEach((hit, index) => {
     const point = tier.points[index];
     if (!point) return;
     const degreesAhead = (point.bearing - sweepAngle + 360) % 360;
-    setTimeout(() => addRainDot(tier, index, mm), (degreesAhead / 360) * RADAR_SWEEP_MS);
+    setTimeout(() => addRainDot(tier, index, hit, !glyphs.has(index)), (degreesAhead / 360) * RADAR_SWEEP_MS);
   });
   return new Promise(resolve => setTimeout(resolve, RADAR_SWEEP_MS));
 }
@@ -1417,10 +1478,7 @@ async function run(userLoc, { silent = false } = {}) {
       fetchPrecipitation(firstGrid),
     ]);
     if (superseded()) return;
-    const firstRain = new Map(firstGrid
-      .map((_, i) => i)
-      .filter(i => isRainingNow(firstGridForecasts[i]))
-      .map(i => [i, currentPrecipRate(firstGridForecasts[i])]));
+    const firstRain = rainHits(firstGrid, firstGridForecasts);
     let raining = sortRaining(firstGrid, firstGridForecasts);
 
     // A helynév-lekérést már a felfestés ALATT elindítjuk. Enélkül a radar a
@@ -1492,7 +1550,7 @@ async function run(userLoc, { silent = false } = {}) {
     const unchanged = silent &&
       document.getElementById("q1-answer").textContent === answer;
     setHero(answer, soonContext);
-    showQ2(SNOW_MODE ? "a legközelebbi havazás:" : "de hol esik pontosan?");
+    showQ2(whereQuestion(raining.length > 0 ? raining[0].kind : "rain"));
     if (unchanged) return;
 
     // Az 1. fázis vége: a radar lecsúszik eggyel, megjelenik a válasz és a
@@ -1509,10 +1567,7 @@ async function run(userLoc, { silent = false } = {}) {
       radarAddTier(grid, maxRadius, userLoc);
       const forecasts = await fetchPrecipitation(grid);
       if (superseded()) return;
-      const rainByIndex = new Map(grid
-        .map((_, idx) => idx)
-        .filter(idx => isRainingNow(forecasts[idx]))
-        .map(idx => [idx, currentPrecipRate(forecasts[idx])]));
+      const rainByIndex = rainHits(grid, forecasts);
       raining = sortRaining(grid, forecasts);
       if (raining.length > 0) lookup = startLookup(userLoc, raining[0]);
       await radarRevealTier(rainByIndex, { instant: silent });
@@ -1559,10 +1614,7 @@ async function refineNearest(userLoc, hit) {
   const points = refinementGrid(userLoc, hit);
   if (points.length === 0) return { points, rain: new Map(), nearest: hit };
   const forecasts = await fetchPrecipitation(points);
-  const rain = new Map(points
-    .map((_, i) => i)
-    .filter(i => isRainingNow(forecasts[i]))
-    .map(i => [i, currentPrecipRate(forecasts[i])]));
+  const rain = rainHits(points, forecasts);
   const closest = sortRaining(points, forecasts)[0];
   return {
     points,
@@ -1599,6 +1651,9 @@ function showNearestRain(nearest, place, userLoc) {
     : nearest.bearing;
 
   const direction = compassLabel(displayBearing);
+  // A kérdés a VÉGLEGES találat típusához igazodik (a távolabbi körökben
+  // talált, vagy a finomítás után közelebbi pont típusa eltérhetett az elsőtől).
+  document.getElementById("q2-question").textContent = whereQuestion(nearest.kind);
   // Az erősség a megtalált esős PONTRA vonatkozik, nem a névadó településre:
   // a kettő eltérhet, ha a legközelebbi esős pontnak nem volt neve.
   const band = typeof nearest.mm === "number" ? intensityBand(nearest.mm) : null;
@@ -1665,17 +1720,16 @@ async function buildStatsPanel(point) {
   statusEl.hidden = false;
   statusEl.textContent = "töltés…";
   try {
-    const [stats, usual, flood] = await Promise.all([
+    const [stats, usual] = await Promise.all([
       fetchUserStats(point),
       fetchUsualPrecipitation(point).catch(err => { console.error(err); return null; }),
-      fetchRiverDischarge(point).catch(err => { console.error(err); return null; }),
     ]);
     if (runId !== statsRunId) return;
     const todayIdx = stats.daily.time.indexOf(stats.current.time.slice(0, 10));
     fillPrecipStats(stats, usual, todayIdx);
     fillForecastStats(stats, todayIdx);
     fillTempStats(stats, todayIdx);
-    fillWaterStats(stats, flood, point);
+    fillNext12hStats(stats);
     statusEl.hidden = true;
   } catch (err) {
     console.error(err);
@@ -1819,16 +1873,16 @@ function hideSparklineTooltip() {
 // visszazáródjon, amikor épp megnyitjuk.
 document.addEventListener("click", hideSparklineTooltip);
 
-const FORECAST_DAY_LABELS = ["Holnap", "Holnapután"];
+const FORECAST_DAY_LABELS = ["Ma", "Holnap", "Holnapután"];
 const HU_WEEKDAYS = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
 
 function fillForecastStats(stats, todayIdx) {
   const list = document.getElementById("stats-forecast-days");
   list.innerHTML = "";
-  for (let offset = 1; offset <= 3; offset++) {
+  for (let offset = 0; offset <= 3; offset++) {
     const dayIdx = todayIdx + offset;
     if (dayIdx >= stats.daily.time.length) break;
-    const label = FORECAST_DAY_LABELS[offset - 1] ||
+    const label = FORECAST_DAY_LABELS[offset] ||
       HU_WEEKDAYS[new Date(stats.daily.time[dayIdx]).getUTCDay()];
     const prob = stats.daily.precipitation_probability_max[dayIdx];
     const sum = stats.daily.precipitation_sum[dayIdx];
@@ -1910,74 +1964,71 @@ function fillTempStats(stats, todayIdx) {
   frostEl.textContent = notes.join(", ");
 }
 
-// A talaj felső rétegének állapota egy 3 fokozatú skálán (száraz, nedves,
-// vizes - ugyanazok a határok, mint a SOIL_MOISTURE_BANDS), jelölővel. A
-// szakaszok szélessége a határokkal arányos (0, 0,15, 0,35, 0,5 m³/m³).
-function renderSoilScale(container, soil, trend) {
-  const W = 300, scaleMax = 0.5;
-  const segs = [
-    { from: 0, to: 0.15, label: "száraz" },
-    { from: 0.15, to: 0.35, label: "nedves" },
-    { from: 0.35, to: scaleMax, label: "vizes" },
-  ];
-  const xFor = v => (Math.max(0, Math.min(scaleMax, v)) / scaleMax) * W;
-  const current = soilMoistureLabel(soil);
-  const rects = segs.map(seg => {
-    const x = xFor(seg.from), w = xFor(seg.to) - x;
-    const active = seg.label === current;
-    return `<rect x="${x.toFixed(1)}" y="2" width="${w.toFixed(1)}" height="22" fill="${active ? "var(--accent)" : "none"}" stroke="var(--fg)" stroke-width="1"></rect>` +
-      `<text class="stats-svg-text" x="${(x + w / 2).toFixed(1)}" y="17" text-anchor="middle" style="fill:${active ? "var(--bg)" : "var(--muted)"}">${seg.label}</text>`;
-  }).join("");
-  const mx = xFor(soil);
-  const marker = `<path d="M${(mx - 5).toFixed(1)} 36 L${(mx + 5).toFixed(1)} 36 L${mx.toFixed(1)} 27 Z" fill="var(--accent)"></path>`;
-  const arrow = trend === "nő" ? " ↑" : trend === "csökken" ? " ↓" : trend ? " →" : "";
-  container.className = "stats-scale";
-  container.innerHTML = `<svg viewBox="-1 0 ${W + 2} 40" role="img" aria-label="a talaj felső rétege most ${current}${trend ? `, ${trend}` : ""}">${rects}${marker}</svg>` +
-    `<p class="stats-line">A talaj felső rétege most ${current}${trend ? `, ${trend}${arrow}` : ""}</p>`;
+// "Következő 12 óra": a keresett hely órás csapadéka kis oszlopdiagramon, a
+// jelenlegi órától kezdve (a fetchUserStats már lekért órás csapadékot,
+// esélyt és havat, külön kérés nem kell). Az oszlop fölött az mm, alatta az
+// óra (háromóránként) és az esély; a havazásos órák sraffozott, körvonalas
+// oszlopot kapnak (a hó vízegyenértéke ugyanabban a precipitation mezőben van,
+// a snowfall csak a típust adja). Ha mindegyik nulla, egy mondat és a lapos
+// diagram áll.
+const NEXT_HOURS = 12;
+
+function fillNext12hStats(stats) {
+  const lineEl = document.getElementById("stats-next12-line");
+  const chartEl = document.getElementById("stats-next12-chart");
+  const legendEl = document.getElementById("stats-next12-legend");
+  const idx = currentHourIndex(stats);
+  if (idx === -1) {
+    lineEl.hidden = true;
+    legendEl.hidden = true;
+    chartEl.innerHTML = "";
+    return;
+  }
+  const hours = [];
+  for (let i = idx; i < idx + NEXT_HOURS && i < stats.hourly.time.length; i++) {
+    const prob = stats.hourly.precipitation_probability?.[i];
+    hours.push({
+      label: i === idx ? "most" : stats.hourly.time[i].slice(11, 16),
+      mm: stats.hourly.precipitation[i] || 0,
+      prob: typeof prob === "number" ? Math.round(prob) : null,
+      snow: stats.hourly.snowfall?.[i] > 0,
+    });
+  }
+  const wet = hours.filter(h => h.mm >= RAIN_THRESHOLD_MM);
+  lineEl.hidden = wet.length > 0;
+  lineEl.textContent = wet.length ? "" : `A következő ${NEXT_HOURS} órában nem várható csapadék.`;
+  legendEl.hidden = !hours.some(h => h.snow && h.mm >= RAIN_THRESHOLD_MM);
+  renderNext12hChart(chartEl, hours);
 }
 
-// A folyó-vízhozamot csak akkor mutatjuk, ha a flood-api által visszaadott
-// legközelebbi modellezett folyószakasz valóban közel van ÉS a vízhozam nem
-// zajszintű - lásd a fetchRiverDischarge komment je fenti, és a PROGRESS/terv
-// dokumentált mérései (Budapest/Szeged ad értelmes számot, több kisváros nem).
-const RIVER_MAX_DISTANCE_KM = 15;
-const RIVER_MIN_DISCHARGE = 2;
-
-function fillWaterStats(stats, flood, point) {
-  const idx = currentHourIndex(stats);
-  const soil = idx === -1 ? undefined : stats.hourly.soil_moisture_0_to_1cm[idx];
-  const soilEl = document.getElementById("stats-water-soil");
-  if (typeof soil !== "number") {
-    soilEl.hidden = true;
-  } else {
-    const prevSoil = idx >= 24 ? stats.hourly.soil_moisture_0_to_1cm[idx - 24] : null;
-    let trend = "";
-    if (typeof prevSoil === "number") {
-      const delta = soil - prevSoil;
-      trend = delta > 0.02 ? "nő" : delta < -0.02 ? "csökken" : "stabil";
+function renderNext12hChart(container, hours) {
+  const W = 300, baseY = 60, plotH = 44;
+  const pitch = W / hours.length;
+  const max = Math.max(...hours.map(h => h.mm), 1);
+  let body = `<defs><pattern id="stats-snow-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+    `<line x1="0" y1="0" x2="0" y2="4" stroke="var(--accent)" stroke-width="1.6"></line></pattern></defs>` +
+    `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
+  hours.forEach((h, i) => {
+    const wet = h.mm >= RAIN_THRESHOLD_MM;
+    const bh = wet ? Math.max((h.mm / max) * plotH, 2) : 1;
+    const x = i * pitch + pitch * 0.15, w = pitch * 0.7, cx = i * pitch + pitch / 2;
+    if (wet && h.snow) {
+      body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#stats-snow-hatch)" stroke="var(--accent)" stroke-width="1"></rect>`;
+    } else {
+      body += `<rect x="${x.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="var(--accent)" opacity="${wet ? 0.9 : 0.15}"></rect>`;
     }
-    soilEl.hidden = false;
-    renderSoilScale(soilEl, soil, trend);
-  }
-
-  const riverEl = document.getElementById("stats-water-river");
-  if (!flood || !flood.daily || !flood.daily.river_discharge) {
-    riverEl.hidden = true;
-    return;
-  }
-  const dist = distanceKm(point.lat, point.lon, flood.latitude, flood.longitude);
-  const [todayDischarge, tomorrowDischarge] = flood.daily.river_discharge;
-  if (dist > RIVER_MAX_DISTANCE_KM || !(todayDischarge >= RIVER_MIN_DISCHARGE)) {
-    riverEl.hidden = true;
-    return;
-  }
-  let trend = "stabil";
-  if (typeof tomorrowDischarge === "number") {
-    const relChange = (tomorrowDischarge - todayDischarge) / todayDischarge;
-    trend = relChange > 0.05 ? "emelkedő" : relChange < -0.05 ? "csökkenő" : "stabil";
-  }
-  riverEl.hidden = false;
-  riverEl.textContent = `A legközelebbi folyó vízhozama: ${Math.round(todayDischarge)} m³/s, ${trend}`;
+    if (wet) {
+      body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${cx.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="middle">${formatMm(h.mm)}</text>`;
+      if (h.prob !== null) {
+        body += `<text class="stats-svg-text stats-next12-prob" x="${cx.toFixed(1)}" y="${baseY + 25}" text-anchor="middle">${h.prob}%</text>`;
+      }
+    }
+    if (i % 3 === 0) {
+      body += `<text class="stats-svg-text" x="${(i === 0 ? x : cx).toFixed(1)}" y="${baseY + 13}" text-anchor="${i === 0 ? "start" : "middle"}">${h.label}</text>`;
+    }
+  });
+  const desc = hours.map(h => `${h.label}: ${h.mm >= RAIN_THRESHOLD_MM ? `${formatMm(h.mm)} mm${h.snow ? " hó" : ""}${h.prob !== null ? `, ${h.prob}% esély` : ""}` : "száraz"}`).join("; ");
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${baseY + 29}" role="img" aria-label="Csapadék a következő ${NEXT_HOURS} órában. ${desc}">${body}</svg>`;
 }
 
 // ---- UI-vezérlés ----
@@ -2076,7 +2127,6 @@ function beginSearchUI() {
   loading.hidden = false;
   svg.style.transition = "";
   svg.style.transform = "";
-  bordersVisible = false; // keresés közben tiszta radar, csak a pontokkal
   resetStatsPanel();
   resetWaterPanel();
   radarReset();
@@ -2105,18 +2155,14 @@ function revealPhase(phase, delayMs) {
         if (phase === PHASE_DONE) document.getElementById("loading").classList.add("settled");
       });
       if (phase === PHASE_DONE) {
-        // A határok és a radarkép csak most, a végleges válasszal együtt
-        // jelennek meg. A radarkép hálózatról jön, ezért nem várjuk meg.
-        radarEnsureMinRadius();
-        bordersVisible = true;
+        // A nagyítás alapsugara a végleges kép sugara.
         radarBaseRadiusKm = radarMaxRadiusKm;
         radarZoomLevel = 0;
         updateRadarScale();
         updateRadarZoomButtons();
-        radarDrawBorders();
-        radarDrawWaterGeo();
-        loadPlaces().then(() => { if (bordersVisible) radarDrawPlaces(); });
-        drawRadarImage().catch(err => console.error(err));
+        // Az alaptérkép a keresés eleje óta látszik; ez csak akkor rajzol újra,
+        // ha a sugár időközben változott.
+        radarDrawBase();
         // A statisztika-panel is csak most, hogy a radar véglegesen betöltött:
         // megjelenik (mindig látható, nincs nyitógomb), és ekkor tölt be.
         document.getElementById("stats-panel").hidden = false;
@@ -2523,7 +2569,7 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // megjelenik (a helyfoglaló vázzal), a kód viszont csak később jön.
 // ============================================================================
 
-const WATER_JS_URL = "/water.js?v=1";
+const WATER_JS_URL = "/water.js?v=2";
 let waterJsLoading = null;
 let waterPendingPoint = null;
 let waterLazyObserver = null;

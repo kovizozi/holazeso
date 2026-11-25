@@ -40,7 +40,7 @@
 }
 </script>
 <!-- A ?v=N cache-busting: script.js/style.css módosításnál bővítsd a számot -->
-<link rel="stylesheet" href="/style.css?v=58">
+<link rel="stylesheet" href="/style.css?v=62">
 </head>
 <body>
 
@@ -115,6 +115,24 @@
            A pásztázó vonal ezért a fél átlónál (207) hosszabb: így a forgás
            minden szögében kifut a téglalap széléig, és ott vágódik el. -->
       <svg id="radar-svg" viewBox="0 0 350 220" width="350" height="220">
+        <!-- A találati pontok piktogramjai (script.js addRainDot): eső, hó, ónos eső.
+             Mindegyik 16x16-os, a közepe a (0,0). -->
+        <defs>
+          <symbol id="ico-rain" viewBox="-8 -8 16 16" overflow="visible">
+            <path class="ico-fill" d="M0 -7.5 C2.5 -4 5.2 -1.6 5.2 1.8 A5.2 5.2 0 0 1 -5.2 1.8 C-5.2 -1.6 -2.5 -4 0 -7.5 Z"></path>
+          </symbol>
+          <symbol id="ico-snow" viewBox="-8 -8 16 16" overflow="visible">
+            <g class="ico-stroke">
+              <path id="ico-snow-arm" d="M0 -7.2 V7.2 M-2.2 -5 L0 -3 L2.2 -5 M-2.2 5 L0 3 L2.2 5"></path>
+              <use href="#ico-snow-arm" transform="rotate(60)"></use>
+              <use href="#ico-snow-arm" transform="rotate(120)"></use>
+            </g>
+          </symbol>
+          <symbol id="ico-ice" viewBox="-8 -8 16 16" overflow="visible">
+            <path class="ico-fill" d="M0 -7.5 C2.5 -4 5.2 -1.6 5.2 1.8 A5.2 5.2 0 0 1 -5.2 1.8 C-5.2 -1.6 -2.5 -4 0 -7.5 Z"></path>
+            <path class="ico-cut" d="M0 -0.2 V4.2 M-1.9 1 L1.9 3.4 M1.9 1 L-1.9 3.4"></path>
+          </symbol>
+        </defs>
         <!-- Radarkép, országhatár, folyók/Balaton, legalul, hogy a pontok alatt maradjanak -->
         <image id="radar-image" x="0" y="0" width="350" height="220"></image>
         <g id="radar-borders"></g>
@@ -180,10 +198,11 @@
             <p class="stats-line" id="stats-temp-frost"></p>
           </section>
 
-          <section class="stats-card" id="stats-water">
-            <h3 class="stats-heading">Víz</h3>
-            <div id="stats-water-soil"></div>
-            <p class="stats-line" id="stats-water-river" hidden></p>
+          <section class="stats-card" id="stats-next12">
+            <h3 class="stats-heading">Következő 12 óra</h3>
+            <p class="stats-line" id="stats-next12-line" hidden></p>
+            <div id="stats-next12-chart" class="stats-next12"></div>
+            <p class="stats-note" id="stats-next12-legend" hidden>Sraffozott oszlop: havazás.</p>
           </section>
         </div>
       </div>
@@ -548,7 +567,7 @@
   </footer>
 
   <script>window.HOLAZESO_PLACE = {"name": "Makó", "lat": 46.217, "lon": 20.481, "countryCode": "HU"};</script>
-  <script src="/script.js?v=83"></script>
+  <script src="/script.js?v=87"></script>
   <script data-goatcounter="https://holazeso.goatcounter.com/count"
           async src="//gc.zgo.at/count.js"></script>
   <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;5dc678fa1c1c4d7492c893821554ca4b&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
