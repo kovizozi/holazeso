@@ -450,6 +450,13 @@ sorok közt `1px --border`. Gombok, mezők, tooltip, nagyítógombok: 8px. A
 idővonal dobozaiban: kék keret és kék szöveg, a vonal `--accent`). Alcím: `.water-subhead`,
 `.cigand-subhead` (22px, 600, `--fg`, `--sp-5` felső hely).
 
+**Lábléc (2026-11-25, 2. kör)**: a `footer` teljes szélességű, sötétszürke sáv
+(`--footer-bg`: #2b2b2b világos, #080808 sötét módban, mindkettő sötétebb a
+`--surface`-nél), a szöveg `--footer-fg` (#d4d4d4 / #a8a8a8: 9,55:1 / 8,42:1). A
+"Mi ez az oldal?" kártya a sávban is világos `--surface` kártya marad (`--muted`
+szöveg, világosban 4,8:1, sötétben 6,1:1). Közvetlenül a szürke SEO-blokk után
+következik, nincs közte fehér sáv.
+
 ### Layout-stabilitás (CLS)
 
 A `#app` `min-height: 100svh` (style.css): a keresés fázisai közben az app

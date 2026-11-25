@@ -14,6 +14,10 @@
      20% fekete (#0263cc), fehéren 5,7:1, --surface-en 5,2:1. Sötét módban maga
      az --accent elég (7,5:1). */
   --accent-ink: color-mix(in srgb, var(--accent) 80%, black);
+  /* Lábléc-sáv: sötétszürke, a --surface-nél sötétebb (fehér oldalon #2b2b2b,
+     sötét oldalon #080808); a szöveg kontrasztja rajta >= 4,5:1 (ld. CLAUDE.md). */
+  --footer-bg: #2b2b2b;
+  --footer-fg: #d4d4d4;
   /* A válasz-átmenet egyetlen összehangolt mozdulat: a nagy kérdés kicsinyedése,
      a válasz növekedése és a radar csúszása ~700-800 ms, a válasz alatti sorok
      (--t-sub-delay késéssel) 900 ms alatt érnek be. Csak transform/opacity. */
@@ -51,6 +55,8 @@
     --muted: #9a9a9a;
     --accent: #6ea3ff;
     --accent-ink: var(--accent);
+    --footer-bg: #080808;
+    --footer-fg: #a8a8a8;
     --border: #333333;
     --surface: #1c1c1c;
     --error: #ff6b60;
@@ -783,11 +789,21 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
 footer {
   text-align: center;
   font-size: 12px;
-  color: var(--muted);
-  padding: var(--sp-6) var(--sp-3) var(--sp-3);
+  color: var(--footer-fg);
+  background: var(--footer-bg);
+  padding: var(--sp-5) var(--sp-3) var(--sp-3);
 }
 
 footer a {
+  color: var(--footer-fg);
+}
+
+/* A "Mi ez az oldal?" kártya a sötét sávban is világos kártya marad. */
+footer .about-details {
+  color: var(--muted);
+}
+
+footer .about-details a {
   color: var(--muted);
 }
 
