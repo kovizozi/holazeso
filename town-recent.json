@@ -99,7 +99,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 58,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -113,7 +113,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 42,
-    "level_cm": 4,
+    "level_cm": 33,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -127,7 +127,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 45,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -141,7 +141,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 46,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -218,7 +218,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 29,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -239,7 +239,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 38,
-    "level_cm": -76,
+    "level_cm": -109,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -253,7 +253,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 35,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -358,7 +358,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 49,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -414,7 +414,7 @@
    "tomorrow_prob": 98,
    "water": {
     "km": 36,
-    "level_cm": -76,
+    "level_cm": -109,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -470,7 +470,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 23,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -484,7 +484,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 35,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -540,7 +540,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 38,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -554,7 +554,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 23,
-    "level_cm": 266,
+    "level_cm": 277,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -582,7 +582,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 15,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -631,7 +631,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 57,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -652,7 +652,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 47,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -687,7 +687,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 56,
-    "level_cm": 266,
+    "level_cm": 277,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -701,7 +701,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 54,
-    "level_cm": 266,
+    "level_cm": 277,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -715,7 +715,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 42,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -771,7 +771,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 50,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -813,7 +813,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 0,
-    "level_cm": 4,
+    "level_cm": 33,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -841,7 +841,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 52,
-    "level_cm": -76,
+    "level_cm": -109,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -855,7 +855,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 37,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -876,7 +876,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 39,
-    "level_cm": 4,
+    "level_cm": 33,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -890,7 +890,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 49,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -904,7 +904,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 16,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -967,7 +967,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 20,
-    "level_cm": 266,
+    "level_cm": 277,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -1023,7 +1023,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 34,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1051,7 +1051,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 35,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1121,7 +1121,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 57,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1163,7 +1163,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 55,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1303,7 +1303,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 0,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1338,7 +1338,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 1,
-    "level_cm": 266,
+    "level_cm": 277,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -1352,7 +1352,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 50,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1408,7 +1408,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 32,
-    "level_cm": 498,
+    "level_cm": 499,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1471,7 +1471,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 1,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1569,7 +1569,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 50,
-    "level_cm": 300,
+    "level_cm": 272,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1583,7 +1583,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 27,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1618,7 +1618,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 18,
-    "level_cm": 317,
+    "level_cm": 305,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1632,7 +1632,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 29,
-    "level_cm": 4,
+    "level_cm": 33,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -1674,7 +1674,7 @@
    "tomorrow_prob": 100,
    "water": {
     "km": 48,
-    "level_cm": -76,
+    "level_cm": -109,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
