@@ -161,6 +161,25 @@
         <p id="stats-status" class="context">töltés…</p>
 
         <div class="stats-grid">
+          <section class="stats-card" id="stats-next12">
+            <h3 class="stats-heading">Következő 12 óra</h3>
+            <p class="stats-line" id="stats-next12-line" hidden></p>
+            <div id="stats-next12-chart" class="stats-next12"></div>
+            <p class="stats-note" id="stats-next12-legend" hidden>Sraffozott oszlop: havazás.</p>
+          </section>
+
+          <section class="stats-card" id="stats-forecast">
+            <h3 class="stats-heading">Előrejelzés</h3>
+            <ul class="stats-days" id="stats-forecast-days"></ul>
+          </section>
+
+          <section class="stats-card" id="stats-temp">
+            <h3 class="stats-heading">Hőmérséklet</h3>
+            <p class="stats-big" id="stats-temp-now"></p>
+            <div id="stats-temp-bars" class="stats-temp-bars"></div>
+            <p class="stats-line" id="stats-temp-frost"></p>
+          </section>
+
           <section class="stats-card" id="stats-precip">
             <h3 class="stats-heading">Csapadék</h3>
             <p class="stats-line" id="stats-precip-event"></p>
@@ -178,25 +197,6 @@
               <div id="stats-precip-tooltip" class="stats-tooltip" hidden></div>
             </div>
             <div class="stats-chart-axis" id="stats-precip-axis" aria-hidden="true"></div>
-          </section>
-
-          <section class="stats-card" id="stats-forecast">
-            <h3 class="stats-heading">Előrejelzés</h3>
-            <ul class="stats-days" id="stats-forecast-days"></ul>
-          </section>
-
-          <section class="stats-card" id="stats-temp">
-            <h3 class="stats-heading">Hőmérséklet</h3>
-            <p class="stats-big" id="stats-temp-now"></p>
-            <div id="stats-temp-bars" class="stats-temp-bars"></div>
-            <p class="stats-line" id="stats-temp-frost"></p>
-          </section>
-
-          <section class="stats-card" id="stats-next12">
-            <h3 class="stats-heading">Következő 12 óra</h3>
-            <p class="stats-line" id="stats-next12-line" hidden></p>
-            <div id="stats-next12-chart" class="stats-next12"></div>
-            <p class="stats-note" id="stats-next12-legend" hidden>Sraffozott oszlop: havazás.</p>
           </section>
         </div>
       </div>
