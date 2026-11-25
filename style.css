@@ -270,22 +270,56 @@ button[type="submit"] {
   margin-top: 1rem;
 }
 
-/* A még nem esedékes válasz a LAYOUTBAN SINCS benne, így a radar az adott
-   szakasz keresése alatt végig egy helyben marad, nem lökik lejjebb a
-   közben elkészülő szövegek. Lásd a script.js fázisait.
+/* A még nem esedékes válasz a layoutban BENNE VAN (a helye le van foglalva),
+   csak nem látszik (visibility: hidden). Így a radar layout-doboza a keresés
+   elejétől a végleges helyén áll, és a fázisváltáskor semmi nem ugrik: a
+   korábbi "lejjebb, középen" megjelenést a script.js (positionRadar) egy
+   translateY-jal adja vissza, amit a fázisváltás 0-ra animál. (A Layout
+   Instability API a layout-dobozt nézi, a transformot nem: ez az egyetlen
+   mód, hogy a CLS is ~0 legyen, ne csak a látvány.) Lásd ARCHITECTURE.md,
+   "Layout-stabilitás (CLS)".
 
    "local": még csak az "esik-e a környéken?" kérdésre keressük a választ.
    "where": az első válasz és a második kérdés már látszik, alatta folyik
-            tovább a keresés, a második válasz még rejtve.  */
+            tovább a keresés, a második válasz még rejtve.
+
+   A második blokk helyét a min-height tartja le tipikus tartalomra
+   (kérdés-sor, helynév-sor, távolság-sor, erősség-sor); egy rövidebb válasz
+   ("Sehol") csak kis üres teret hagy, egy hosszabb kicsit lejjebb tolja a
+   radart. Ha a 2. szakasz kimarad (nálad esik), a data-none a végleges
+   fázisban kiveszi a blokkot a layoutból (ez az egyetlen megmaradó ugrás). */
 #result[data-phase="local"] #q1-answer,
 #result[data-phase="local"] #q1-context,
 #result[data-phase="local"] #q2-block,
 #result[data-phase="where"] #q2-answer {
+  visibility: hidden;
+  animation: none;
+}
+
+#result[data-phase="done"] #q2-block[data-none] {
   display: none;
 }
 
-/* Mindegyik akkor animálódik be, amikor a fázisváltás láthatóvá teszi:
-   a display: none feloldása magától újraindítja az animációt. */
+#q1-question,
+#q2-question {
+  min-height: 1.3em;
+}
+
+/* Helymeghatározás közben a #result helyét már lefoglaljuk, de nem látszik. */
+#result.pending {
+  visibility: hidden;
+}
+
+/* Tipikus válasz: helynév-sor (a .place-line magassága) + két .context sor
+   (távolság, erősség) és a térközeik; Playwrighttal mérve 320/375/1280 px
+   szélességen 96/98/110 px, ez a képlet ugyanezt adja. */
+#q2-answer {
+  min-height: calc(1.15 * clamp(32px, 9vw, 44px) + 59px);
+}
+
+/* Mindegyik akkor animálódik be, amikor a fázisváltás láthatóvá teszi: a
+   visibility: hidden alatt az animáció nincs megadva (animation: none), így
+   a feloldás magától újraindítja. */
 #q1-answer,
 #q1-context,
 #q2-block,
@@ -299,33 +333,65 @@ button[type="submit"] {
 }
 
 /* A válasz-blokk a radar FÖLÖTT áll, saját háttérrel: a fázisváltáskor a
-   radar (slideRadar FLIP) a régi helyéről csúszik le az új, a szöveg alatti
-   helyére, és közben a most már látható alaptérkép (határok, városfeliratok,
-   radarkép) nem takarhatja és nem szúrhat át a megjelenő szövegen. */
+   radar (slideRadar) a feljebb tolt helyéről csúszik le a szöveg alatti
+   végleges helyére, és közben a most már látható alaptérkép (határok,
+   városfeliratok, radarkép) nem takarhatja és nem szúrhat át a megjelenő
+   szövegen. A háttér a LÁTHATÓ elemeken van, nem a teljes #result dobozon:
+   a még rejtett (de helyet foglaló) válaszok alatt/helyén a radar a
+   keresés elején látszik, ott nem takarhatja a #result háttere. */
 #result {
   position: relative;
   z-index: 1;
+}
+
+#result .top,
+#result .question,
+#result .answer,
+#result .context,
+#result .place-line {
   background: var(--bg);
 }
 
 .loading {
   text-align: center;
   color: var(--muted);
+  padding-top: var(--sp-3);
+}
+
+/* Helymeghatározás közben (még nincs radar) a szöveges töltésjelző lejjebb áll. */
+.loading.locating {
   padding-top: 8rem;
 }
 
 /* A keresés végén a radar NEM tűnik el és nem is kicsinyedik le: változatlan
    méretben csúszik a végleges helyére a válasz alá, hogy a találat (mely
-   pontok jeleztek esőt) ugyanúgy leolvasható maradjon. A szűkebb felső
-   térköz tartja bent a képernyőn.
+   pontok jeleztek esőt) ugyanúgy leolvasható maradjon. A #loading layout-
+   doboza végig a végleges helyén áll (szűk felső térköz), a "lejjebb" állást
+   a script.js (positionRadar) translateY-ja adja, nem padding.
 
-   A 2. szakaszban (a "de hol esik pontosan?" kérdés alatt keres) ugyanez a
-   szűk térköz kell: ott a kérdés közvetlenül a radar fölött áll, a nagy
-   felső térköz csak feleslegesen eltolná tőle. A #loading a #result
-   testvére, ezért a fázist innen a ~ kombinátorral olvassuk ki. */
-.loading.settled,
-#result[data-phase="where"] ~ .loading {
-  padding-top: var(--sp-3);
+   A positionRadar a régi (display: none-os, 8rem-es) elrendezést egy
+   pillanatra visszakapcsolva MEGMÉRI, hova esne a radar abban; ezt az
+   elrendezést adja vissza a html.radar-old-layout. Csak mérésre való, nem
+   jut el festésig. */
+html.radar-old-layout #result[data-phase="local"] #q1-answer,
+html.radar-old-layout #result[data-phase="local"] #q1-context,
+html.radar-old-layout #result[data-phase="local"] #q2-block,
+html.radar-old-layout #result[data-phase="where"] #q2-answer {
+  display: none;
+}
+
+html.radar-old-layout #result.pending {
+  display: none;
+}
+
+html.radar-old-layout #q1-question,
+html.radar-old-layout #q2-question,
+html.radar-old-layout #q2-answer {
+  min-height: 0;
+}
+
+html.radar-old-layout #result[data-phase="local"] ~ .loading {
+  padding-top: 8rem;
 }
 
 .loading.settled #loading-text,

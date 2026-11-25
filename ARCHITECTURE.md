@@ -167,8 +167,9 @@ vetíti őket, mint a rácspontokat.
   Sűrítés: `glyphIndexes` képernyőn ~16 px-es cellánként csak a legerősebb
   találatot rajzolja piktogramnak, a többi sima kis pötty (`radar-dot-plain`),
   különben a sűrű csoport összefüggő folt lenne; az időzítést ez nem érinti.
-  A `#result` `z-index: 1` és saját háttérrel áll a radar fölött, hogy a
-  fázisváltáskor lecsúszó (FLIP) alaptérkép ne takarja a megjelenő választ.
+  A `#result` `z-index: 1` és a látható elemein saját háttér van, a radar
+  fölött, hogy a fázisváltáskor lecsúszó alaptérkép ne takarja a megjelenő
+  választ.
 
 ### Folyók és a Balaton a radaron (`water-geo.json`)
 
@@ -197,7 +198,8 @@ határok (`loadWaterGeo`/`radarDrawWaterGeo`, lásd a közös
 
 A keresés két kérdésre válaszol, egymás után, és a radar mindkettő után
 lejjebb csúszik egy lépéssel (`#result` `data-phase` attribútuma vezérli, mi
-látszik; a FLIP-animációt a `slideRadar` intézi):
+látszik; a csúszást a `slideRadar`/`positionRadar` transform-animációja adja,
+a layout nem mozdul, ld. "Layout-stabilitás (CLS)"):
 
 1. **"Esik-e X környékén?"** Ehhez csak a saját pont előrejelzése és a legelső,
    150 km-es gyűrű kell. Válasz: `Most esik` / `Hamarosan` (nálad), `Igen`
@@ -420,12 +422,46 @@ területen kezdődött, így minden növekedés "ugrásként" mérődött (ez vo
 CLS túlnyomó része). Most a hajtás alatt kezdődik. Mockolt Playwright-méréssel
 (3 futás mediánja, 14 mp) a főoldal 375 px-en 1,46-ról 0,154-re, 1280 px-en
 0,76-ról 0,17-re, a `/eso/kecskemet/` 375 px-en 1,39-ről 0,154-re esett.
-A maradék két ugrás a "egy kérdés, egy válasz" felfedés VELEJÁRÓJA: amikor a
-válasz-szöveg (q1, majd q2) megjelenik a radar FÖLÖTT, a #loading doboza
-layoutban lejjebb kerül és a `.settled`/where állapot `padding-top`-ja is
-változik; a `slideRadar` FLIP-je ezt vizuálisan eltünteti, a metrika viszont a
-layout-dobozt nézi. Ennek megszüntetése a radar-koreográfia CSS-mechanizmusát
-(CLAUDE.md 6. szabály) érintené, ezért szándékosan marad. A vízpanel
+A maradék két ugrás (0,105 + 0,05, `loading|radar-svg`) a "egy kérdés, egy
+válasz" felfedés layout-változása volt: a válasz-szöveg (q1, majd q2) a radar
+FÖLÖTT jelent meg, és a `.loading` `padding-top`-ja is változott (8rem ->
+`--sp-3`); a `slideRadar` FLIP-je ezt vizuálisan eltüntette, a metrika viszont
+a layout-dobozt nézi. **Megoldva (2026-11-25)**: a layout a keresés elejétől
+végleges, csak transform mozog.
+
+- A még rejtett válaszok (`#q1-answer`, `#q1-context`, `#q2-block`, majd
+  `#q2-answer`) `visibility: hidden`-nel a layoutban maradnak (a `display:
+  none` helyett), a `.loading` padding-je állandó (`--sp-3`; a `.locating`
+  szöveges állapoté 8rem). A `#q2-answer` `min-height`-ja a tipikus válaszra
+  van méretezve (helynév + távolság + erősség sor, 96/98/110 px 320/375/1280
+  px-en); a rövidebb ("Sehol") legfeljebb ~25 px üres teret hagy, a hosszabb
+  kicsit lejjebb tolja a radart.
+- A régi "lejjebb, középen" megjelenést a `positionRadar` adja vissza a
+  `#loading`-on egy `translateY`-jal, amit a fázisváltás (`slideRadar`) 0-ra
+  animál (`REVEAL_SLIDE_MS`). Az eltolást nem becsüljük: a `html.radar-old-
+  layout` osztály a régi elrendezést (display: none-ok, 8rem) egy pillanatra,
+  festés nélkül visszakapcsolja, megméri a radar-svg tetejét, majd a mostanit,
+  és a különbség a `translateY`. Egy `ResizeObserver` a `#result`-on újramér,
+  ha a lefoglalt blokkok magassága változik (keresés közben, nem animálva).
+- A `#result` háttere már nem a teljes dobozon van, hanem a látható elemeken
+  (`.top`, `.question`, `.answer`, `.context`, `.place-line`): a lefoglalt, de
+  rejtett válaszhelyen a radar látszik (local/where), a megjelenő szöveg
+  viszont továbbra is a lecsúszó radar FÖLÖTT van (a `z-index: 1` marad).
+- Helymeghatározás alatt (`showLoading`, a `/ho/` és az első látogatás útja)
+  a `#result` is helyet foglal (`.pending`, láthatatlan), különben a keresés
+  indulásakor a megjelenő fejléc/válaszhely lejjebb lökte a #loading-ot
+  (/ho/ 1280 px: 0,57). A szöveg látható helyét ugyanaz a `positionRadar` őrzi.
+- Ha a 2. szakasz kimarad (nálad esik: `hideQ2`), a `#q2-block` `data-none`
+  jelzővel csak a végleges fázisban esik ki a layoutból; a q1-context
+  (2 sor) a `setHero`-nál foglal helyet. Ez a két megmaradó ugrás ("Most
+  esik" állapot): 0,047 (390 px), 0,028 (1280 px).
+
+Mockolt Playwright-mérés (3 futás mediánja, 14 mp): főoldal 375 px 0,154 -> 0;
+1280 px 0,172 -> 0; `/eso/kecskemet/` 375 px 0,154 -> 0; `/ho/` 375 px 0,31 ->
+0,015, 1280 px 0,57 -> 0,02. Forgatókönyvek 390 px-en (nincs találat / eső /
+hó / ónos eső): 0,14-0,16 -> 0,0004 (csak egy `stats-grid` apróság); "Most
+esik": 0,091 -> 0,047. A képkocka-sorozat (250 ms-onként, 0-14 mp) a régivel
+azonos. A vízpanel
 (`.water-skeleton`) és a statisztika-panel helyfoglalása egyenletes
 görgetésnél mérten ~0 ugrást ad (a panelek a hajtás alatt töltenek).
 

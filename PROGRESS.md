@@ -30,8 +30,8 @@ törölve).
   100svh }` a hajtás alá tolja. A korábbi 0,297-es Lighthouse-érték ugyanez a
   családja. **Marad** (~0,10 + ~0,05): a radar fölé beúszó válasz-szöveg
   layout-ugrása, ami a felfedés koreográfiájának része, lásd ARCHITECTURE.md
-  "Layout-stabilitás (CLS)". A 0,1 alatti célhoz a `.loading`/`.settled`
-  transform-alapúra cserélése kellene (nem tettük).
+  "Layout-stabilitás (CLS)". **Megoldva 2026-11-25**: lásd a fájl végén, "CLS
+  0 a keresés-felfedésnél".
 
 ## Vízadat-panel: csak magyar helynél, saját hely legfelül (2026-11-21)
 
@@ -179,8 +179,8 @@ Ami ebben a körben ELKÉSZÜLT:
 
 **Ami még MINDIG nyitva maradt** a 2. kör után:
 
-- **CLS** a radar-reveal choreográfiánál: 0,297 -> mockolva 0,154 a 4. fázis
-  után (ld. a fájl tetején), a maradék a koreográfia velejárója.
+- ~~**CLS** a radar-reveal choreográfiánál~~ - **KÉSZ** 2026-11-25: 0,154 ->
+  0 (mockolva), ld. a fájl végén.
 - **D01 teljes köre**: minden EGYES értékhez külön forrás+idő+típus címke
   (az audit eredeti, teljes kérése) - csak a legfontosabb pontatlanságok
   (talaj: "mért" -> "modell-becslés") és egy aggregált időbélyeg készült el,
@@ -364,3 +364,33 @@ kell végigolvasni és mérni. A keresési rács konkrét számai, a radar-logik
 és a push cooldown ne kerüljön be szó szerint, mert az ARCHITECTURE.md-ben
 és a kódban megvan - elég rájuk hivatkozni.
 ```
+
+## CLS 0 a keresés-felfedésnél (2026-11-25)
+
+**KÉSZ, nincs commitolva.** A maradék két layout-ugrás (`loading|radar-svg`,
+~0,105 a local->where, ~0,05 a where->done váltásnál) megszűnt: a layout a
+keresés elejétől végleges, csak transform mozog (ARCHITECTURE.md "Layout-
+stabilitás (CLS)").
+
+- **Mit változtattunk**: rejtett válaszok `visibility: hidden` (`display: none`
+  helyett), állandó `.loading` padding, `#q2-answer` min-height a tipikus
+  válaszra, a régi megjelenést `positionRadar` (translateY a `#loading`-on,
+  a régi elrendezés pillanatnyi visszakapcsolásával mérve) adja vissza,
+  a `#result` háttere a látható elemeken, helymeghatározás alatt a `#result`
+  helye is lefoglalt (`.pending`), a `data-none` a q2 nélküli ("Most esik")
+  esethez. `?v=`: style.css 68, script.js 92.
+- **Mért (mockolt, 3 futás mediánja, 14 mp)**: főoldal 375 px 0,154 -> 0;
+  1280 px 0,172 -> 0; `/eso/kecskemet/` 375 px 0,154 -> 0; `/ho/` 375 px 0,31 ->
+  0,015; 1280 px 0,57 -> 0,02. 390 px-en eső/hó/ónos eső/nincs találat: 0,14-0,16
+  -> 0,0004; "Most esik" 0,091 -> 0,047 (1280 px: 0,028).
+- **Megmaradó, ismert**: a vízpanelhez görgetéskor ~0,0129 (a panel kitöltése,
+  nem a keresésé); "Most esik" állapotban a q1-context (2 sor) és a q2-block
+  kiesése; a `/ho/` helymeghatározás->keresés váltásánál a töltésjelző
+  szövege (~0,015-0,02). Hosszabb-rövidebb válasz a foglalásnál (pl. "Most
+  nem esik" 2 soros 375 px-en) kis ugrást ad.
+- **INP (longtask, mockolt, 375 px)**: a keresés alatt nincs 50 ms feletti
+  feladat; az egyetlen jelentős a vízpanelhez görgetéskor jön (water.js
+  build) 309 ms (4x CPU-lassítással 1151 ms): kényszerített layout
+  (`getBoundingClientRect`) a `renderSoilCoreProfile`-ban (~130 ms) és a
+  `apply`-ban (water.js ~1034. sor, ~114 ms), plusz `nearestRealAt` ~108 ms.
+  Nincs egyetlen >200 ms-os forró pont, ezért nem nyúltunk hozzá.

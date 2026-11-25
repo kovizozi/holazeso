@@ -1687,7 +1687,7 @@ function setHero(answer, context) {
 }
 
 function showQ2(question) {
-  document.getElementById("q2-block").hidden = false;
+  delete document.getElementById("q2-block").dataset.none;
   document.getElementById("q2-question").textContent = question;
 }
 
@@ -1695,8 +1695,10 @@ function setQ2Answer(html) {
   document.getElementById("q2-answer").innerHTML = html;
 }
 
+// A blokk helyét a CSS a végleges fázisig fenntartja (data-none), hogy a radar
+// layout-doboza ne ugorjon; lásd style.css és positionRadar.
 function hideQ2() {
-  document.getElementById("q2-block").hidden = true;
+  document.getElementById("q2-block").dataset.none = "1";
   document.getElementById("q2-answer").innerHTML = "";
 }
 
@@ -2137,13 +2139,13 @@ function resetStatsPanel() {
 function beginSearchUI() {
   cancelReveal();
   const loading = document.getElementById("loading");
-  const svg = document.getElementById("radar-svg");
   document.getElementById("result").dataset.phase = PHASE_LOCAL;
   document.getElementById("loading-text").textContent = "töltés…";
   loading.classList.remove("settled", "locating");
   loading.hidden = false;
-  svg.style.transition = "";
-  svg.style.transform = "";
+  loading.style.transition = "none";
+  loading.style.transform = "";
+  positionRadar(false);
   resetStatsPanel();
   resetWaterPanel();
   radarReset();
@@ -2214,45 +2216,68 @@ function scheduleReveal() {
   revealPhase(PHASE_DONE, REVEAL_DELAY_MS);
 }
 
-// A fázisváltáskor megjelenő szöveg egy ugrással lökné lejjebb a radart.
-// Ezért FLIP-technikát használunk: megmérjük a radar helyét a változtatás
-// ELŐTT és UTÁN, a különbséggel visszatoljuk oda, ahol volt, majd onnan
-// animáljuk az új helyére. Így ugrás helyett szépen lecsúszik, miközben a
-// szöveg beúszik fölötte.
+// A radar layout-doboza (#loading) a keresés elejétől a VÉGLEGES helyén áll:
+// a válasz-blokkok helyét a CSS lefoglalja (visibility: hidden), a padding
+// sem változik. A korábbi "lejjebb, középen" megjelenést (local: a kérdés
+// alatt 8rem, where: a második kérdés alatt) egy translateY adja vissza a
+// #loading-on, amit a fázisváltás 0-ra animál. Korábban a layout maga ugrott
+// (válasz-szöveg a radar fölött, padding-top 8rem -> --sp-3), és a slideRadar
+// FLIP-je csak a festést simította el; a Layout Instability API viszont a
+// layout-dobozt nézi (a transformot nem), ezért a CLS ~0,15 maradt. Most a
+// layout nem mozdul, csak a transform: a metrika is, a szem is nyugodt.
 //
-// UX-audit teljesítmény-validáció (PROGRESS.md, Later roadmap): élő
-// Lighthouse-méréssel mérve a CLS (Cumulative Layout Shift) 0,297 - messze a
-// 0,1-es célérték fölött -, a #loading-nak tulajdonítva. Kipróbáltuk: a FLIP
-// célpontját a svg helyett a teljes #loading dobozra váltva a Layout
-// Instability API MÉGIS ugyanúgy jelezte a shiftet (PerformanceObserver-rel
-// közvetlenül megmérve) - kiderült, hogy ez a böngésző metrikájának valódi
-// korlátja, nem egy itteni hiba: a Layout Instability API a LAYOUT-dobozt
-// (padding-top: 8rem -> var(--sp-3) a .settled osztálynál) nézi, a
-// transformot (ami csak a FESTÉST mozgatja) figyelmen kívül hagyja - FLIP
-// a VIZUÁLIS ugrást szünteti meg emberi szemnek, a CLS-metrikát nem téveszti
-// meg. Egy valódi javítás a padding-alapú elrendezést teljesen transform-
-// alapúra cserélné (fix magasságú doboz, a tartalom csak transform:
-// translateY-nal mozogna benne) - ez a keresés-koreográfia (CLAUDE.md 6.
-// szabály) CSS-mechanizmusát érintő, nagyobb átalakítás lenne, amit
-// szándékosan NEM végeztünk el itt, nehogy a védett, adatvezérelt
-// viselkedésbe hibát vigyen be egy becsült, de nem tesztelt CSS-refaktor.
-// Ezért a célpont visszakerült a svg-re (az eredeti, bevált viselkedés).
+// A kívánt eltolást nem becsüljük: a html.radar-old-layout osztállyal egy
+// pillanatra (festés nélkül, ugyanabban a feladatban) visszakapcsoljuk a
+// régi elrendezést, megmérjük a radar helyét, majd a mostanit, és a kettő
+// különbsége a translateY. Így a régi megjelenés pixelre ugyanaz marad,
+// bármilyen hosszú a szöveg.
+let radarPositionPhase = null;
+
+function radarLayoutTop(loading) {
+  const ty = new DOMMatrix(getComputedStyle(loading).transform).m42;
+  // A radar-svg tetejét mérjük (nem a #loading-ét): a régi és az új
+  // elrendezés a padding-top-ban is eltér. Helymeghatározás közben még nincs
+  // radar (display: none), ott a töltésjelző szöveg a mérőpont.
+  const el = document.getElementById(loading.classList.contains("locating") ? "loading-text" : "radar-svg");
+  return el.getBoundingClientRect().top - ty;
+}
+
+function radarOffsetPx() {
+  const loading = document.getElementById("loading");
+  const phase = document.getElementById("result").dataset.phase;
+  const locating = loading.classList.contains("locating");
+  if (!locating && (phase === PHASE_DONE || loading.classList.contains("settled"))) return 0;
+  const now = radarLayoutTop(loading);
+  document.documentElement.classList.add("radar-old-layout");
+  const old = radarLayoutTop(loading);
+  document.documentElement.classList.remove("radar-old-layout");
+  return old - now;
+}
+
+// animate = true: a REVEAL_SLIDE_MS-es csúszás az új eltolásra (a CSS
+// transition az éppen látható állásból indul, megszakított animációnál is).
+function positionRadar(animate) {
+  const loading = document.getElementById("loading");
+  if (loading.hidden) return;
+  const ty = radarOffsetPx();
+  loading.style.transition = animate ? `transform ${REVEAL_SLIDE_MS}ms ease` : "none";
+  loading.style.transform = ty ? `translateY(${ty}px)` : "";
+}
+
+// A fázisváltás utáni csúszás. A layout-változást (a data-phase átállítását)
+// a hívó adja; a radar innen már csak a transformjával mozdul.
 function slideRadar(applyLayoutChange) {
-  const svg = document.getElementById("radar-svg");
-  const first = svg.getBoundingClientRect();
-
   applyLayoutChange();
+  positionRadar(true);
+}
 
-  const last = svg.getBoundingClientRect();
-  const scale = last.width ? first.width / last.width : 1;
-
-  svg.style.transition = "none";
-  svg.style.transformOrigin = "top left";
-  svg.style.transform =
-    `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${scale})`;
-  svg.getBoundingClientRect(); // kényszerített újraszámolás, hogy legyen mihez animálni
-  svg.style.transition = `transform ${REVEAL_SLIDE_MS}ms ease`;
-  svg.style.transform = "translate(0, 0) scale(1)";
+// Ha a lefoglalt blokkok magassága a keresés közben változik (a tartalom
+// hosszabb a foglalásnál, forgatás, átméretezés), a radar vizuális helye ne
+// csússzon el: újramérjük, animáció nélkül. A végső fázisban nincs eltolás.
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(() => {
+    if (document.getElementById("result").dataset.phase !== PHASE_DONE) positionRadar(false);
+  }).observe(document.getElementById("result"));
 }
 
 // Csak a helymeghatározás fázisához kell: radar nélküli, egyszerű szöveges
@@ -2268,6 +2293,16 @@ function showLoading(on, text = "töltés…") {
   loading.classList.add("locating");
   document.getElementById("loading-text").textContent = text;
   loading.hidden = false;
+  // A #result helye a helymeghatározás alatt is le van foglalva (láthatatlanul),
+  // különben a keresés indulásakor a megjelenő fejléc/kérdés/válasz-hely
+  // lejjebb lökné a #loading-ot (CLS). A szöveg látható helyét a positionRadar
+  // translateY-ja őrzi.
+  const result = document.getElementById("result");
+  if (result.hidden) {
+    result.hidden = false;
+    result.classList.add("pending");
+  }
+  positionRadar(false);
 }
 
 // Helyszín-módosításkor a lemaradt (settled) radart is el kell tüntetni,
@@ -2306,7 +2341,9 @@ function clearLocationError() {
 
 function showResult() {
   document.getElementById("location-picker").hidden = true;
-  document.getElementById("result").hidden = false;
+  const result = document.getElementById("result");
+  result.hidden = false;
+  result.classList.remove("pending");
 }
 
 function renderRecentLocations() {
@@ -2337,6 +2374,7 @@ function renderRecentLocations() {
 }
 
 function showPicker() {
+  document.getElementById("result").classList.remove("pending");
   document.getElementById("result").hidden = true;
   document.getElementById("location-picker").hidden = false;
   hideLoadingImmediately();
