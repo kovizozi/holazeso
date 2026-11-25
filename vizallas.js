@@ -220,7 +220,7 @@
       if (it.t.length > maxChars) it.t = it.t.slice(0, maxChars - 1) + "\u2026";
       const w = (it.sw === undefined ? 24 : it.sw) + 6 + textW(it.t) + 16;
       if (x + w > maxW && rows[rows.length - 1].length) { rows.push([]); x = 0; }
-      rows[rows.length - 1].push(Object.assign({ x }, it));
+      rows[rows.length - 1].push(Object.assign({ x, w }, it));
       x += w;
     }
     return rows;
@@ -244,9 +244,11 @@
     const W = o.W, H = o.H, P = o.pal;
     const narrow = W < 520;
     const L = narrow ? 50 : 62, R = narrow ? 12 : 18;
-    const T = o.exp ? 78 : 14;
+    // A jelmagyarázat jobbra igazítva a rajzfelület tetején áll (a cím/szűrők alatt, exportban a címblokk alatt).
     const rows = legendLayout(spec.legend, W - L - R);
-    const legH = 60 + (rows.length - 1) * 18 + 6;   // az x tengely felirata alatti rész, a jelmagyarázattal
+    const legTop = o.exp ? 64 : 4;
+    const T = legTop + rows.length * 18 + 12;
+    const legH = 44;   // az x tengely számai és felirata alatti rész
     const foot = o.exp ? 26 : 0;
     const x0 = L, x1 = W - R;
     const y1 = H - foot - legH;
@@ -284,15 +286,17 @@
       }
     }
     out.push(`<text x="${((x0 + x1) / 2).toFixed(1)}" y="${y1 + 38}" text-anchor="middle" font-size="12" fill="${P.muted}">${spec.xTitle}</text>`);
-    return { out, geo: { x0, x1, y0, y1, yFor, xFor, W, H, L, R, narrow, legRows: rows, legY: y1 + 50, foot, ticks: yTicks }, P };
+    return { out, geo: { x0, x1, y0, y1, yFor, xFor, W, H, L, R, narrow, legRows: rows, legY: legTop, foot, ticks: yTicks }, P };
   }
 
   function drawLegend(fr, o, items) {
     const out = [];
     fr.geo.legRows.forEach((row, ri) => {
-      const y = fr.geo.legY + ri * 18 + 10;
+      const y = fr.geo.legY + ri * 18 + 12;
+      const last = row[row.length - 1];
+      const start = fr.geo.x1 - (last.x + last.w - 16);   // jobbra igazítva a rajzfelület szélére
       for (const it of row) {
-        const x = fr.geo.L + it.x;
+        const x = start + it.x;
         out.push(legendSwatch(it, x, y, fr.P, o.uid));
         out.push(`<text x="${x + (it.sw === undefined ? 24 : it.sw) + 6}" y="${y}" font-size="12" fill="${fr.P.fg}">${esc(it.t)}</text>`);
       }
@@ -301,7 +305,8 @@
   }
 
   // Címkék ütközés-kerüléssel: items: [{x, y, lines, side: "above"|"below", align?}], a terület a rajzfelület.
-  function placeLabels(items, area, taken) {
+  // short: keskeny rajzfelület, a címke vízszintes igazítása is változhat (közép, balra, jobbra a ponttól)
+  function placeLabels(items, area, taken, short) {
     const out = [];
     const boxes = taken.slice();
     const hit = (b) => boxes.some(q => b.x < q.x + q.w && b.x + b.w > q.x && b.y < q.y + q.h && b.y + b.h > q.y);
@@ -310,23 +315,50 @@
       const h = it.lines.length * 14 + 2;
       let best = null;
       const sides = it.side === "below" ? ["below", "above"] : ["above", "below"];
+      const aligns = short && it.fixedX === undefined ? [0, 1, -1] : [0];
       for (const side of sides) {
         for (let k = 0; k < 6 && !best; k++) {
-          const dy = (side === "above" ? -1 : 1) * (it.gap + k * 15);
-          let bx = it.fixedX !== undefined ? it.fixedX - w : it.x - w / 2;
-          bx = clamp(bx, area.x0 + 2, area.x1 - w - 2);
-          let by = side === "above" ? it.y + dy - h : it.y + dy;
-          if (by < area.y0 - 2 || by + h > area.y1 + 2) continue;
-          const b = { x: bx, y: by, w, h };
-          if (!hit(b)) best = b;
+          for (const al of aligns) {
+            if (best) break;
+            const dy = (side === "above" ? -1 : 1) * (it.gap + k * 15);
+            let bx = it.fixedX !== undefined ? it.fixedX - w : al === 0 ? it.x - w / 2 : al === 1 ? it.x - 4 : it.x - w + 4;
+            bx = clamp(bx, area.x0 + 2, area.x1 - w - 2);
+            let by = side === "above" ? it.y + dy - h : it.y + dy;
+            if (by < area.y0 - 2 || by + h > area.y1 + 2) continue;
+            const b = { x: bx, y: by, w, h };
+            if (!hit(b)) best = b;
+          }
         }
         if (best) break;
       }
       if (!best) continue;
       boxes.push(best);
-      out.push({ box: best, lines: it.lines, bold: it.bold });
+      out.push({ box: best, lines: it.lines, bold: it.bold, item: it });
     }
     return out;
+  }
+
+  // A vonal mentén mintavételezett kis dobozok: a címkék ne kerüljenek a vonalra (keskeny nézetben).
+  function lineBoxes(pts) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      out.push({ x: pts[i][0] - 4, y: pts[i][1] - 4, w: 8, h: 8 });
+      if (i === 0) continue;
+      const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1];
+      const n = Math.min(Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 5), 400);
+      for (let k = 1; k < n; k++) out.push({ x: pts[i - 1][0] + dx * k / n - 3, y: pts[i - 1][1] + dy * k / n - 3, w: 6, h: 6 });
+    }
+    return out;
+  }
+
+  // Keskeny nézetben előbb a vonalat kerülve helyez; ami így nem fér el, az a vonal-akadályok nélkül kap helyet.
+  function placeAll(items, area, taken, extra, short) {
+    if (!short) return placeLabels(items, area, taken, false);
+    const first = placeLabels(items, area, taken.concat(extra), true);
+    const done = new Set(first.map(p => p.item));
+    const rest = items.filter(it => !done.has(it));
+    if (!rest.length) return first;
+    return first.concat(placeLabels(rest, area, taken.concat(first.map(p => p.box)), true));
   }
 
   function labelSvg(placed, P) {
@@ -365,8 +397,9 @@
 
   function drawTime(m, o) {
     const P = o.pal, data = m.data, pts = m.pts;
-    const legend = [{ k: "line", t: "Mért vízállás" }];
-    if (m.hasFc) legend.push({ k: "dash", t: "Előrejelzés (reggel 7 órára)" });
+    const short = o.W < 600 && !o.exp;
+    const legend = [{ k: "line", t: short ? "Mért" : "Mért vízállás" }];
+    if (m.hasFc) legend.push({ k: "dash", t: short ? "Előrejelzés" : "Előrejelzés (reggel 7 órára)" });
     legend.push({ k: "dot", t: "Szélsőérték", sw: 20 });
     const lines = m.lines;
     if (lines.length) {
@@ -377,6 +410,9 @@
       if (lim) txt += (txt ? "; " : "") + lim.label;
       const out = lines.filter(l => !l.drawn).length;
       if (out) txt += " (" + (out === lines.length ? "messze a nézet felett" : "részben a nézeten kívül") + ")";
+      if (short) {
+        txt = al.length ? al[0].label + ": " + al[0].v + " cm" : lim ? lim.label : "";
+      }
       legend.push({ k: "ref", t: txt });
     }
     let vlo = Infinity, vhi = -Infinity;
@@ -387,7 +423,8 @@
     let yLo = vlo, yHi = vhi;
     for (const l of lines) if (l.drawn) yHi = Math.max(yHi, l.v);
     const pad = Math.max((yHi - yLo) * 0.06, 3);
-    yLo -= pad; yHi += pad;
+    yLo -= pad + (short ? (yHi - yLo) * 0.2 : 0);   // keskeny nézetben hely a legalacsonyabb pont alatti címkének
+    yHi += pad;
     const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
     const fr = frame(o, {
       legend, yLo, yHi, xTitle: "Dátum (budapesti idő)",
@@ -442,7 +479,7 @@
       items.push({ x: X(e[0]), y: Y(e[0]), side: e[2], gap: 8, lines: [e[1] + ": " + cmTxt(p.v), when], bold: true });
     }
     const taken = [{ x: X(ni) - 9, y: Y(ni) - 9, w: 18, h: 18 }];
-    out.push(labelSvg(placeLabels(items, g, taken), P));
+    out.push(labelSvg(placeAll(items, g, taken, short ? lineBoxes(pts.map((p, i) => [X(i), Y(i)])) : [], short), P));
     out.push(drawLegend(fr, o));
     const hov = hoverGroup(P, 1);
     out.push(hov);
@@ -469,11 +506,12 @@
   function drawYears(m, o) {
     const P = o.pal, data = m.data, bk = m.buckets;
     const hasAlt = bk.some(b => b.alt), hasPartial = bk.some(b => b.partial);
-    const legend = [{ k: "band", t: "Legalacsonyabb-legmagasabb napi érték" }, { k: "line", t: "Átlag" }];
-    if (hasAlt) legend.push({ k: "hatch", t: data.water === "Fertő" ? "Osztrák (burgenlandi) adat" : "A Balaton átlagos vízállása" });
+    const short = o.W < 600 && !o.exp;
+    const legend = [{ k: "band", t: short ? "Min-max sáv" : "Legalacsonyabb-legmagasabb napi érték" }, { k: "line", t: "Átlag" }];
+    if (hasAlt) legend.push({ k: "hatch", t: short ? (data.water === "Fertő" ? "Osztrák adat" : "Balaton-átlag") : data.water === "Fertő" ? "Osztrák (burgenlandi) adat" : "A Balaton átlagos vízállása" });
     if (hasPartial) legend.push({ k: "dash", t: "Nem teljes év" });
     legend.push({ k: "dot", t: "Szélsőérték", sw: 20 });
-    if (data.now) legend.push({ k: "ref", t: "Mai vízállás" });
+    if (data.now) legend.push({ k: "ref", t: short ? "Ma" : "Mai vízállás" });
     const ever = data.ever;
     let vlo = Math.min.apply(null, bk.map(b => b.min)), vhi = Math.max.apply(null, bk.map(b => b.max));
     if (ever) { vlo = Math.min(vlo, ever.min[0]); vhi = Math.max(vhi, ever.max[0]); }
@@ -571,7 +609,9 @@
       if (ever && everDone[kind] && ever[kind][0] === v) continue;
       mark(b, v, kind, kind === "max" ? "a nézet legmagasabbja" : "a nézet legalacsonyabbja", isoLabel(kind === "max" ? b.maxD : b.minD));
     }
-    out.push(labelSvg(placeLabels(items, g, taken), P));
+    const extra = short ? lineBoxes(bk.map(b => [cx(b), g.yFor(b.mean)])) : [];
+    if (short && data.now) extra.push({ x: g.x0, y: g.yFor(data.now.cm) - 3, w: g.x1 - g.x0, h: 6 });
+    out.push(labelSvg(placeAll(items, g, taken, extra, short), P));
     out.push(drawLegend(fr, o));
     out.push(hoverGroup(P, 3));
     g.pts = bk.map(b => ({ x: cx(b), ys: [g.yFor(b.max), g.yFor(b.mean), g.yFor(b.min)] }));
@@ -938,6 +978,7 @@
   // mount(container, data, { chart: "friss", filter: "8"|"30"|"365", live: <rivers-snapshot>, embed: false })
   //   container: elem; ha nincs benne .vz-fig, a rajzoló létrehozza (cím, szűrősor, keret), ha van, újra felhasználja
   //   (így a hívó előre foglalhatja a keretet). data: egy data/vizallas/<slug>.json tartalma.
+  //   compact: alacsonyabb keret (a főoldali panel); a helyet a CSS aspect-ratio-ja foglalja
   //   live: a worker /rivers-snapshot objektuma (generated_at, stations): a mai szint, a történet és az előrejelzés
   //   ebből frissül; ha nincs megadva, a holazeso.hu-n a rajzoló maga kéri le (egyszer oldalanként).
   // Visszaad: { destroy(), filter() }. Ugyanarra a konténerre újrahívva az előző grafikon lebomlik.
@@ -952,6 +993,7 @@
       container.appendChild(fig);
     }
     fig.dataset.vzChart = chart;
+    fig.classList.toggle("vz-fig-compact", !!opts.compact);
     const title = fig.querySelector(".vz-title");
     if (title) title.textContent = titleOf(data, chart);
     if (opts.live) applyLive(data, opts.live);

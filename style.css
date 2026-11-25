@@ -2810,6 +2810,17 @@ circle.water-channel-hit {
   }
 }
 
+/* A főoldali vízpanel alacsonyabb grafikonja (mount opció: compact) */
+.vz-fig-compact .vz-frame {
+  aspect-ratio: 5 / 2;
+}
+
+@media (max-width: 600px) {
+  .vz-fig-compact .vz-frame {
+    aspect-ratio: 13 / 10;
+  }
+}
+
 .vz-svgbox {
   position: absolute;
   inset: 0;

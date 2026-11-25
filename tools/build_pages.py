@@ -721,7 +721,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
 # összefoglaló marad (keresők, JS nélkül), a grafikon helye aspect-ratio-val előre foglalt.
 HISTORY_FILE = ROOT / "water-history.json"
 ALERTS_FILE = ROOT / "water-alerts.json"
-VIZALLAS_JS = "/vizallas.js?v=4"
+VIZALLAS_JS = "/vizallas.js?v=8"
 DATA_DIR = "data/vizallas"
 # oldal-állomás neve -> archívum-kód (éves sor és napi sor)
 HIST_CODE = {"Siófok": "si", "Agárd": "ag", "Budapest": "bp", "Mohács": "mo", "Szolnok": "so",

@@ -854,7 +854,7 @@ const WATER_RIVER_NET_SVG = `
 // .vz-frame aspect-ratio-ja), így nincs elmozdulás a betöltéskor.
 // A VIZALLAS_JS_URL ?v=-jét a tools/build_pages.py VIZALLAS_JS konstansával
 // együtt kell emelni.
-const VIZALLAS_JS_URL = "/vizallas.js?v=4";
+const VIZALLAS_JS_URL = "/vizallas.js?v=8";
 const RIVER_DEFAULT_STATION = "Budapest";
 const RIVER_NEAREST_MAX_KM = 60; // ugyanaz, mint a tools/build_pages.py WATER_MAX_KM
 let riverPicker = { items: [], current: -1, mount: null, token: 0, live: null, host: null };
@@ -926,7 +926,7 @@ function riverPickLabel(st, delta) {
 
 // A főoldali "friss" grafikon helye: ugyanaz a váz, mint a vizallas.js-é, előre foglalt kerettel.
 function riverChartSkeleton(st) {
-  return `<figure class="vz-fig" data-vz-chart="friss"><div class="vz-bar"><h4 class="vz-title">${st.river}, ${st.name}: vízállás</h4></div>` +
+  return `<figure class="vz-fig vz-fig-compact" data-vz-chart="friss"><div class="vz-bar"><h4 class="vz-title">${st.river}, ${st.name}: vízállás</h4></div>` +
     `<div class="vz-ctl"></div><div class="vz-frame"><p class="vz-fallback" role="status">grafikon betöltése&hellip;</p></div></figure>`;
 }
 
@@ -960,7 +960,7 @@ function selectRiverStation(idx, opts) {
   Promise.all([loadVizallasJs(), loadRiverStationData(slug)]).then(([api, data]) => {
     if (token !== P.token || !chartBox.isConnected) return;
     if (P.mount) P.mount.destroy();
-    P.mount = api.mount(chartBox, data, { chart: "friss", filter: previousFilter, live: P.live });
+    P.mount = api.mount(chartBox, data, { chart: "friss", filter: previousFilter, live: P.live, compact: true });
   }).catch(err => {
     console.error(err);
     if (token !== P.token || !chartBox.isConnected) return;
