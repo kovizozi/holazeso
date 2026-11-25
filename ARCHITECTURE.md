@@ -446,7 +446,8 @@ var(--surface)`, nincs keret, `border-radius: var(--radius-card)`, padding
 (= `--accent`) keret, lekerekítve, `overflow: hidden`, cellák `--sp-2/--sp-3`,
 sorok közt `1px --border`. Gombok, mezők, tooltip, nagyítógombok: 8px. A
 `--accent` kis szöveg színe nem lehet (fehéren 3,9:1): csak nagy félkövér
-(CTA, FAQ-kérdések) vagy aláhúzás/keret. Alcím: `.water-subhead`,
+(CTA, FAQ-kérdések) vagy aláhúzás/keret, vagy az `--accent-ink` (a Cigánd-
+idővonal dobozaiban: kék keret és kék szöveg, a vonal `--accent`). Alcím: `.water-subhead`,
 `.cigand-subhead` (22px, 600, `--fg`, `--sp-5` felső hely).
 
 ### Layout-stabilitás (CLS)

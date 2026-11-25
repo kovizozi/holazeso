@@ -10,6 +10,10 @@
   --radius-card: 12px;
   --surface: #f3f3f3;
   --frame: var(--accent);
+  /* Kis SZÖVEG akcentszíne: az --accent fehéren csak 3,94:1, ez a 80%-a +
+     20% fekete (#0263cc), fehéren 5,7:1, --surface-en 5,2:1. Sötét módban maga
+     az --accent elég (7,5:1). */
+  --accent-ink: color-mix(in srgb, var(--accent) 80%, black);
   /* A válasz-átmenet egyetlen összehangolt mozdulat: a nagy kérdés kicsinyedése,
      a válasz növekedése és a radar csúszása ~700-800 ms, a válasz alatti sorok
      (--t-sub-delay késéssel) 900 ms alatt érnek be. Csak transform/opacity. */
@@ -46,6 +50,7 @@
     --fg: #f2f2f2;
     --muted: #9a9a9a;
     --accent: #6ea3ff;
+    --accent-ink: var(--accent);
     --border: #333333;
     --surface: #1c1c1c;
     --error: #ff6b60;
@@ -2487,7 +2492,7 @@ circle.water-channel-hit {
   max-width: 46em;
   margin: 0 auto;
   padding: 0 0 0 var(--sp-3);
-  border-left: 1px solid var(--fg);
+  border-left: 1.5px solid var(--accent);
   position: relative;
   left: var(--sp-1);
   width: calc(100% - var(--sp-1));
@@ -2497,6 +2502,10 @@ circle.water-channel-hit {
 .cigand-timeline li {
   position: relative;
   margin: 0 0 var(--sp-3);
+  padding: var(--sp-2);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-card);
+  color: var(--accent-ink);
 }
 
 .cigand-timeline li::before {
@@ -2506,7 +2515,7 @@ circle.water-channel-hit {
   top: 6px;
   width: 7px;
   height: 7px;
-  background: var(--fg);
+  background: var(--accent);
   border-radius: 50%;
 }
 
@@ -2532,7 +2541,7 @@ circle.water-channel-hit {
     grid-row: 2;
     grid-column: 1 / -1;
     align-self: center;
-    border-top: 1.5px solid var(--fg);
+    border-top: 1.5px solid var(--accent);
   }
 
   .cigand-timeline li {
@@ -2565,6 +2574,10 @@ circle.water-channel-hit {
   .cigand-timeline li:nth-child(even)::before {
     top: -17px;
   }
+}
+
+.cigand-timeline a {
+  color: inherit;
 }
 
 .cigand-tl-date {
