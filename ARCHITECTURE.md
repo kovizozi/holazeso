@@ -486,6 +486,17 @@ Egy megmaradó kivétel: ha nálad esik, a 2. blokk kiesik, és a radar nő. A
 változása a ResizeObserveren át `positionRadar(false)`-t hívott és
 megszakította az animációt; most a magasság nem változik, a csúszás animált.
 
+**Válasz-átmenet (2026-11-25, 2. kör)**: a nagy kérdés (`.q-big`) kicsinyedése
+és eltűnése, a kis címke (`#q1-question`) beúszása, a válasz növekedése
+(`answer-grow`), és a radar csúszása (`REVEAL_SLIDE_MS`) egy mozdulat: közös
+`--ease-out` (cubic-bezier(.22,.61,.36,1)), ~700-800 ms (`--t-answer`,
+`REVEAL_SLIDE_MS`). A válasz alatti sorok (`#q1-context`, `#q2-block`,
+`#q2-answer`) lassabban érnek be: `--t-sub-delay` 100 ms késéssel 800 ms
+(összesen 900 ms), 21 px-ről csúsznak a helyükre. Képkockánkénti mérés: a
+`#result` magassága és a válasz/radar `offsetTop`-ja végig állandó (csak
+transform és opacity mozog). `prefers-reduced-motion`: a meglévő `* {
+animation: none; transition: none }` miatt azonnali.
+
 **Első hajtás (`.fold`, 2026-11-25)**: a `#result` és a `#loading` egy
 `.fold` flex-oszlopban van (`height: calc(100svh - var(--sp-3))`, `min-height:
 520px`), a `#result` természetes magasságú, a `#radar-svg` a maradékot kapja

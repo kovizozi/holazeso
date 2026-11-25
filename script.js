@@ -2119,7 +2119,7 @@ const PHASE_LOCAL = "local";
 const PHASE_WHERE = "where";
 const PHASE_DONE = "done";
 const REVEAL_DELAY_MS = 1200;
-const REVEAL_SLIDE_MS = 600;
+const REVEAL_SLIDE_MS = 800;
 let revealTimer = null;
 let revealResolve = null;
 
@@ -2270,7 +2270,7 @@ function positionRadar(animate) {
   const loading = document.getElementById("loading");
   if (loading.hidden) return;
   const ty = radarOffsetPx();
-  loading.style.transition = animate ? `transform ${REVEAL_SLIDE_MS}ms ease` : "none";
+  loading.style.transition = animate ? `transform ${REVEAL_SLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)` : "none";
   loading.style.transform = ty ? `translateY(${ty}px)` : "";
 }
 

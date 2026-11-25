@@ -10,6 +10,13 @@
   --radius-card: 12px;
   --surface: #f3f3f3;
   --frame: var(--accent);
+  /* A válasz-átmenet egyetlen összehangolt mozdulat: a nagy kérdés kicsinyedése,
+     a válasz növekedése és a radar csúszása ~700-800 ms, a válasz alatti sorok
+     (--t-sub-delay késéssel) 900 ms alatt érnek be. Csak transform/opacity. */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-answer: 700ms;
+  --t-sub: 800ms;
+  --t-sub-delay: 100ms;
   --error: #b3261e;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
@@ -336,7 +343,7 @@ button[type="submit"] {
   transform-origin: 50% 0;
   opacity: 0;
   transform: scale(0.45);
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity var(--t-answer) var(--ease-out), transform var(--t-answer) var(--ease-out);
 }
 
 #result[data-phase="local"] .q-big {
@@ -346,7 +353,7 @@ button[type="submit"] {
 }
 
 #q1-question {
-  transition: opacity 0.4s ease 0.05s;
+  transition: opacity var(--t-answer) var(--ease-out);
 }
 
 #result[data-phase="local"] #q1-question {
@@ -357,7 +364,7 @@ button[type="submit"] {
 #result #q1-answer {
   font-size: clamp(48px, 12vw, 96px);
   transform-origin: 50% 50%;
-  animation: answer-grow 0.45s ease both;
+  animation: answer-grow var(--t-answer) var(--ease-out) both;
 }
 
 @keyframes answer-grow {
@@ -384,11 +391,11 @@ button[type="submit"] {
 #q1-context,
 #q2-block,
 #q2-answer {
-  animation: answer-in 0.45s ease both;
+  animation: answer-in var(--t-sub) var(--ease-out) var(--t-sub-delay) both;
 }
 
 @keyframes answer-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(21px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
