@@ -11,6 +11,7 @@ Használat (a repó gyökeréből):
   python3 tools/build_pages.py --fetch-climate        # hiányzó klíma lekérése (Action)
   python3 tools/build_pages.py --fetch-climate --climate-limit 3   # helyi teszt
   python3 tools/build_pages.py --fetch-water          # vízállás-oldalak (worker pillanatképei)
+  python3 tools/build_pages.py --fetch-history        # folyó év vízállás-táblái -> water-history.json
   python3 tools/build_pages.py --water-dir DIR        # teszt: DIR/rivers.json + lakes.json
   python3 tools/build_pages.py --fetch-recent         # friss csapadék a településekhez (Action)
   python3 tools/build_pages.py --fetch-recent --recent-limit 3     # helyi teszt (legfeljebb 3 hely)
@@ -624,7 +625,8 @@ STATION_LOC = {"Nagybajcs": "Nagybajcsnál", "Budapest": "Budapestnél", "Mohác
                "Szolnok": "Szolnoknál", "Szeged": "Szegednél", "Makó": "Makónál",
                "Szarvas": "Szarvasnál", "Őrtilos": "Őrtilosnál", "Drávaszabolcs": "Drávaszabolcsnál",
                "Siófok": "Siófoknál", "Balatonakali": "Balatonakalinál", "Tihany rév": "Tihany révnél",
-               "Agárd": "Agárdnál", "Fertőrákos": "Fertőrákosnál"}
+               "Agárd": "Agárdnál", "Fertőrákos": "Fertőrákosnál",
+               "Nagymaros": "Nagymarosnál", "Vásárosnamény": "Vásárosnaménynál"}
 STATION_LABEL = {"Kisköre alsó": "Kisköre (alsó)", "Balaton average": "Balaton, átlag"}
 
 
@@ -737,6 +739,226 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
     return Page(path, html)
 
 
+# --- Vízállás évenként (water-history.json, tools/import_hydro_archive.py) ---
+HISTORY_FILE = ROOT / "water-history.json"
+# oldal-állomás neve -> archívum-kód; az archívum-only állomások (nincs élő pillanatképük)
+# a megadott állomás után kapnak szakaszt
+HIST_CODE = {"Siófok": "si", "Agárd": "ag", "Budapest": "bp", "Mohács": "mo", "Szolnok": "so",
+             "Szeged": "se", "Nagymaros": "nm", "Vásárosnamény": "vn", "Fertőrákos": "fe"}
+HIST_ONLY_AFTER = {"Duna": [("Budapest", "Nagymaros")], "Tisza": [("Szolnok", "Vásárosnamény")]}
+SHORT_MONTHS = ["jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.",
+                "okt.", "nov.", "dec."]
+HIST_ALT_SRC = {"balaton-avg", "bgld"}      # más mérésből származó évek: kiüresített oszlop
+HIST_RANGES = [(10, "10 év"), (30, "30 év"), (50, "50 év"), (0, "összes")]
+VH_W, VH_H, VH_L, VH_R, VH_T, VH_B = 480, 300, 40, 16, 38, 24
+
+
+def load_history():
+    try:
+        return json.loads(HISTORY_FILE.read_text(encoding="utf-8")).get("stations") or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def hu_iso_date(iso, short=False, day=True):
+    y, m, d = (int(p) for p in iso.split("-"))
+    name = SHORT_MONTHS[m - 1] if short else MONTHS[m - 1]
+    return f"{y}. {name} {d}." if day else f"{y}. {name}"
+
+
+def fnum(x):
+    return f"{x:.1f}".rstrip("0").rstrip(".")
+
+
+def nice_scale(lo, hi):
+    span = max(hi - lo, 1)
+    step = next(s for s in (5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000) if span / s <= 5)
+    return (lo // step) * step, -((-hi) // step) * step, step
+
+
+def history_buckets(years, data, size):
+    """Évek összevonása size éves, naptárhoz igazított időszakokká (size=1: évenként).
+    Időszak: min/max (dátummal), átlag (napszámmal súlyozva), alt/partial jelzők."""
+    out = {}
+    for y in years:
+        out.setdefault(y // size, []).append(y)
+    res = []
+    for _, ys in sorted(out.items()):
+        vs = [data[str(y)] for y in ys]
+        lo = min(vs, key=lambda v: (v["min"], v["min_date"]))
+        hi = max(vs, key=lambda v: (v["max"], v["max_date"]))
+        n = sum(v["n"] for v in vs)
+        res.append({"a": ys[0], "b": ys[-1], "min": lo["min"], "min_date": lo["min_date"],
+                    "max": hi["max"], "max_date": hi["max_date"],
+                    "mean": sum(v["mean"] * v["n"] for v in vs) / n,
+                    "alt": any(v.get("src") in HIST_ALT_SRC for v in vs),
+                    "partial": any(v.get("partial") for v in vs)})
+    return res
+
+
+def bucket_title(b):
+    span = str(b["a"]) if b["a"] == b["b"] else f"{b['a']}-{b['b']}"
+    return (f"{span}: legalacsonyabb {cm_short(b['min'])} ({hu_iso_date(b['min_date'], short=True)}), "
+            f"átlag {cm_short(round(b['mean']))}, legmagasabb {cm_short(b['max'])} "
+            f"({hu_iso_date(b['max_date'], short=True)})")
+
+
+def history_svg(label, years, data, today, ext, size=1):
+    """Egy tartomány SVG-je: időszakonként (év, 5 év, évtized) egy min-max oszlop, átlag-jelölő,
+    szélsőértékek, ma-vonal."""
+    buckets = history_buckets(years, data, size)
+    lo = min(b["min"] for b in buckets)
+    hi = max(b["max"] for b in buckets)
+    if today is not None:
+        lo, hi = min(lo, today), max(hi, today)
+    lo, hi, step = nice_scale(lo, hi)
+    pw, ph = VH_W - VH_L - VH_R, VH_H - VH_T - VH_B
+    y0, n = years[0], years[-1] - years[0] + 1
+    slot = pw / n
+    yy = lambda v: VH_T + ph * (hi - v) / (hi - lo)
+    xx = lambda yr: VH_L + (yr - y0 + 0.5) * slot
+    xb = lambda yr: VH_L + (yr - y0) * slot
+    out = [f'<svg class="vh-c vh-c{{ID}}" viewBox="0 0 {VH_W} {VH_H}" role="img" '
+           f'aria-label="{esc(label)}">']
+    grid, ylab = [], []
+    v = lo
+    while v <= hi:
+        grid.append(f"M{VH_L} {fnum(yy(v))}H{VH_W - VH_R}")
+        ylab.append(f'<text x="{VH_L - 5}" y="{fnum(yy(v) + 4)}" text-anchor="end">{v}</text>')
+        v += step
+    out.append(f'<path class="vh-grid" d="{"".join(grid)}"/>')
+    ns = len(years)
+    if size == 1:
+        lstep, tstep = (1, 1) if ns <= 10 else (5, 5) if ns <= 35 else (10, 10)
+    else:
+        lstep, tstep = (10 if ns <= 100 else 20), 10
+    xl, ticks = [], []
+    for yr in range(years[0], years[-1] + 1):
+        if yr % tstep == 0 or (tstep == 1):
+            px = xb(yr) if size > 1 else xx(yr)
+            ticks.append(f"M{fnum(px)} {VH_T + ph}v4")
+            if yr % lstep == 0:
+                anc = "middle"
+                if px > VH_W - VH_R - 14:
+                    anc = "end"
+                xl.append(f'<text x="{fnum(px)}" y="{VH_H - 7}" text-anchor="{anc}">{yr}</text>')
+    out.append(f'<path class="vh-axis" d="{"".join(ticks)}"/>')
+    out.append("".join(ylab) + "".join(xl))
+    bars, means = [], []
+    for bk in buckets:
+        span = bk["b"] - bk["a"] + 1
+        cx = VH_L + ((bk["a"] + bk["b"] + 1) / 2 - y0) * slot
+        bw = min(max(slot * span * 0.55, 1.2), 7 if size == 1 else 14)
+        tw = min(max(slot * span * 0.9, 2.5), 11 if size == 1 else 20)
+        if bk["alt"]:
+            w = max(bw, 3)
+            d = f"M{fnum(cx - w / 2)} {fnum(yy(bk['max']))}h{fnum(w)}V{fnum(yy(bk['min']))}h-{fnum(w)}z"
+        else:
+            d = f"M{fnum(cx)} {fnum(yy(bk['max']))}V{fnum(yy(bk['min']))}"
+        cls = f'vh-bar{" vh-alt" if bk["alt"] else ""}{" vh-p" if bk["partial"] else ""}'
+        sw = "1.2" if bk["alt"] else fnum(bw)
+        bars.append(f'<path class="{cls}" stroke-width="{sw}" d="{d}"><title>{esc(bucket_title(bk))}</title></path>')
+        means.append(f"M{fnum(cx - tw / 2)} {fnum(yy(bk['mean']))}h{fnum(tw)}")
+    out.append("".join(bars))
+    out.append('<path class="vh-mean" stroke-width="1.2" d="%s"/>' % "".join(means))
+    if today is not None:
+        ty = yy(today)
+        out.append(f'<path class="vh-today" d="M{VH_L} {fnum(ty)}H{VH_W - VH_R}"/>')
+        ly = ty - 5 if ty - VH_T > 12 else ty + 14
+        out.append(f'<text class="vh-lab" x="{VH_W - VH_R - 2}" y="{fnum(ly)}" text-anchor="end">'
+                   f'ma: {cm_short(today)}</text>')
+    for kind, word in (("max", "legmagasabb"), ("min", "legalacsonyabb")):
+        val, date, esrc = ext[kind]
+        yr = int(date[:4])
+        if yr not in years:
+            continue
+        px, py = xx(yr), yy(val)
+        date_txt = hu_iso_date(date, short=True) + (" (osztrák adat)" if esrc == "bgld" else "")
+        out.append(f'<circle class="vh-dot" cx="{fnum(px)}" cy="{fnum(py)}" r="3"/>')
+        left = px > VH_L + pw * 0.5
+        if kind == "max" and py - 17 >= 12:
+            mid = VH_L + 60 < px < VH_W - VH_R - 60
+            ax, tx = ("middle", px) if mid else (("end", px + 8) if left else ("start", px - 8))
+            ty1 = py - 17
+        else:
+            ax, tx = ("end", px - 7) if left else ("start", px + 7)
+            ty1 = py - 5 if py < VH_T + ph - 14 else py - 18
+        ty2 = ty1 + 13
+        out.append(f'<text class="vh-lab" text-anchor="{ax}"><tspan x="{fnum(tx)}" y="{fnum(ty1)}">'
+                   f'{word} {cm_short(val)}</tspan><tspan x="{fnum(tx)}" y="{fnum(ty2)}">{date_txt}</tspan></text>')
+    out.append("</svg>")
+    return "".join(out)
+
+
+def history_block(key, name, loc, hst, today_cm, now_year):
+    """A "Vízállás évenként" blokk (radio + CSS váltású SVG-k), vagy "" ha nincs adat."""
+    data = hst.get("years") or {}
+    yrs = sorted(int(y) for y in data)
+    if len(yrs) < 3:
+        return ""
+    first, last = yrs[0], yrs[-1]
+    pool = [(y, v) for y, v in data.items() if v.get("src") != "balaton-avg"]
+    pfirst = min(int(y) for y, _ in pool)
+    emin = min(pool, key=lambda kv: (kv[1]["min"], kv[1]["min_date"]))[1]
+    emax = max(pool, key=lambda kv: (kv[1]["max"], -int(kv[1]["max_date"].replace("-", ""))))[1]
+    ext = {"min": (emin["min"], emin["min_date"], emin["src"]),
+           "max": (emax["max"], emax["max_date"], emax["src"])}
+    lo_v, lo_d, _ = ext["min"]
+    hi_v, hi_d, _ = ext["max"]
+    tag = lambda k: ", osztrák adat" if ext[k][2] == "bgld" else ""
+    sentence = (f"A mérések {pfirst} óta a legalacsonyabb vízállás {loc} {cm_text(lo_v)} volt "
+                f"({hu_iso_date(lo_d)}{tag('min')}), a legmagasabb {cm_text(hi_v)} "
+                f"({hu_iso_date(hi_d)}{tag('max')}).")
+    inputs, tabs, charts = [], [], []
+    for n, text in HIST_RANGES:
+        rid = n or "all"
+        yrs_r = [y for y in yrs if n == 0 or y > last - n]
+        if n and last - first + 1 <= n:
+            continue
+        label = (f"{name} éves vízállás-tartománya {yrs_r[0]} és {yrs_r[-1]} között, centiméterben: "
+                 f"a legalacsonyabb {cm_text(min(data[str(y)]['min'] for y in yrs_r))}, a legmagasabb "
+                 f"{cm_text(max(data[str(y)]['max'] for y in yrs_r))}"
+                 + (f", ma {cm_text(today_cm)}" if today_cm is not None else ""))
+        svg = history_svg(label, yrs_r, data, today_cm, ext, 10 if n == 0 else 5 if n == 50 else 1).replace("{ID}", str(rid))
+        chk = " checked" if n == 0 else ""
+        inputs.append(f'<input type="radio" class="vh-r vh-r{rid}" name="vh-{key}" id="vh-{key}-{rid}"{chk}>')
+        tabs.append(f'<label class="vh-l vh-l{rid}" for="vh-{key}-{rid}">{text}</label>')
+        charts.append(svg)
+    srcs = {v.get("src") for v in data.values()}
+    notes = ["Forrás: hydroinfo.hu, Központi Hidrológiai Adattár (OVF), nyers adat"
+             + ("; 1965 és 2001 között az osztrák (burgenlandi) vízügy tószint-adataiból átszámítva, "
+                "kb. ±3 cm pontossággal (kiüresített oszlopok)" if "bgld" in srcs else "")
+             + ". Napi reggeli (7 órás) mérések alapján, a hivatalos rekordtól néhány cm-rel eltérhet. "
+             "Oszlop: az időszak (év, 5 év vagy évtized) legalacsonyabb és legmagasabb napi értéke, kis vízszintes jel: az átlag. "
+             f"Lefedett évek: {first}-{last}."]
+    if "balaton-avg" in srcs:
+        ay = sorted(int(y) for y, v in data.items() if v.get("src") == "balaton-avg")
+        notes.append(f"{ay[0]}-től a Balaton átlagos vízállása (Siófok-adat nem elérhető), átlagosan kb. "
+                     "3 cm-rel tér el (kiüresített oszlopok); a szélsőértékek csak a siófoki évekből valók.")
+    for y, v in sorted(data.items()):
+        if v.get("partial"):
+            notes.append(f"{y}: az év eleje óta, {hu_iso_date(v['through'], short=True).rstrip('.')}-ig "
+                         "(szaggatott oszlop).")
+    gaps = [y for y in range(first, last + 1) if str(y) not in data]
+    if gaps:
+        notes.append("Hiányzó évek: " + ", ".join(str(g) for g in gaps) + ".")
+    if last < now_year:
+        notes.append(f"A {last} utáni évek feltöltése folyamatban.")
+    zc = hst.get("zero_changes") or []
+    if zc and max(abs(c["zero_m"] - hst["zero_m"]) for c in zc) * 100 > 2.5:
+        hu = lambda x: str(round(x, 2)).replace(".", ",")
+        parts = "; ".join(f"{c['from'] if c['from'] == c['to'] else str(c['from']) + '-' + str(c['to'])}: "
+                          f"{hu(c['zero_m'])} m" for c in zc)
+        notes.append(f"A régebbi éveket a mérce mostani nullpontjára ({hu(hst['zero_m'])} m Bf) számoltuk át "
+                     f"(korábbi nullpont: {parts}).")
+    return ('      <div class="vh">\n        <h3>Vízállás évenként</h3>\n'
+            f'        <p class="vh-text">{esc(sentence)}</p>\n'
+            f'        <div class="vh-box">'
+            + "".join(inputs) + '<div class="vh-tabs">' + "".join(tabs) + '</div>'
+            + '<div class="vh-charts">' + "".join(charts) + '</div></div>\n'
+            f'        <p class="doc-note">{esc(" ".join(notes))}</p>\n      </div>')
+
+
 def water_stations(snapshot, names, key):
     by = {}
     for st in snapshot["stations"]:
@@ -753,6 +975,7 @@ def build_water_pages(ctx):
     rivers, lakes = ctx.water
     gen = parse_ts(rivers["generated_at"])
     date = hu_date(gen)
+    history = load_history()
     river_by = water_stations(rivers, None, "river")
     lake_by = water_stations(lakes, None, "lake")
     src_p = (f'<p class="doc-note">Forrás: <a href="https://www.hydroinfo.hu/" target="_blank" '
@@ -782,8 +1005,17 @@ def build_water_pages(ctx):
             spark = sparkline(st) if kind == "river" else ""
             if spark:
                 sec.append("      " + spark)
+            hb = history_block(nm, nm, loc, history.get(HIST_CODE.get(nm), {}), lv, gen.year) \
+                if nm in HIST_CODE else ""
+            if hb:
+                sec.append(hb)
             sec.append("    </section>")
             sections.append("\n".join(sec))
+            for after, hnm in (HIST_ONLY_AFTER.get(name, []) if kind == "river" else []):
+                if after == nm:
+                    hb = history_block(hnm, hnm, STATION_LOC[hnm], history.get(HIST_CODE[hnm], {}), None, gen.year)
+                    if hb:
+                        sections.append(f'    <section class="vz-station">\n      <h2>{esc(hnm)}</h2>\n{hb}\n    </section>')
             titles.append(nm)
             desc_bits.append(f"{STATION_LABEL.get(nm, nm)} {cm_short(lv)}")
             overview_rows.append((kind, sl, name, STATION_LABEL.get(nm, nm), lv, delta))
@@ -1115,9 +1347,15 @@ def main():
                     help="friss csapadék a településekhez az Open-Meteo forecast API-ból (Action)")
     ap.add_argument("--recent-limit", type=int, default=None,
                     help="legfeljebb ennyi hely lekérése (helyi teszthez)")
+    ap.add_argument("--fetch-history", action="store_true",
+                    help="a folyó év vízállás-táblái a hydroinfo.hu-ról a water-history.json-ba (Action)")
     ap.add_argument("--water-dir", default=None,
                     help="teszt: rivers.json és lakes.json ebből a mappából")
     args = ap.parse_args()
+
+    if args.fetch_history:
+        import hydro_history
+        hydro_history.refresh_current()
 
     # A sablon az index.html: a generált lista régi tartalma nem számít, mert
     # minden builder a jelölők közti részt írja felül.

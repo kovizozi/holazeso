@@ -2658,6 +2658,130 @@ circle.water-channel-hit {
   color: var(--muted);
 }
 
+/* Vízállás évenként (tools/build_pages.py history_block): JS nélkül, rádiógombbal váltott SVG-k */
+.vh {
+  margin-top: var(--sp-3);
+}
+
+.doc-main .vh h3 {
+  font-size: 15px;
+  margin: 0 0 var(--sp-1);
+}
+
+.vh-text {
+  font-size: 15px;
+  margin: 0 0 var(--sp-2);
+}
+
+.vh-box {
+  position: relative;
+  max-width: 560px;
+}
+
+.vh-r {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.vh-tabs {
+  display: inline-flex;
+  border: 1px solid var(--fg);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--sp-1);
+}
+
+.vh-l {
+  font-size: 13px;
+  line-height: 1;
+  padding: var(--sp-1) var(--sp-2);
+  cursor: pointer;
+  color: var(--fg);
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+.vh-l + .vh-l {
+  border-left: 1px solid var(--fg);
+}
+
+.vh-r10:checked ~ .vh-tabs .vh-l10,
+.vh-r30:checked ~ .vh-tabs .vh-l30,
+.vh-r50:checked ~ .vh-tabs .vh-l50,
+.vh-rall:checked ~ .vh-tabs .vh-lall {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.vh-r10:focus-visible ~ .vh-tabs .vh-l10,
+.vh-r30:focus-visible ~ .vh-tabs .vh-l30,
+.vh-r50:focus-visible ~ .vh-tabs .vh-l50,
+.vh-rall:focus-visible ~ .vh-tabs .vh-lall {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vh-c {
+  display: none;
+  width: 100%;
+  height: auto;
+  font-size: 12px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vh-r10:checked ~ .vh-charts .vh-c10,
+.vh-r30:checked ~ .vh-charts .vh-c30,
+.vh-r50:checked ~ .vh-charts .vh-c50,
+.vh-rall:checked ~ .vh-charts .vh-call {
+  display: block;
+}
+
+.vh-grid,
+.vh-axis {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.vh-bar {
+  fill: none;
+  stroke: var(--accent);
+}
+
+.vh-p {
+  stroke-dasharray: 3 2;
+}
+
+.vh-mean {
+  fill: none;
+  stroke: var(--fg);
+}
+
+.vh-today {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.vh-dot {
+  fill: var(--fg);
+}
+
+.vh-lab {
+  fill: var(--fg);
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
 .vz-table {
   width: 100%;
   border-collapse: collapse;
