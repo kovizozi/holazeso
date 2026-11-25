@@ -456,6 +456,16 @@ végleges, csak transform mozog.
   (2 sor) a `setHero`-nál foglal helyet. Ez a két megmaradó ugrás ("Most
   esik" állapot): 0,047 (390 px), 0,028 (1280 px).
 
+**Első hajtás (`.fold`, 2026-11-25)**: a `#result` és a `#loading` egy
+`.fold` flex-oszlopban van (`height: calc(100svh - var(--sp-3))`, `min-height:
+520px`), a `#result` természetes magasságú, a `#radar-svg` a maradékot kapja
+(`flex: 1 1 0; height: 0`), a statisztika-panel a hajtás alatt kezdődik. A
+radar viewBox-a "meet"-tel illeszkedik, ezért a `--k` (`radarScaleK`) a
+szélesség ÉS a magasság arányának minimuma: a feliratok pixelmérete
+változatlan. A `positionRadar`/`slideRadar` logika érintetlen (a mért
+különbség a flex-elrendezésben is jó), a CLS nem romlott (mockolt mérés:
+here 1280 px 0,029 -> 0,023; 390 px 0,083 -> 0,036; none 0).
+
 Mockolt Playwright-mérés (3 futás mediánja, 14 mp): főoldal 375 px 0,154 -> 0;
 1280 px 0,172 -> 0; `/eso/kecskemet/` 375 px 0,154 -> 0; `/ho/` 375 px 0,31 ->
 0,015, 1280 px 0,57 -> 0,02. Forgatókönyvek 390 px-en (nincs találat / eső /

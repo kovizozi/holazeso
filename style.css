@@ -71,7 +71,7 @@ body.scroll-locked {
   max-width: 1300px;
   margin: 0 auto;
   width: 100%;
-  padding: var(--sp-5) var(--sp-3) 0;
+  padding: var(--sp-3) var(--sp-3) 0;
   /* CLS: a keresés fázisai közben az alkalmazás magassága többször nő (a
      válasz-szöveg, a radar, a panelek jelennek meg). Ha az alatta lévő
      .seo-content a látható területen kezdődne, minden növekedés eltolná, és
@@ -86,7 +86,7 @@ body.scroll-locked {
   justify-content: flex-end;
   align-items: center;
   gap: var(--sp-1);
-  margin-bottom: var(--sp-5);
+  margin-bottom: var(--sp-2);
 }
 
 /* Ikon-gombok a fejlécben: 44 x 44 px (WCAG 2.5.8 célterület), szín nélkül,
@@ -465,6 +465,53 @@ html.radar-old-layout #result[data-phase="local"] ~ .loading {
   max-width: 720px;
   height: auto;
   touch-action: pan-y;
+}
+
+/* Az első hajtás a radarig tart (a statisztika már alatta kezdődik): a .fold
+   a nézetablak magasságát tölti ki, a #result megtartja a természetes
+   magasságát, a radar (#radar-svg) a maradék helyet kapja. A viewBox aránya
+   (meet) változatlan, így semmi sem torzul; a feliratok mérete a --k-n
+   keresztül (script.js radarScaleK: a szélesség ÉS a magasság minimuma)
+   állandó képpont marad. A layout-doboz a keresés elejétől végleges, a
+   csúszást továbbra is csak transform adja (CLS 0). Alacsony kijelzőn
+   (min-height) a .fold a radar számára legalább 520 px-et tart. */
+.fold {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--sp-3));
+  height: calc(100svh - var(--sp-3));
+  min-height: 520px;
+}
+
+.fold #result {
+  flex: 0 0 auto;
+}
+
+.fold .loading {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fold:has(> #result[hidden]) {
+  display: none;
+}
+
+.fold .loading[hidden] {
+  display: none;
+}
+
+.fold #radar-svg {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.fold .radar-zoom {
+  flex: 0 0 auto;
 }
 
 /* A nagyítás-gombok csak a keresés végén jelennek meg. */

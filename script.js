@@ -1053,8 +1053,13 @@ function radarDrawPlaces() {
 // osztjuk (--k), így a betűméret mindenhol ugyanannyi képpont marad.
 function radarScaleK() {
   const svg = document.getElementById("radar-svg");
-  const width = parseFloat(getComputedStyle(svg).width);
-  return width > 0 ? width / RADAR_W : 1;
+  const cs = getComputedStyle(svg);
+  const width = parseFloat(cs.width);
+  const height = parseFloat(cs.height);
+  // A .fold-ban a radar doboza a magasság miatt is szűkülhet: a viewBox
+  // "meet" illesztése a kisebbik arányt használja.
+  if (!(width > 0)) return 1;
+  return height > 0 ? Math.min(width / RADAR_W, height / RADAR_H) : width / RADAR_W;
 }
 
 function updateRadarScale() {
