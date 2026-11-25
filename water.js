@@ -2259,6 +2259,22 @@ function soilHatchDefs(k) {
 
 const soilCoreObservers = new WeakMap();
 const SOIL_NARROW_PX = 500;
+const SOIL_NARROW_MIN_PX = 240;
+
+// Az ábra számára rendelkezésre álló szélesség: a SZEKCIÓ tartalmi szélessége,
+// nem az svg sajátja. Az svg szélessége az ábra dobozától függ (asztalon a
+// doboz a magasságból és a --ar-ból is korlátozódik), és az elrendezés-mód
+// (keskeny/asztali) a --ar-t is átírja: ha az svg saját szélességéből döntenénk,
+// egy átmenetileg kicsi mérés (Safari: az első kirajzolás előtti, még üres svg)
+// keskeny módba, onnan egyre kisebb viewBox-ba (VW ~ 8) zárná az ábrát, és az
+// egy függőleges vonalra omlana. A szekció szélessége ettől független. 0, ha a
+// szekció rejtett.
+function soilAvailWidth(svgEl) {
+  const sec = svgEl.closest("section") || svgEl.parentElement;
+  if (!sec) return 0;
+  const cs = getComputedStyle(sec);
+  return sec.getBoundingClientRect().width - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+}
 
 // Két elrendezés: asztali (720 egység széles viewBox, jobb oldali feliratok
 // vezetővonallal) és keskeny kijelzőre (a viewBox szélessége a megjelenített
@@ -2266,9 +2282,9 @@ const SOIL_NARROW_PX = 500;
 // BELÜL, háttér-lapon állnak). Keskenyen a legfelső réteg a felirat miatt a
 // valódi aránynál vastagabbra van rajzolva (a jegyzet ezt kimondja).
 function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
-  const measured = svgEl.getBoundingClientRect().width;
+  const measured = soilAvailWidth(svgEl);
   const narrow = measured > 0 && measured < SOIL_NARROW_PX;
-  const VW = narrow ? Math.round(measured) : 720;
+  const VW = narrow ? Math.max(SOIL_NARROW_MIN_PX, Math.round(measured)) : 720;
   const GY = narrow ? 150 : 214;
   const X0 = narrow ? 46 : 80, X1 = narrow ? VW - 8 : 480, LX = 500;
   const totalDepth = 81, perCm = narrow ? 3.4 : 4;
@@ -2390,9 +2406,10 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
   if ("ResizeObserver" in window) {
     const ro = new ResizeObserver(() => {
       const w = svgEl.getBoundingClientRect().width;
-      if (w <= 0) return;
-      const nowNarrow = w < SOIL_NARROW_PX;
-      if (nowNarrow !== narrow || (narrow && Math.abs(w - VW) > 2)) {
+      const avail = soilAvailWidth(svgEl);
+      if (w <= 0 || avail <= 0) return;
+      const nowNarrow = avail < SOIL_NARROW_PX;
+      if (nowNarrow !== narrow || (narrow && Math.abs(Math.max(SOIL_NARROW_MIN_PX, avail) - VW) > 2)) {
         ro.disconnect();
         renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM);
         return;

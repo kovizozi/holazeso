@@ -1319,11 +1319,15 @@ noscript .about {
 
 /* E1: a saját hely szekciója asztalon egy hajtásba fér (kérdés, fő szám, két
    sor szöveg, a teljes metszet és a jelmagyarázat). A metszet a maradék
-   magasságot arányosan tölti ki: az svg doboza a max-height-ig csökken, a
-   viewBox "meet" illesztéssel kisebbedik (mint az A2 radarja), a --k-t a
-   watchFigureScale a szélesség ÉS a magasság arányának minimumából veszi. A
-   --local-chrome a szöveg és a felirat magasságának becslése (px). Mobilon és
-   alacsony kijelzőn a normál folyás marad. */
+   magasságot arányosan tölti ki. A magasság-korlátot az svg SZÉLESSÉGE kapja:
+   width = min(100%, maradék magasság * az ábra képaránya (--ar, a water.js
+   állítja)), height:auto. Nincs rajta max-height, tehát nincs mit átvinnie a
+   cserélt elem képarányán a szélességre (a Safari/WebKit ezt másképp kezelte,
+   és a szélesség egy függőleges vonalra omlott). A figure szélessége (és a
+   felirat sora) a 720 px marad, az svg középen áll. A --k-t a watchFigureScale
+   a szélesség ÉS a magasság arányának minimumából veszi. A --local-chrome a
+   szöveg és a felirat magasságának becslése (px). Mobilon és alacsony kijelzőn
+   a normál folyás marad. */
 @media (min-width: 720px) and (min-height: 600px) {
   #water-local-section:not([hidden]) {
     min-height: calc(100vh - 55px);
@@ -1335,13 +1339,20 @@ noscript .about {
 
   #water-local-section .water-local-fig {
     --fig-w: 720px;
+    --fig-h: calc(100vh - 55px - var(--local-chrome, 330px));
+    --fig-h: calc(100svh - 55px - var(--local-chrome, 330px));
+    flex: none;
+    align-self: center;
+    width: 100%;
+    min-width: 0;
     max-width: 720px;
     margin-top: var(--sp-3);
   }
 
   #water-local-section .water-local-fig svg {
-    width: 100%;
-    max-height: calc(100svh - 55px - var(--local-chrome, 330px));
+    width: min(100%, calc(var(--fig-h) * var(--ar, 1.09)));
+    height: auto;
+    margin-inline: auto;
   }
 }
 
