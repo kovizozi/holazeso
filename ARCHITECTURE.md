@@ -401,9 +401,9 @@ amikor visszaválasztod az appot (`visibilitychange`).
 
 ## Design-rendszer
 
-Szigorúan monokróm (fekete/fehér, sötét módban megfordítva
-`prefers-color-scheme`-mel), tipográfia-vezérelt, nincs szín/gradiens/
-árnyék. A bal felső sarokban eredetileg egy nagybetűs, ritkított
+Fekete/fehér (sötét módban megfordítva `prefers-color-scheme`-mel) plusz
+egyetlen kék `--accent` (`#027cff`), tipográfia-vezérelt, nincs
+gradiens/árnyék; a kártyák lekerekítettek (ld. CLAUDE.md 2. szabály). A bal felső sarokban eredetileg egy nagybetűs, ritkított
 "HOLAZESO.HU" felirat volt, ezt (mint tipikus SaaS-sablon mintát)
 eltávolítottuk; a domain csak a láblécben szerepel.
 

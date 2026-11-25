@@ -854,7 +854,7 @@ const WATER_RIVER_NET_SVG = `
 // .vz-frame aspect-ratio-ja), így nincs elmozdulás a betöltéskor.
 // A VIZALLAS_JS_URL ?v=-jét a tools/build_pages.py VIZALLAS_JS konstansával
 // együtt kell emelni.
-const VIZALLAS_JS_URL = "/vizallas.js?v=8";
+const VIZALLAS_JS_URL = "/vizallas.js?v=9";
 const RIVER_DEFAULT_STATION = "Budapest";
 const RIVER_NEAREST_MAX_KM = 60; // ugyanaz, mint a tools/build_pages.py WATER_MAX_KM
 let riverPicker = { items: [], current: -1, mount: null, token: 0, live: null, host: null };

@@ -22,7 +22,7 @@
   // Az --accent itt a style.css világos értékét tükrözi: ha ott hangolod, ezt is igazítsd.
   const SCREEN = { fg: "var(--fg)", muted: "var(--muted)", bg: "var(--bg)", grid: "var(--border)", accent: "var(--accent)", font: "var(--font)" };
   const PRINT = {
-    fg: "#111111", muted: "#6b6b6b", bg: "#ffffff", grid: "#dddddd", accent: "#1f4e9c",
+    fg: "#111111", muted: "#6b6b6b", bg: "#ffffff", grid: "#dddddd", accent: "#027cff",
     font: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
 
