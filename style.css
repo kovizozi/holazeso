@@ -3859,3 +3859,42 @@ body.vz-embed {
   font-size: 13px;
   margin: 0 0 var(--sp-2);
 }
+
+/* Főoldal alja: előnézet az /eghajlat/ oldalra (kártya, kép + szöveg, az egész link). */
+.eg-teaser {
+  display: block;
+  max-width: 720px;
+  margin: var(--sp-4) auto;
+  padding: var(--sp-3);
+  background: var(--bg);
+  border-radius: var(--radius-card);
+  color: var(--fg);
+  text-decoration: none;
+  text-align: left;
+}
+
+.eg-teaser img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.eg-teaser-text {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.eg-teaser-text strong {
+  display: block;
+  font-size: 18px;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+  margin-bottom: var(--sp-1);
+}
+
+.eg-teaser:hover .eg-teaser-text strong {
+  text-decoration-thickness: 2px;
+}

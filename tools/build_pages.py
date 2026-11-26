@@ -1611,11 +1611,32 @@ def eg_scatter_section(data):
     </div>"""
 
 
+# A főoldal alján lévő előnézet: önálló SVG-fájl (<img loading="lazy">), hogy ne nehezítse a
+# főoldalt. Képként betöltve a style.css nem hat rá, ezért a színeket a saját <style>-ja adja,
+# a style.css tokenjeivel azonos értékekkel (világos és sötét mód).
+EG_TEASER_STYLE = """<style>
+svg{--bg:#ffffff;--fg:#111111;--muted:#6b6b6b;--accent:#027cff;--accent-ink:#0263cc;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:11px;fill:var(--muted)}
+@media (prefers-color-scheme: dark){svg{--bg:#111111;--fg:#f2f2f2;--muted:#9a9a9a;--accent:#6ea3ff;--accent-ink:#6ea3ff}}
+rect{shape-rendering:crispEdges}.eg-wrap{opacity:.55}.eg-yearline{stroke:var(--fg);stroke-dasharray:3 3}
+.eg-l0{fill:var(--bg)}.eg-l1{fill:color-mix(in srgb,var(--accent) 15%,var(--bg))}.eg-l2{fill:color-mix(in srgb,var(--accent) 32%,var(--bg))}
+.eg-l3{fill:color-mix(in srgb,var(--accent) 50%,var(--bg))}.eg-l4{fill:color-mix(in srgb,var(--accent) 72%,var(--bg))}
+.eg-l5{fill:var(--accent)}.eg-l6{fill:color-mix(in srgb,var(--accent-ink) 65%,var(--fg))}
+</style>"""
+
+
+def eg_teaser_svg(data):
+    ny = data["y1"] - data["y0"] + 1
+    svg = eg_svg("homerseklet", "Melegedés", data["charts"]["homerseklet"]["eros"], ny, data["nb"])
+    head = svg[:svg.index(">") + 1].replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1)
+    return head + EG_TEASER_STYLE + svg[svg.index(">") + 1:] + "\n"
+
+
 def build_climate_page(ctx):
     if not CLIMATE_FILE.exists():
         return []
     text = CLIMATE_FILE.read_text(encoding="utf-8")
     data = json.loads(text)
+    ctx.files["eghajlat/elonezet.svg"] = eg_teaser_svg(data)
     h = hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
     y0, y1, nb = data["y0"], data["y1"], data["nb"]
     ny = y1 - y0 + 1
@@ -1650,7 +1671,7 @@ def build_climate_page(ctx):
     <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
     <h1>Így változott Magyarország időjárása {y0} óta</h1>
     <p class="vz-sentence">Az éves csapadék alig változott, de ritkábban és hevesebben esik, közte hosszabb a szárazság, és egyre melegebb van.</p>
-    <p>Minden ábrán vízszintesen az évek ({y0}-{y1}), függőlegesen az év napjai láthatók, 5 napos sávokban. A szaggatott vonalak között van az adott év, fölötte az előző év vége, alatta a következő év eleje, így a december-január fordulón átnyúló időszakok is egyben látszanak. A szín azt mutatja, hogy az adott időszak mennyire tért el a 125 éves átlagtól: sötétebb kék = több abból, amiről az ábra szól.</p>
+    <p>Minden ábrán vízszintesen az évek ({y0}-{y1}), függőlegesen az év napjai láthatók, 5 napos sávokban. A szaggatott vonalak között van az adott év, fölötte az előző év vége, alatta a következő év eleje, így a december-január fordulón átnyúló időszakok is egyben látszanak. A szín azt mutatja, hogy az adott időszak mennyire tért el a 125 éves átlagtól: erősebb (telítettebb) kék = több abból, amiről az ábra szól.</p>
     <p class="doc-note">Az évről évre ingadozó időjárásból a hosszú távú változás csak simítva látszik: minden cella a környező napok és évek súlyozott átlaga. A simítás erőssége ábránként állítható: enyhe (kb. ±15 nap és ±4 év, több részlet, több zaj), közepes (±20 nap, ±8 év) vagy erős (±30 nap, ±12 év, csak a hosszú távú irány). Erősebb simításnál egy-egy kiugró év (például egy aszályos nyár) nem látszik külön, és a két szélén, az első és utolsó években kevesebb év jut egy cellára, ott a kép bizonytalanabb. Ugorj az ábrákra: {toc}</p>
 {chr(10).join(figs)}
     <h2 id="szamokban">Számokban</h2>
