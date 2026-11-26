@@ -696,6 +696,12 @@ def change_phrase(delta):
     return f", {abs(delta)} cm-rel {'magasabb' if delta > 0 else 'alacsonyabb'}, mint egy hete"
 
 
+FOOTER_NAV = ('    <nav class="footer-nav" aria-label="Oldalak"><a href="/">Hol esik most?</a> · '
+              '<a href="/ho/">Hol esik a hó?</a> · <a href="/vizallas/">Vízállás ma</a> · '
+              '<a href="/cigand/">Cigánd</a> · <a href="/eghajlat/">Éghajlat 1901 óta</a> · '
+              '<a href="/az-oldalrol/">Az oldalról</a></nav>\n')
+
+
 def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
     """Könnyű szöveges oldal: a sablon feje (meta, style.css), saját törzs.
     extra_scripts: a GoatCounter elé kerülő saját script-címkék."""
@@ -707,9 +713,9 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
             '    <nav aria-label="Oldalak"><a href="/vizallas/">Vízállás</a> '
             '<a href="/cigand/">Cigánd</a> <a href="/eghajlat/">Éghajlat</a></nav></header>\n'
             '  <main class="doc-main">\n' + body_html + '\n  </main>\n'
-            '  <footer>\n    <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · '
+            '  <footer>\n' + FOOTER_NAV + '    <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · '
             'Vízállás: <a href="https://www.hydroinfo.hu/" target="_blank" rel="noopener">hydroinfo.hu</a> '
-            '(Országos Vízügyi Főigazgatóság) · <a href="/az-oldalrol/">Az oldalról</a></p>\n  </footer>\n'
+            '(Országos Vízügyi Főigazgatóság)</p>\n  </footer>\n'
             + extra_scripts +
             '  <script data-goatcounter="https://holazeso.goatcounter.com/count"\n'
             '          async src="//gc.zgo.at/count.js"></script>\n</body>\n</html>\n')
@@ -1437,7 +1443,7 @@ def build_widget_page(ctx):
 # /eghajlat/: éghajlati hőtérképek 1901-től (adat: tools/import_climate_trends.py)
 
 CLIMATE_FILE = ROOT / "data" / "eghajlat.json"
-EGHAJLAT_JS = "/eghajlat.js?v=2"
+EGHAJLAT_JS = "/eghajlat.js?v=3"
 EG_PRE = 12             # ennyi 5 napos sáv ráhagyás az előző év végéből (fent) és a következő év elejéből (lent)
 EG_CW, EG_RH, EG_L, EG_T = 7, 5, 40, 4
 EG_LEVELS = 6
@@ -1579,10 +1585,30 @@ def eg_table(data):
         fmt = lambda x: f"{x:.{d}f}".replace(".", ",")
         rows.append(f"        <tr><th scope=\"row\">{esc(name)}</th><td>{fmt(first)} {esc(unit)}</td>"
                     f"<td>{fmt(last)} {esc(unit)}</td><td>{eg_num(dec, max(d, 1))}</td></tr>")
-    return (f'    <div class="eg-scroll"><table class="vz-table eg-table">\n      <thead><tr><th scope="col">Jellemző</th>'
+    return (f'    <div class="eg-scroll eg-framed"><table class="eg-table">\n      <thead><tr><th scope="col">Jellemző</th>'
             f'<th scope="col">{y0}-{y0 + 29} átlaga</th><th scope="col">{y1 - 29}-{y1} átlaga</th>'
             f'<th scope="col">Változás évtizedenként 1981 óta</th></tr></thead>\n      <tbody>\n'
             + "\n".join(rows) + "\n      </tbody>\n    </table></div>")
+
+
+def eg_scatter_section(data):
+    import climate_charts
+    cards = []
+    for title, svg, summary, trust in climate_charts.build(data):
+        cards.append(f"""      <figure class="eg-card">
+        <h3 class="eg-card-title">{esc(title)}</h3>
+        {svg}
+        <p class="eg-card-sum">{esc(summary[0].upper() + summary[1:])}.</p>
+        <p class="eg-card-note">{esc(trust)}</p>
+        <div class="vz-tip" hidden></div>
+      </figure>""")
+    sw = "".join(f'<span class="eg-sw eg-y{k}"></span>' for k in range(0, 13, 2))
+    return f"""    <h2 id="kitekintes">Összefüggések és kitekintés</h2>
+    <p>Évenként egy pont, a szín az évet mutatja. A hőségnapok és a trópusi éjszakák szorosan követik a nyári hőmérsékletet, ezért ott forgatókönyvet adunk: mire számíthatunk egy 1 vagy 2 °C-kal melegebb nyáron. A csapadéknál ilyen kapcsolat nincs, ott csak a hosszú távú irányt lehet óvatosan meghosszabbítani.</p>
+    <p class="eg-legend"><span>1901</span><span class="eg-sws" aria-hidden="true">{sw}</span><span>2025</span><span>· fekete vonal: modell vagy simított átlag · kék sáv: az évek 90%-a ebbe esik</span></p>
+    <div class="eg-sc-grid">
+{chr(10).join(cards)}
+    </div>"""
 
 
 def build_climate_page(ctx):
@@ -1618,9 +1644,10 @@ def build_climate_page(ctx):
       {eg_legend(chart, unit, digits, ends)}
       <div class="vz-tip" hidden></div>
     </figure>""")
-    toc = " · ".join(f'<a href="#{cid}">{esc(t)}</a>' for cid, t, *_ in EG_CHARTS) + ' · <a href="#szamokban">Számokban</a>'
+    toc = " · ".join(f'<a href="#{cid}">{esc(t)}</a>' for cid, t, *_ in EG_CHARTS) + ' · <a href="#szamokban">Számokban</a> · <a href="#kitekintes">Összefüggések és kitekintés</a>'
     stations = "Budapest, Debrecen, Keszthely, Miskolc, Nyíregyháza, Pécs, Sopron, Szeged, Szombathely, Túrkeve"
-    body = f"""    <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
+    body = f"""    <div class="eg-page">
+    <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
     <h1>Így változott Magyarország időjárása {y0} óta</h1>
     <p class="vz-sentence">Az éves csapadék alig változott, de ritkábban és hevesebben esik, közte hosszabb a szárazság, és egyre melegebb van.</p>
     <p>Minden ábrán vízszintesen az évek ({y0}-{y1}), függőlegesen az év napjai láthatók, 5 napos sávokban. A szaggatott vonalak között van az adott év, fölötte az előző év vége, alatta a következő év eleje, így a december-január fordulón átnyúló időszakok is egyben látszanak. A szín azt mutatja, hogy az adott időszak mennyire tért el a 125 éves átlagtól: sötétebb kék = több abból, amiről az ábra szól.</p>
@@ -1630,9 +1657,11 @@ def build_climate_page(ctx):
     <p>Évenkénti értékek a 10 állomás átlagaként: az első és az utolsó 30 év átlaga, és a változás üteme 1981 óta (lineáris trend, évtizedenként).</p>
 {eg_table(data)}
     <p class="doc-note">A hőmérséklet és a belőle következő jellemzők (hőség, trópusi éjszaka, fagy) egyértelműen és gyorsulva változnak. Az éves csapadék alig, viszont kevesebb napon esik, és egy esős napon több: ezért hosszabbak a száraz szakaszok.</p>
+{eg_scatter_section(data)}
     <h2>Az adatokról</h2>
     <p>Napi mérések 10 állomásról ({stations}), {y0}-től {y1}-ig, a HungaroMet homogenizált adatsoraiból (a homogenizálás kiszűri az állomásáthelyezések és műszercserék okozta ugrásokat). Az ábrák a 10 állomás átlagát mutatják.</p>
-    <p class="doc-note">Adatbázis: <a href="https://odp.met.hu/" target="_blank" rel="noopener">Meteorológiai Adattár, HungaroMet Nonprofit Zrt.</a>, átlagolva, simítva és grafikusan reprodukálva.</p>"""
+    <p class="doc-note">Adatbázis: <a href="https://odp.met.hu/" target="_blank" rel="noopener">Meteorológiai Adattár, HungaroMet Nonprofit Zrt.</a>, átlagolva, simítva és grafikusan reprodukálva.</p>
+    </div>"""
     return [doc_page(ctx, path="/eghajlat/",
                      title=f"Így változott Magyarország időjárása 1901 óta | {SITE_NAME}",
                      description="Hőtérképek 125 év napi méréseiből: hosszabb száraz szakaszok, hevesebb esők, melegedés, több hőségnap és trópusi éjszaka, rövidebb fagyos időszak.",

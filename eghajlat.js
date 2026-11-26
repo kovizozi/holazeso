@@ -8,6 +8,39 @@
   const LEVELS = 6;
   let dataPromise = null;
   let level = null;   // null: az alapértelmezett (a JSON "default"-ja)
+  // Pontdiagramok: a mutatóhoz legközelebbi pont (legfeljebb 24 px-re) adatai.
+  document.querySelectorAll(".eg-card").forEach(card => {
+    const svg = card.querySelector(".eg-sc"), tip = card.querySelector(".vz-tip");
+    if (!svg || !tip) return;
+    const pts = [...svg.querySelectorAll(".eg-sc-pt")];
+    let hot = null;
+    function show(ev) {
+      let best = null, bd = 24 * 24;
+      for (const c of pts) {
+        const r = c.getBoundingClientRect();
+        const dx = r.left + r.width / 2 - ev.clientX, dy = r.top + r.height / 2 - ev.clientY, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (hot && hot !== best) hot.classList.remove("is-hot");
+      hot = best;
+      if (!best) { tip.hidden = true; return; }
+      best.classList.add("is-hot");
+      tip.textContent = best.dataset.tip;
+      tip.hidden = false;
+      const box = card.getBoundingClientRect(), r = best.getBoundingClientRect();
+      const x = r.left + r.width / 2 - box.left, y = r.top - box.top;
+      tip.style.left = Math.max(4, Math.min(box.width - tip.offsetWidth - 4, x - tip.offsetWidth / 2)) + "px";
+      tip.style.top = Math.max(4, y - tip.offsetHeight - 8) + "px";
+    }
+    svg.addEventListener("pointermove", show);
+    svg.addEventListener("pointerdown", show);
+    svg.addEventListener("pointerleave", ev => {
+      if (ev.pointerType !== "mouse") return;
+      tip.hidden = true;
+      if (hot) { hot.classList.remove("is-hot"); hot = null; }
+    });
+  });
+
   const figs = [...document.querySelectorAll(".eg-fig")];
   if (!figs.length) return;
   const load = () => dataPromise || (dataPromise = fetch(figs[0].dataset.src).then(r => r.json()));

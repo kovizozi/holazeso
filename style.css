@@ -3732,12 +3732,130 @@ body.vz-embed {
   height: 13px;
 }
 
-.eg-table {
-  min-width: 560px;
+.eg-page h2 {
+  font-size: 22px;
+  margin-top: var(--sp-5);
 }
 
-.eg-table tbody th {
-  font-weight: 400;
+/* Keretes táblázat (design-szabály: 1,5 px --frame keret, kártya-sugár). */
+.eg-framed {
+  border: 1.5px solid var(--frame);
+  border-radius: var(--radius-card);
+  overflow-x: auto;
+  margin-top: var(--sp-3);
+}
+
+.eg-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.eg-table th,
+.eg-table td {
   text-align: left;
-  padding-right: var(--sp-2);
+  font-weight: 400;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.eg-table tbody tr:last-child th,
+.eg-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.eg-table thead th {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.eg-table td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pontdiagram-kártyák: mint a főoldali statisztika-kártyák (2 oszlop 900 px-től, fekvő kártyák). */
+.eg-sc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+@media (min-width: 900px) {
+  .eg-sc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.eg-card {
+  position: relative;
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--surface);
+  border-radius: var(--radius-card);
+}
+
+.eg-card-title {
+  font-size: 16px;
+  line-height: 1.3;
+  margin: 0 0 var(--sp-1);
+}
+
+.eg-card-sum {
+  font-size: 15px;
+  margin: var(--sp-1) 0 0;
+}
+
+.eg-card-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: var(--sp-1) 0 0;
+}
+
+.eg-sc {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--font);
+  font-size: 12px;
+  fill: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .eg-sc {
+    font-size: 15px;
+  }
+}
+
+.eg-sc-gl { stroke: var(--border); stroke-width: 1; }
+.eg-sc-axis { stroke: var(--fg); stroke-width: 1; }
+.eg-sc-lab { fill: var(--fg); }
+.eg-sc-band { fill: var(--accent); opacity: 0.12; }
+.eg-sc-model { fill: none; stroke: var(--fg); stroke-width: 2; }
+.eg-sc-trend { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.eg-sc-scen { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.6; }
+.eg-sc-mark { fill: var(--bg); stroke: var(--fg); stroke-width: 2; }
+.eg-sc-strong { fill: var(--fg); font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.eg-sc-pt { stroke: var(--bg); stroke-width: 0.6; }
+.eg-sc-pt.is-hot { stroke: var(--fg); stroke-width: 2; }
+.eg-y0 { fill: color-mix(in srgb, var(--accent) 22%, var(--bg)); background: color-mix(in srgb, var(--accent) 22%, var(--bg)); }
+.eg-y1 { fill: color-mix(in srgb, var(--accent) 28%, var(--bg)); background: color-mix(in srgb, var(--accent) 28%, var(--bg)); }
+.eg-y2 { fill: color-mix(in srgb, var(--accent) 35%, var(--bg)); background: color-mix(in srgb, var(--accent) 35%, var(--bg)); }
+.eg-y3 { fill: color-mix(in srgb, var(--accent) 42%, var(--bg)); background: color-mix(in srgb, var(--accent) 42%, var(--bg)); }
+.eg-y4 { fill: color-mix(in srgb, var(--accent) 48%, var(--bg)); background: color-mix(in srgb, var(--accent) 48%, var(--bg)); }
+.eg-y5 { fill: color-mix(in srgb, var(--accent) 54%, var(--bg)); background: color-mix(in srgb, var(--accent) 54%, var(--bg)); }
+.eg-y6 { fill: color-mix(in srgb, var(--accent) 61%, var(--bg)); background: color-mix(in srgb, var(--accent) 61%, var(--bg)); }
+.eg-y7 { fill: color-mix(in srgb, var(--accent) 68%, var(--bg)); background: color-mix(in srgb, var(--accent) 68%, var(--bg)); }
+.eg-y8 { fill: color-mix(in srgb, var(--accent) 74%, var(--bg)); background: color-mix(in srgb, var(--accent) 74%, var(--bg)); }
+.eg-y9 { fill: color-mix(in srgb, var(--accent) 80%, var(--bg)); background: color-mix(in srgb, var(--accent) 80%, var(--bg)); }
+.eg-y10 { fill: color-mix(in srgb, var(--accent) 87%, var(--bg)); background: color-mix(in srgb, var(--accent) 87%, var(--bg)); }
+.eg-y11 { fill: color-mix(in srgb, var(--accent) 94%, var(--bg)); background: color-mix(in srgb, var(--accent) 94%, var(--bg)); }
+.eg-y12 { fill: color-mix(in srgb, var(--accent-ink) 65%, var(--fg)); background: color-mix(in srgb, var(--accent-ink) 65%, var(--fg)); }
+
+/* Lábléc: minden oldal linkje (főoldal és szöveges oldalak). */
+.footer-nav {
+  font-size: 13px;
+  margin: 0 0 var(--sp-2);
 }

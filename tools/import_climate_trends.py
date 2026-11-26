@@ -209,6 +209,9 @@ def main():
         "szaraz": [round(st_mean(since_by_day[d] for d in by_year[y]), 2) for y in years],
     }
     yearly["intenz"] = [round(c / w, 2) for c, w in zip(yearly["csap"], yearly["esonap"])]
+    # a legalább 20 mm-es napokon hullott csapadék aránya az éves összegből (%), állomásonként, majd átlag
+    heavy = lambda st, ds: sum(st[d] for d in ds if st[d] >= 20) / max(total(st, ds), 0.1) * 100
+    yearly["nagyeso"] = [round(per_station("r", by_year[y], heavy), 1) for y in years]
 
     out = {"y0": Y0, "y1": Y1, "nb": NB, "levels": list(SMOOTH), "default": "kozepes", "charts": charts, "yearly": yearly, "frost": frost_dates(raw["tn"]),
            "source": "Adatbázis: Meteorológiai Adattár, HungaroMet Nonprofit Zrt.",
