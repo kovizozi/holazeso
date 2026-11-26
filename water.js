@@ -898,6 +898,61 @@ function waterStationSlug(name) {
   return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+// Vízjárás most (a hydroinfo napi vízjárási térképének fogalmai szerint): árad, tetőzik,
+// apad vagy állandó. A rivers-snapshot óránkénti történetéből (az utolsó 24 óra változása)
+// és a napi előrejelzésből (forecast_cm[i] = a D+1+i. nap reggel 7 órás értéke):
+//  - árad / apad: legalább 3 cm változás 24 óra alatt;
+//  - tetőzik: eddig áradt (24 óra alatt +3 cm, vagy 48 óra alatt +5 cm és most már alig
+//    változik), de az előrejelzés holnapra alacsonyabb szintet ad;
+//  - tetőzés várható: árad, és az előrejelzés egy későbbi napon maximumot, utána csökkenést ad.
+const TREND_TEXT = { up: "árad", peak: "tetőzik", down: "apad", flat: "állandó" };
+const TREND_GLYPH = { up: "\u25B2", peak: "\u25C6", down: "\u25BC", flat: "" };
+const TREND_WEEKDAYS = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"];
+
+function levelHoursAgo(st, hours) {
+  const hist = st.history || [];
+  if (hist.length < 2) return null;
+  const last = Date.parse(hist[hist.length - 1].at);
+  const target = last - hours * 3600000;
+  if (Date.parse(hist[0].at) > target + 3 * 3600000) return null;
+  let best = hist[0];
+  for (const h of hist) if (Math.abs(Date.parse(h.at) - target) < Math.abs(Date.parse(best.at) - target)) best = h;
+  return best.level_cm;
+}
+
+function riverTrend(st) {
+  const now = st.level_cm;
+  if (typeof now !== "number") return null;
+  const h24 = levelHoursAgo(st, 24), h48 = levelHoursAgo(st, 48);
+  if (h24 === null) return null;
+  const d24 = now - h24;
+  const f = Array.isArray(st.forecast_cm) ? st.forecast_cm.filter(v => typeof v === "number") : [];
+  let kind = d24 >= 3 ? "up" : d24 <= -3 ? "down" : "flat";
+  const roseBefore = d24 >= 3 || (h48 !== null && now - h48 >= 5);
+  if (roseBefore && kind !== "down" && f.length && f[0] < now - 1) kind = "peak";
+  let peak = null;
+  if (kind === "up" && f.length >= 2) {
+    let k = 0;
+    for (let i = 1; i < f.length; i++) if (f[i] > f[k]) k = i;
+    if (k < f.length - 1 && f[k] > now && f[k + 1] < f[k]) {
+      // forecast_cm[k] a mérés napja után a (k+1). nap reggele; a mérés napja a történet utolsó eleme.
+      const hist = st.history || [];
+      const base = hist.length ? Date.parse(hist[hist.length - 1].at) : Date.now();
+      const day = new Date(base + (k + 1) * 86400000);
+      peak = { day: TREND_WEEKDAYS[day.getDay()], cm: f[k] };
+    }
+  }
+  return { kind, d24, peak };
+}
+
+function riverTrendText(t, withChange = true) {
+  if (!t) return "";
+  let s = TREND_TEXT[t.kind];
+  if (withChange && t.kind !== "flat") s += ` (${t.d24 > 0 ? "+" : "\u2212"}${waterNum(Math.abs(t.d24), 0)} cm 24 óra alatt)`;
+  if (t.peak) s += `, tetőzés várható ${t.peak.day} (kb. ${waterNum(t.peak.cm, 0)} cm)`;
+  return s;
+}
+
 // A mostani szint változása ~7 nappal korábbihoz képest (cm), vagy null, ha a history nem fedi le
 // (ugyanaz a szabály, mint a tools/build_pages.py week_change).
 function riverWeekChange(st) {
@@ -947,7 +1002,8 @@ function riverPickLabel(st, delta) {
   const change = delta === null ? "a heti változás nem ismert"
     : delta === 0 ? "egy hete ugyanennyi"
     : `${waterNum(Math.abs(delta), 0)} cm-rel ${delta > 0 ? "magasabb" : "alacsonyabb"}, mint egy hete`;
-  return `${st.river}, ${st.name}: ${waterNum(st.level_cm, 0)} cm, ${change}`;
+  const trend = riverTrendText(riverTrend(st));
+  return `${st.river}, ${st.name}: ${waterNum(st.level_cm, 0)} cm, ${change}${trend ? `, most ${trend}` : ""}`;
 }
 
 // A főoldali "friss" grafikon helye: ugyanaz a váz, mint a vizallas.js-é, előre foglalt kerettel.
@@ -1038,7 +1094,9 @@ function buildRiverList(container, snapshot, point) {
     btn.className = "water-pick-btn";
     btn.setAttribute("aria-pressed", "false");
     btn.setAttribute("aria-label", riverPickLabel(st, delta));
-    btn.innerHTML = `<span class="water-pick-name"><strong>${st.river}</strong> ${st.name}</span>` +
+    const trend = riverTrend(st);
+    const trendHtml = trend ? `<span class="water-pick-trend" aria-hidden="true">${TREND_GLYPH[trend.kind] ? TREND_GLYPH[trend.kind] + " " : ""}${riverTrendText(trend, false)}</span>` : "";
+    btn.innerHTML = `<span class="water-pick-name"><strong>${st.river}</strong> ${st.name}${trendHtml}</span>` +
       `<span class="water-pick-lvl" aria-hidden="true">${waterNum(st.level_cm, 0)} cm</span>${riverChangeMarkup(delta)}`;
     btn.addEventListener("click", () => selectRiverStation(i, { scroll: window.innerWidth < 700 }));
     li.appendChild(btn);
@@ -1107,7 +1165,10 @@ function riverNetPopupHtml(riverName, discharge, stations) {
   let html = `<strong>${riverName}</strong>`;
   if (discharge) html += `<span>átlagos vízhozam: kb. ${waterNum(discharge, 0)} m³/s</span>`;
   if (!stations.length) return html + `<span>nincs mérőállomás az oldalon</span>`;
-  for (const st of stations) html += `<span>${st.name}: ${waterNum(st.level_cm, 0)} cm</span>`;
+  for (const st of stations) {
+    const t = riverTrendText(riverTrend(st));
+    html += `<span>${st.name}: ${waterNum(st.level_cm, 0)} cm${t ? `, ${t}` : ""}</span>`;
+  }
   const primaryName = RIVER_NET_PRIMARY_STATION[riverName];
   const primary = stations.find(st => st.name === primaryName) ||
     stations.find(st => st.role === "interior") || stations[0];
@@ -1127,7 +1188,19 @@ function buildRiverNet(svgEl, popupEl, stations) {
     if (muted) { el.classList.add("is-muted"); mutedNames.add(name); }
   });
   svgEl.querySelectorAll("text").forEach(t => {
-    if (mutedNames.has(t.textContent.trim())) t.classList.add("is-muted");
+    const name = t.textContent.trim();
+    if (mutedNames.has(name)) t.classList.add("is-muted");
+    const gauges = stations.filter(st => st.river === (RIVER_NET_GAUGE_NAME[name] || name));
+    if (!gauges.length) return;
+    const primary = gauges.find(st => st.name === RIVER_NET_PRIMARY_STATION[name]) ||
+      gauges.find(st => st.role === "interior") || gauges[0];
+    const tr = riverTrend(primary);
+    if (!tr || !TREND_GLYPH[tr.kind]) return;
+    const glyph = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+    glyph.setAttribute("class", `water-trend-glyph is-${tr.kind}`);
+    glyph.textContent = (t.getAttribute("text-anchor") === "end" ? "" : " ") + TREND_GLYPH[tr.kind];
+    if (t.getAttribute("text-anchor") === "end") { glyph.textContent += " "; t.insertBefore(glyph, t.firstChild); }
+    else t.appendChild(glyph);
   });
 
   // Az érzékelő-réteg: a vékony vonalakra is könnyű legyen rámutatni, és

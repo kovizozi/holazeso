@@ -2704,12 +2704,12 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // megjelenik (a helyfoglaló vázzal), a kód viszont csak később jön.
 // ============================================================================
 
-const WATER_JS_URL = "/water.js?v=17";
+const WATER_JS_URL = "/water.js?v=18";
 // A generált oldalakon (/eso/<slug>/, /ho/) a panel markupja nincs a HTML-ben
 // (üres #water-panel[data-fragment]): a generátor egyszer, ebbe a fájlba írja
 // az index.html sablonból. A főoldalon inline marad. A ?v= együtt emelendő a
 // fragment tartalmának változásakor (CLAUDE.md 3. szabály).
-const WATER_PANEL_URL = "/water-panel.html?v=7";
+const WATER_PANEL_URL = "/water-panel.html?v=8";
 let waterFragmentLoading = null;
 let waterJsLoading = null;
 let waterPendingPoint = null;

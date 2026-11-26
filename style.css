@@ -3929,3 +3929,14 @@ body.vz-embed {
 .water-lake-year-grid { stroke: var(--border); stroke-width: 1; }
 .water-lake-year-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .water-lake-year-dot { fill: var(--fg); }
+
+/* Vízjárás (water.js riverTrend): a folyólista alsora és a térképi jel. */
+.water-pick-trend {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#water-river-net .water-trend-glyph {
+  fill: var(--accent);
+}
