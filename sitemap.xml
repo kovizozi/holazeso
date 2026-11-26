@@ -721,6 +721,16 @@
     <!--h:4b7b6a5a3d1d-->
   </url>
   <url>
+    <loc>https://holazeso.hu/ho/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <!--h:2c22f6a3cc5f-->
+  </url>
+  <url>
+    <loc>https://holazeso.hu/eghajlat/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <!--h:2086a0345812-->
+  </url>
+  <url>
     <loc>https://holazeso.hu/vizallas/</loc>
     <lastmod>2026-11-26</lastmod>
     <!--h:fba391c22d4b-->
@@ -769,15 +779,5 @@
     <loc>https://holazeso.hu/vizallas/ferto/</loc>
     <lastmod>2026-11-26</lastmod>
     <!--h:8944aca9aadd-->
-  </url>
-  <url>
-    <loc>https://holazeso.hu/ho/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <!--h:2c22f6a3cc5f-->
-  </url>
-  <url>
-    <loc>https://holazeso.hu/eghajlat/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <!--h:2086a0345812-->
   </url>
 </urlset>
