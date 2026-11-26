@@ -2644,10 +2644,67 @@ function renderLakeCards(container, cards) {
       (history.length > 1 ? `<div class="water-lake-card-trend">${popupSparklineSvg(history)}</div>` : "") +
       (!hasBand ? `<p class="water-lake-card-note">ehhez a tóhoz nincs megadva ideális sáv</p>` : "") +
       (card.note ? `<p class="water-lake-card-note">${card.note}</p>` : "");
+    const yearSlug = LAKE_YEAR_STATION[card.name];
+    if (yearSlug) {
+      // Hely előre foglalva (aspect-ratio), hogy az adat megérkezése ne ugrassa a kártyát.
+      const fig = document.createElement("figure");
+      fig.className = "water-lake-year";
+      fig.innerHTML = `<figcaption>Idei vízállás (cm)</figcaption><div class="water-lake-year-plot"></div>`;
+      el.appendChild(fig);
+      loadRiverStationData(yearSlug)
+        .then(d => { fig.querySelector(".water-lake-year-plot").innerHTML = lakeYearSvg(d, hasBand ? band : null, card.name); })
+        .catch(() => fig.remove());
+    }
     container.appendChild(el);
     const gauge = el.querySelector(".water-lake-gauge");
     if (gauge) watchFigureScale(gauge, 240);
   }
+}
+
+// A tó-kártyák idei vonaldiagramja: a /data/vizallas/<állomás>.json napi sorából
+// (reggel 7 órás értékek, a generátor írja) január 1-jétől máig. Ugyanaz az állomás,
+// mint a tó vízállás-oldalán; a Balatonnál a napi sor a Balaton átlagos vízállása.
+const LAKE_YEAR_STATION = { "Balaton": "siofok", "Velencei-tó": "agard", "Fertő": "fertorakos" };
+const LAKE_MONTHS = ["jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.", "okt.", "nov.", "dec."];
+
+function lakeYearSvg(d, band, name) {
+  const daily = d && d.daily;
+  if (!daily || !Array.isArray(daily.cm)) return "";
+  const start = Date.parse(daily.start + "T00:00:00Z");
+  const year = new Date().getUTCFullYear();
+  const jan1 = Date.UTC(year, 0, 1), dec31 = Date.UTC(year, 11, 31);
+  const pts = [];
+  daily.cm.forEach((cm, i) => {
+    const t = start + i * 86400000;
+    if (t >= jan1 && typeof cm === "number") pts.push({ t, cm });
+  });
+  if (pts.length < 2) return "";
+  const W = 240, H = 96, L = 30, R = 6, T = 6, B = 16;
+  let lo = Math.min(...pts.map(p => p.cm)), hi = Math.max(...pts.map(p => p.cm));
+  if (band) { lo = Math.min(lo, band.lowCm); hi = Math.max(hi, band.highCm); }
+  const padY = Math.max(2, (hi - lo) * 0.08);
+  lo -= padY; hi += padY;
+  const x = t => L + (t - jan1) / (dec31 - jan1) * (W - L - R);
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${name} idei vízállása január 1-jétől: ` +
+    `${waterNum(pts[0].cm, 0)} cm-ről ${waterNum(pts[pts.length - 1].cm, 0)} cm-re">`;
+  if (band) {
+    s += `<rect class="water-lake-year-band" x="${L}" y="${y(band.highCm).toFixed(1)}" width="${W - L - R}" ` +
+      `height="${(y(band.lowCm) - y(band.highCm)).toFixed(1)}"></rect>` +
+      `<text x="${W - R - 3}" y="${(y(band.highCm) + 10).toFixed(1)}" text-anchor="end">ideális sáv</text>`;
+  }
+  for (const m of [0, 3, 6, 9]) {
+    const xm = x(Date.UTC(year, m, 1));
+    s += `<line class="water-lake-year-grid" x1="${xm.toFixed(1)}" x2="${xm.toFixed(1)}" y1="${T}" y2="${H - B}"></line>` +
+      `<text x="${xm.toFixed(1)}" y="${H - 4}" text-anchor="start">${LAKE_MONTHS[m]}</text>`;
+  }
+  const minP = pts.reduce((a, p) => (p.cm < a.cm ? p : a)), maxP = pts.reduce((a, p) => (p.cm > a.cm ? p : a));
+  s += `<text x="${L - 4}" y="${(y(maxP.cm) + 4).toFixed(1)}" text-anchor="end">${waterNum(maxP.cm, 0)}</text>` +
+    `<text x="${L - 4}" y="${(y(minP.cm) + 4).toFixed(1)}" text-anchor="end">${waterNum(minP.cm, 0)}</text>`;
+  s += `<polyline class="water-lake-year-line" points="${pts.map(p => `${x(p.t).toFixed(1)},${y(p.cm).toFixed(1)}`).join(" ")}"></polyline>`;
+  const last = pts[pts.length - 1];
+  s += `<circle class="water-lake-year-dot" cx="${x(last.t).toFixed(1)}" cy="${y(last.cm).toFixed(1)}" r="3"></circle></svg>`;
+  return s;
 }
 
 // ---- Cigánd: a tározó megnyitása (aktuális hír) ----

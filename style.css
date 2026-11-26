@@ -3898,3 +3898,34 @@ body.vz-embed {
 .eg-teaser:hover .eg-teaser-text strong {
   text-decoration-thickness: 2px;
 }
+
+/* Tó-kártyák: idei vízállás kis vonaldiagramja (water.js lakeYearSvg). A hely előre foglalt. */
+.water-lake-year {
+  margin: var(--sp-2) 0 0;
+}
+
+.water-lake-year figcaption {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.water-lake-year-plot {
+  aspect-ratio: 240 / 96;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.water-lake-year-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--font);
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.water-lake-year-band { fill: var(--accent); opacity: 0.12; }
+.water-lake-year-grid { stroke: var(--border); stroke-width: 1; }
+.water-lake-year-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.water-lake-year-dot { fill: var(--fg); }
