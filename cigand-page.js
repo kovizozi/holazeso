@@ -12,7 +12,7 @@
 let borderRings = null;
 
 (function () {
-  const WATER_JS_URL = "/water.js?v=19";
+  const WATER_JS_URL = "/water.js?v=20";
   const s = document.createElement("script");
   s.src = WATER_JS_URL;
   s.onload = () => buildCigandPage();

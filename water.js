@@ -319,10 +319,12 @@ function waterRiverMarker(x, y) {
 
 // Fő vízügyi műtárgyak (duzzasztók, vízlépcsők, zsilipek), a helyük az OpenStreetMapből
 // (2026-11-26, waterway=dam/lock_gate objektumok). Statikus: nem változnak, élő adat nincs róluk.
+// url: magyar Wikipédia-cikk, ha van (2026-11-26-án csak a békésszentandrási duzzasztónak volt).
 const WATER_WORKS = [
   { name: "Tiszalöki vízlépcső", what: "duzzasztó és vízerőmű a Tiszán", lat: 48.0258, lon: 21.3087 },
   { name: "Kiskörei vízlépcső", what: "duzzasztó és vízerőmű a Tiszán, ez tartja a Tisza-tavat", lat: 47.4935, lon: 20.5154 },
-  { name: "Békésszentandrási duzzasztó", what: "a Hármas-Körös duzzasztója", lat: 46.8909, lon: 20.4995 },
+  { name: "Békésszentandrási duzzasztó", what: "a Hármas-Körös duzzasztója", lat: 46.8909, lon: 20.4995,
+    url: "https://hu.wikipedia.org/wiki/B%C3%A9k%C3%A9sszentandr%C3%A1si_duzzaszt%C3%B3" },
   { name: "Kvassay-zsilip", what: "hajózsilip és vízkormányzó zsilip a Ráckevei-Duna-ág torkolatánál", lat: 47.4612, lon: 19.0693 },
   { name: "Sió-zsilip", what: "Siófoknál, ezzel szabályozzák a Balaton vízszintjét", lat: 46.9083, lon: 18.0462 },
   { name: "Cigándi tározó beeresztő műtárgya", what: "a Tisza árvízcsúcsát vezeti a tározóba", lat: 48.2711, lon: 21.9546 },
@@ -642,16 +644,18 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
       `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"></circle>` +
       (kind === "river" ? waterRiverMarker(x, y) : waterLakeMarker(x, y)) + glyph + `</g>`;
   };
-  for (const w of WATER_WORKS) {
-    const { x, y } = projectLatLon(w.lat, w.lon);
-    markerIcons.push({ title: w.name, level: null, sub: w.what });
-    markersMarkup += `<g class="water-marker" tabindex="0" role="img" data-marker="${markerIcons.length - 1}" aria-label="${w.name}: ${w.what}">` +
-      `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"></circle>${waterWorkMarker(x, y)}</g>`;
-  }
   for (const station of riverStations) addMarker(station, "river");
   for (const station of lakeStations) {
     if (station.station === "Balaton average") continue; // a 3 mérce elég, az átlag külön szekcióban van
     addMarker(station, "lake");
+  }
+  // A műtárgyak a mércék FÖLÖTT, kisebb érintési körrel: Szarvas és a békésszentandrási
+  // duzzasztó szinte egy helyen van, így mindkettő elérhető marad.
+  for (const w of WATER_WORKS) {
+    const { x, y } = projectLatLon(w.lat, w.lon);
+    markerIcons.push({ title: w.name, level: null, sub: w.what, url: w.url || null });
+    markersMarkup += `<g class="water-marker" tabindex="0" role="img" data-marker="${markerIcons.length - 1}" aria-label="${w.name}: ${w.what}">` +
+      `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5"></circle>${waterWorkMarker(x, y)}</g>`;
   }
 
   // A keresett hely kettős gyűrűvel; a neve a felirat-rétegben.
@@ -768,19 +772,34 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   const markerHtml = el => {
     const m = markerIcons[Number(el.dataset.marker)];
     return `<strong>${m.title}</strong>` + (m.level === null ? "" : `<span>${waterNum(m.level, 0)} cm</span>`) +
-      (m.sub ? `<span>${m.sub}</span>` : "");
+      (m.sub ? `<span>${m.sub}</span>` : "") +
+      (m.url ? `<span>Wikipédia-cikk: kattints rá (érintéssel: koppints még egyszer)</span>` : "");
   };
+  // A Wikipédia-cikkes műtárgyra kattintva a cikk új lapon nyílik; érintésnél az első koppintás
+  // csak a buborékot mutatja (hogy a név látsszon), a második nyitja meg.
+  let shownMarker = null;
   const showMarker = (el, clientX, clientY) => {
     boxEl.innerHTML = "";
+    shownMarker = el;
     mapPopupShow(popupEl, clientX, clientY, markerHtml(el));
   };
   svgEl.querySelectorAll(".water-marker").forEach(el => {
     el.addEventListener("pointerenter", event => { if (event.pointerType === "mouse") showMarker(el, event.clientX, event.clientY); });
     el.addEventListener("pointerleave", event => { if (event.pointerType === "mouse") clearCell(); });
-    el.addEventListener("click", event => { event.stopPropagation(); showMarker(el, event.clientX, event.clientY); pinnedCell = true; });
+    el.addEventListener("click", event => {
+      event.stopPropagation();
+      const m = markerIcons[Number(el.dataset.marker)];
+      if (m.url && shownMarker === el) { window.open(m.url, "_blank", "noopener"); return; }
+      showMarker(el, event.clientX, event.clientY);
+      pinnedCell = true;
+    });
     el.addEventListener("focus", () => {
       const r = el.getBoundingClientRect();
       showMarker(el, r.left + r.width / 2, r.top);
+    });
+    el.addEventListener("keydown", event => {
+      const m = markerIcons[Number(el.dataset.marker)];
+      if (m.url && event.key === "Enter") window.open(m.url, "_blank", "noopener");
     });
     el.addEventListener("blur", clearCell);
   });

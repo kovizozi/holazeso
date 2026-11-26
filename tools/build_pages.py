@@ -929,6 +929,11 @@ WATER_WORKS = [
 ]
 
 
+# Magyar Wikipédia-cikk a műtárgyhoz, ha van (2026-11-26-án csak ennek volt); a water.js-ben az url mező.
+WATER_WORKS_WIKI = {"Békésszentandrási duzzasztó":
+                    "https://hu.wikipedia.org/wiki/B%C3%A9k%C3%A9sszentandr%C3%A1si_duzzaszt%C3%B3"}
+
+
 def water_map(active, points, labels=True):
     """Statikus SVG-térkép: minden folyó/tó szürke és kattintható (<a>), az aktuális víz --accent.
     active: a víz slugja (None: mindegyik kiemelve, áttekintő). points: [(név, lat, lon, slug)]."""
@@ -969,12 +974,17 @@ def water_map(active, points, labels=True):
                      f'text-anchor="{"start" if right else "end"}">{esc(pname)}</text>')
         out.append(mark + "</a>")
     # fő duzzasztók, zsilipek (ugyanaz a lista, mint a water.js WATER_WORKS-je)
+    # a vizallas.js térkép-hoverje az <a data-name>-et írja ki; Wikipédia-cikk esetén link
     for wname, what, lat, lon in WATER_WORKS:
         x, y = map_xy(lat, lon)
-        out.append(f'<g class="vz-map-work" role="img" aria-label="{esc(wname)}: {esc(what)}">'
-                   f'<title>{esc(wname)}: {esc(what)}</title>'
+        url = WATER_WORKS_WIKI.get(wname)
+        href = f' href="{url}" target="_blank" rel="noopener"' if url else ""
+        tip = f"{wname}: {what}" + (" (Wikipédia-cikk)" if url else "")
+        out.append(f'<a class="vz-map-work" data-name="{esc(tip)}"{href} aria-label="{esc(tip)}">'
+                   f'<title>{esc(tip)}</title>'
                    f'<rect x="{x - 3:.1f}" y="{y - 3:.1f}" width="6" height="6"/>'
-                   f'<line x1="{x - 3:.1f}" y1="{y:.1f}" x2="{x + 3:.1f}" y2="{y:.1f}"/></g>')
+                   f'<line x1="{x - 3:.1f}" y1="{y:.1f}" x2="{x + 3:.1f}" y2="{y:.1f}"/>'
+                   f'<circle class="vz-map-hit" cx="{x:.1f}" cy="{y:.1f}" r="7"/></a>')
     out.append("</svg>")
     legend = ("teli pont: ezen a vízen lévő mérőállomás, üres pont: más vizek állomásai; fekete négyzet: "
               "duzzasztó, zsilip; kattints egy vízre"
@@ -1223,7 +1233,7 @@ CIGAND_FIGURES = """    <div id="cigand-figures">
     </figure>
     <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
     </div>"""
-CIGAND_PAGE_JS = "/cigand-page.js?v=6"
+CIGAND_PAGE_JS = "/cigand-page.js?v=7"
 
 
 def bold_md(text):

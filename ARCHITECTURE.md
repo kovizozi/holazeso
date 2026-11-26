@@ -189,6 +189,11 @@ határok (`loadWaterGeo`/`radarDrawWaterGeo`, lásd a közös
   határoknál (0,015 fok tűrés a folyóknál, 0,01 a Balatonnál, mert az
   kisebb és közelről néznénk). A fájl ~1,8 KB (12 folyó-szakasz, 1 tó-
   gyűrű) - nem kellett a határokéhoz hasonló méretoptimalizálás.
+- **Kiegészítés (2026-11-26)**: a Duna Esztergom feletti (Győr-Komárom, a határon "Dunaj / Duna"
+  nevű) szakasza és a Körösök (Hármas-, Kettős-, Sebes-, Fehér-, Fekete-Körös) a Natural Earth-
+  adatból hiányzott; a `tools/water_geo_add_rivers.py` a worker /channels-snapshot
+  pillanatképéből (OpenStreetMap, ODbL) fűzi hozzá őket, Douglas-Peucker 0,006 fok, ugyanabban
+  a delta-kódolásban. Egyszeri, ismételt futtatásra nem duplikál. A radar is ezt a fájlt rajzolja.
 - **Rajzolás**: a folyók NYITOTT vonalként (nem gyűrűként), a Balaton ZÁRT
   gyűrűként, de mindkettő csak körvonalként (nincs kitöltés, a projekt
   monokróm/sík-design szabálya miatt) - a Balatont a folyóktól és a

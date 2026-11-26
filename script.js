@@ -699,7 +699,7 @@ function loadBorders() {
 // (lakes) VÁLTOZATLAN marad: az már eddig is jó felbontású volt. A Fertő-tó
 // és a Velencei-tó nem szerepel benne: a Tavak-szakasz saját, kézzel
 // rajzolt ábrája ettől függetlenül mutatja mindháromat.
-const WATER_GEO_URL = "/water-geo.json?v=2";
+const WATER_GEO_URL = "/water-geo.json?v=3";
 // A folyók finomabb (0,001 fokos) egységben vannak kódolva, mint a tavak
 // (0,01) - ld. a fenti kommentet és decodeDeltaRings hívását lent.
 const WATER_GEO_RIVER_SCALE = 1000;
@@ -2704,7 +2704,7 @@ document.getElementById("location-picker").addEventListener("keydown", (e) => {
 // megjelenik (a helyfoglaló vázzal), a kód viszont csak később jön.
 // ============================================================================
 
-const WATER_JS_URL = "/water.js?v=19";
+const WATER_JS_URL = "/water.js?v=20";
 // A generált oldalakon (/eso/<slug>/, /ho/) a panel markupja nincs a HTML-ben
 // (üres #water-panel[data-fragment]): a generátor egyszer, ebbe a fájlba írja
 // az index.html sablonból. A főoldalon inline marad. A ?v= együtt emelendő a
