@@ -3660,3 +3660,84 @@ body.vz-embed {
   border: 1px solid var(--border);
   resize: vertical;
 }
+
+/* /eghajlat/: éghajlati hőtérképek. Hét szint: a háttértől az --accent-ig, a legsötétebb
+   (legtöbb) az --accent-ink és az --fg keveréke (világosban mélyebb, sötétben világosabb kék). */
+.eg-what {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 var(--sp-1);
+}
+
+.eg-scroll {
+  overflow-x: auto;
+}
+
+.eg-svg {
+  display: block;
+  width: 100%;
+  min-width: 600px;
+  height: auto;
+  font-family: var(--font);
+  font-size: 11px;
+  fill: var(--muted);
+}
+
+.eg-svg rect {
+  shape-rendering: crispEdges;
+}
+
+.eg-svg .eg-wrap {
+  opacity: 0.55;
+}
+
+.eg-yearline {
+  stroke: var(--fg);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.eg-frost {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 2;
+}
+
+.eg-l0 { fill: var(--bg); background: var(--bg); }
+.eg-l1 { fill: color-mix(in srgb, var(--accent) 15%, var(--bg)); background: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
+.eg-l2 { fill: color-mix(in srgb, var(--accent) 32%, var(--bg)); background: color-mix(in srgb, var(--accent) 32%, var(--bg)); }
+.eg-l3 { fill: color-mix(in srgb, var(--accent) 50%, var(--bg)); background: color-mix(in srgb, var(--accent) 50%, var(--bg)); }
+.eg-l4 { fill: color-mix(in srgb, var(--accent) 72%, var(--bg)); background: color-mix(in srgb, var(--accent) 72%, var(--bg)); }
+.eg-l5 { fill: var(--accent); background: var(--accent); }
+.eg-l6 { fill: color-mix(in srgb, var(--accent-ink) 65%, var(--fg)); background: color-mix(in srgb, var(--accent-ink) 65%, var(--fg)); }
+
+.eg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 13px;
+  color: var(--muted);
+  margin: var(--sp-1) 0 0;
+}
+
+.eg-sws {
+  display: inline-flex;
+  border: 1px solid var(--border);
+}
+
+.eg-sw {
+  display: inline-block;
+  width: 21px;
+  height: 13px;
+}
+
+.eg-table {
+  min-width: 560px;
+}
+
+.eg-table tbody th {
+  font-weight: 400;
+  text-align: left;
+  padding-right: var(--sp-2);
+}

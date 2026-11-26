@@ -705,7 +705,7 @@ def doc_page(ctx, *, path, title, description, h1, body_html, extra_scripts=""):
     html = (head + '<body class="doc">\n'
             '  <header class="doc-top"><a class="doc-home" href="/">hol az eső?</a>\n'
             '    <nav aria-label="Oldalak"><a href="/vizallas/">Vízállás</a> '
-            '<a href="/cigand/">Cigánd</a></nav></header>\n'
+            '<a href="/cigand/">Cigánd</a> <a href="/eghajlat/">Éghajlat</a></nav></header>\n'
             '  <main class="doc-main">\n' + body_html + '\n  </main>\n'
             '  <footer>\n    <p class="credits">holazeso.hu · <a href="/">Hol esik most?</a> · '
             'Vízállás: <a href="https://www.hydroinfo.hu/" target="_blank" rel="noopener">hydroinfo.hu</a> '
@@ -1276,6 +1276,8 @@ def build_about_page(ctx):
         (ext("https://open-meteo.com/", "Open-Meteo"), "időjárás, csapadék és helykeresés (CC BY 4.0)"),
         (ext("https://www.bigdatacloud.com/", "BigDataCloud"), "a helynév a koordinátából"),
         (ext("https://www.rainviewer.com/", "RainViewer"), "radarkép"),
+        (ext("https://odp.met.hu/", "Meteorológiai Adattár, HungaroMet Nonprofit Zrt."),
+         "az éghajlati hőtérképek napi mérései 1901-től (átlagolva, simítva)"),
         (ext("https://www.hydroinfo.hu/", "hydroinfo.hu") + " (Országos Vízügyi Főigazgatóság)",
          "vízállás és előrejelzés"),
         (ext("https://wasser.bgld.gv.at/", "wasser.bgld.gv.at") + " (Burgenland)",
@@ -1431,8 +1433,215 @@ def build_widget_page(ctx):
     return [Page("/widget/", WIDGET_HTML, indexable=False)]
 
 
+# ---------------------------------------------------------------------------
+# /eghajlat/: éghajlati hőtérképek 1901-től (adat: tools/import_climate_trends.py)
+
+CLIMATE_FILE = ROOT / "data" / "eghajlat.json"
+EGHAJLAT_JS = "/eghajlat.js?v=2"
+EG_PRE = 12             # ennyi 5 napos sáv ráhagyás az előző év végéből (fent) és a következő év elejéből (lent)
+EG_CW, EG_RH, EG_L, EG_T = 7, 5, 40, 4
+EG_LEVELS = 6
+EG_MONTHS = ["jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.", "okt.",
+             "nov.", "dec."]
+# id, cím, mit mutat (mondat), mértékegység, tizedesek, jelmagyarázat két vége, megfigyelés
+EG_CHARTS = [
+    ("szaraz", "Hosszabbodó száraz szakaszok",
+     "Hány nap telt el átlagosan az utolsó, legalább 1 mm-es eső óta.", "nap", 1,
+     ("rövidebb száraz szakaszok", "hosszabb száraz szakaszok"),
+     "A század első felében rövidebbek voltak a csapadékmentes szakaszok. Az 1970-es évektől ősszel, "
+     "az 1990-es évektől télen és tavasszal is hosszabbak: ritkábban esik."),
+    ("heves", "Hevesebb esők",
+     "Mennyi csapadék esik átlagosan egy esős (legalább 1 mm-es) napon.", "mm egy esős napon", 2,
+     ("szelídebb esők", "hevesebb esők"),
+     "Ha esik, egyre többet esik egyszerre, leginkább nyáron és ősszel. A kettő együtt: ritkább, de "
+     "hevesebb esők, közöttük hosszabb szárazság."),
+    ("homerseklet", "Melegedés",
+     "A napi középhőmérséklet.", "°C", 1,
+     ("hidegebb", "melegebb"),
+     "Az 1980-as évekig nincs egyirányú változás, utána az egész év egyszerre melegszik, a legerősebben "
+     "nyáron és a tél végén."),
+    ("hoseg", "Több hőségnap",
+     "A napok hány százalékán volt legalább 30 °C a napi maximum.", "% hőségnap", 1,
+     ("kevesebb hőségnap", "több hőségnap"),
+     "A 2000-es évektől júniustól szeptemberig sokkal gyakoribb a hőség, és a hőséges időszak hosszabb is lett."),
+    ("tropusi", "Trópusi éjszakák",
+     "A napok hány százalékán nem hűlt 20 °C alá a levegő éjszaka sem.", "% trópusi éjszaka", 1,
+     ("kevesebb trópusi éjszaka", "több trópusi éjszaka"),
+     "Az 1990-es évekig ritkaság volt, azóta július-augusztusban rendszeres, és már júniusban, szeptemberben is előfordul."),
+    ("fagy", "Rövidülő fagyos időszak",
+     "A napok hány százalékán ment 0 °C alá a minimum-hőmérséklet. A fekete vonalak az utolsó tavaszi "
+     "és az első őszi fagy átlagos napját mutatják.", "% fagyos nap", 1,
+     ("kevesebb fagyos nap", "több fagyos nap"),
+     None),
+]
+
+
+def eg_num(x, digits):
+    x = round(x, digits) + 0.0     # a "-0,0" elkerülésére
+    s = f"{abs(x):.{digits}f}".replace(".", ",")
+    return ("+" if x > 0 else "−" if x < 0 else "") + s
+
+
+def eg_doy_text(doy):
+    d = datetime.date(2001, 1, 1) + datetime.timedelta(days=round(doy))
+    return f"{EG_MONTHS[d.month - 1]} {d.day}."
+
+
+def eg_svg(cid, title, chart, ny, nb, frost=None):
+    """A hőtérkép statikus SVG-je: oszloponként összevont, azonos szintű cellák (rect)."""
+    anom, sc, k_div = chart["anom"], chart["scale"], chart["k"]
+    rows = list(range(-EG_PRE, nb + EG_PRE))
+    w = EG_L + EG_CW * ny + 4
+    h = EG_T + EG_RH * len(rows) + 20
+
+    def level(y, b):
+        if b < 0:
+            y, b = y - 1, b + nb
+        elif b >= nb:
+            y, b = y + 1, b - nb
+        if not 0 <= y < ny:
+            return None
+        t = 0.5 + anom[b][y] / k_div / (2 * sc)
+        return max(0, min(EG_LEVELS, math.floor(t * EG_LEVELS + 0.5)))   # mint a JS Math.round
+
+    parts = []
+    for y in range(ny):
+        x = EG_L + y * EG_CW
+        k = 0
+        while k < len(rows):
+            lv = level(y, rows[k])
+            n = 1
+            while k + n < len(rows) and level(y, rows[k + n]) == lv:
+                n += 1
+            if lv is not None:
+                parts.append(f'<rect class="eg-l{lv}" x="{x}" y="{EG_T + k * EG_RH}" '
+                             f'width="{EG_CW + 1}" height="{n * EG_RH + 0.5}"/>')
+            k += n
+    # hónapnevek a hónap közepénél; a ráhagyás-sávok neve halvány
+    labels = []
+    for k, b in enumerate(rows):
+        bb = b % nb
+        for m in range(12):
+            mid = (datetime.date(2001, m + 1, 15) - datetime.date(2001, 1, 1)).days * nb / 365
+            if int(mid) == bb:
+                cls = ' class="eg-wrap"' if b < 0 or b >= nb else ""
+                labels.append(f'<text{cls} x="{EG_L - 4}" y="{EG_T + k * EG_RH + 4}" '
+                              f'text-anchor="end">{EG_MONTHS[m]}</text>')
+    for edge in (0, nb):
+        yy = EG_T + (edge + EG_PRE) * EG_RH
+        labels.append(f'<line class="eg-yearline" x1="{EG_L}" x2="{EG_L + EG_CW * ny}" y1="{yy}" y2="{yy}"/>')
+    y_axis = EG_T + len(rows) * EG_RH + 14
+    for yr in range(1910, 1901 + ny, 10):
+        labels.append(f'<text x="{EG_L + (yr - 1901) * EG_CW + EG_CW / 2}" y="{y_axis}" '
+                      f'text-anchor="middle">{yr}</text>')
+    lines = []
+    if frost:
+        for key in ("last", "first"):
+            pts = " ".join(f"{EG_L + i * EG_CW + EG_CW / 2:.1f},"
+                           f"{EG_T + (EG_PRE + d * nb / 365.25) * EG_RH:.1f}"
+                           for i, d in enumerate(frost[key]))
+            lines.append(f'<polyline class="eg-frost" points="{pts}"/>')
+    return (f'<svg class="eg-svg" viewBox="0 0 {w} {h}" role="img" aria-label="{esc(title)}" '
+            f'data-pre="{EG_PRE}" data-cw="{EG_CW}" data-rh="{EG_RH}" data-l="{EG_L}" data-t="{EG_T}">'
+            + '<g class="eg-cells">' + "".join(parts) + "</g>" + "".join(labels)
+            + '<g class="eg-lines">' + "".join(lines) + "</g></svg>")
+
+
+def eg_legend(chart, unit, digits, ends):
+    sc = chart["scale"]
+    sw = "".join(f'<span class="eg-sw eg-l{k}"></span>' for k in range(EG_LEVELS + 1))
+    return (f'<p class="eg-legend"><span>{esc(ends[0])} (<span class="eg-lo">{eg_num(-sc, digits)}</span> {esc(unit)})</span>'
+            f'<span class="eg-sws" aria-hidden="true">{sw}</span>'
+            f'<span>{esc(ends[1])} (<span class="eg-hi">{eg_num(sc, digits)}</span> {esc(unit)})</span></p>')
+
+
+# évenkénti összesítő táblázat: kulcs, megnevezés, mértékegység, tizedesek
+EG_TABLE = [("t_ev", "Középhőmérséklet", "°C", 1), ("t_nyar", "Nyári középhőmérséklet (jún.-aug.)", "°C", 1),
+            ("hoseg", "Hőségnap (legalább 30 °C)", "nap/év", 0), ("tropusi", "Trópusi éjszaka (legalább 20 °C)", "nap/év", 1),
+            ("fagy", "Fagyos nap (minimum 0 °C alatt)", "nap/év", 0), ("csap", "Éves csapadék", "mm", 0),
+            ("esonap", "Esős nap (legalább 1 mm)", "nap/év", 0), ("intenz", "Csapadék egy esős napon", "mm", 1),
+            ("szaraz", "Napok az utolsó eső óta (átlag)", "nap", 1)]
+
+
+def eg_slope(xs, ys):
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+
+
+def eg_table(data):
+    yr, y0, y1 = data["yearly"], data["y0"], data["y1"]
+    rows = []
+    for key, name, unit, d in EG_TABLE:
+        v = yr[key]
+        first, last = sum(v[:30]) / 30, sum(v[-30:]) / 30
+        recent = list(range(1981, y1 + 1))
+        dec = eg_slope(recent, v[1981 - y0:]) * 10
+        fmt = lambda x: f"{x:.{d}f}".replace(".", ",")
+        rows.append(f"        <tr><th scope=\"row\">{esc(name)}</th><td>{fmt(first)} {esc(unit)}</td>"
+                    f"<td>{fmt(last)} {esc(unit)}</td><td>{eg_num(dec, max(d, 1))}</td></tr>")
+    return (f'    <div class="eg-scroll"><table class="vz-table eg-table">\n      <thead><tr><th scope="col">Jellemző</th>'
+            f'<th scope="col">{y0}-{y0 + 29} átlaga</th><th scope="col">{y1 - 29}-{y1} átlaga</th>'
+            f'<th scope="col">Változás évtizedenként 1981 óta</th></tr></thead>\n      <tbody>\n'
+            + "\n".join(rows) + "\n      </tbody>\n    </table></div>")
+
+
+def build_climate_page(ctx):
+    if not CLIMATE_FILE.exists():
+        return []
+    text = CLIMATE_FILE.read_text(encoding="utf-8")
+    data = json.loads(text)
+    h = hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
+    y0, y1, nb = data["y0"], data["y1"], data["nb"]
+    ny = y1 - y0 + 1
+    lv = data["default"]
+    fr = data["frost"][lv]
+    fr0 = data["frost"]["eros"]     # a szöveges összefoglaló mindig az erős simításból (stabilabb)
+    frost_note = (f"Az utolsó tavaszi fagy a század elején átlagosan {eg_doy_text(fr0['last'][5])}, napjainkban "
+                  f"{eg_doy_text(fr0['last'][-6])} körül volt, az első őszi fagy {eg_doy_text(fr0['first'][5])} "
+                  f"helyett {eg_doy_text(fr0['first'][-6])} körül jön: a fagymentes időszak "
+                  f"kb. {round((fr0['first'][-6] - fr0['last'][-6]) - (fr0['first'][5] - fr0['last'][5]))} nappal hosszabb. "
+                  "A fagyos napok száma a 2000-es évektől télen is látványosan csökkent.")
+    seg = "".join(f'<button type="button" data-level="{k}" aria-pressed="{str(k == lv).lower()}">{t}</button>'
+                  for k, t in (("enyhe", "enyhe simítás"), ("kozepes", "közepes"), ("eros", "erős")))
+    figs = []
+    for cid, title, what, unit, digits, ends, note in EG_CHARTS:
+        chart = data["charts"][cid][lv]
+        note = note or frost_note
+        svg = eg_svg(cid, title, chart, ny, nb, fr if cid == "fagy" else None)
+        figs.append(f"""    <h2 id="{cid}">{esc(title)}</h2>
+    <p>{esc(note)}</p>
+    <figure class="vz-fig eg-fig" data-eg="{cid}" data-unit="{esc(unit)}" data-digits="{digits}" data-src="/data/eghajlat.json?h={h}">
+      <div class="vz-bar"><h3 class="vz-title">{esc(title)}, {y0}-{y1}</h3></div>
+      <p class="eg-what">{esc(what)} Az adott időszak szokásos értékéhez képest.</p>
+      <div class="vz-ctl eg-ctl" hidden><div class="vz-seg" role="group" aria-label="Simítás">{seg}</div></div>
+      <div class="eg-scroll">{svg}</div>
+      {eg_legend(chart, unit, digits, ends)}
+      <div class="vz-tip" hidden></div>
+    </figure>""")
+    toc = " · ".join(f'<a href="#{cid}">{esc(t)}</a>' for cid, t, *_ in EG_CHARTS) + ' · <a href="#szamokban">Számokban</a>'
+    stations = "Budapest, Debrecen, Keszthely, Miskolc, Nyíregyháza, Pécs, Sopron, Szeged, Szombathely, Túrkeve"
+    body = f"""    <nav class="doc-crumb" aria-label="Morzsa"><a href="/">hol az eső?</a></nav>
+    <h1>Így változott Magyarország időjárása {y0} óta</h1>
+    <p class="vz-sentence">Az éves csapadék alig változott, de ritkábban és hevesebben esik, közte hosszabb a szárazság, és egyre melegebb van.</p>
+    <p>Minden ábrán vízszintesen az évek ({y0}-{y1}), függőlegesen az év napjai láthatók, 5 napos sávokban. A szaggatott vonalak között van az adott év, fölötte az előző év vége, alatta a következő év eleje, így a december-január fordulón átnyúló időszakok is egyben látszanak. A szín azt mutatja, hogy az adott időszak mennyire tért el a 125 éves átlagtól: sötétebb kék = több abból, amiről az ábra szól.</p>
+    <p class="doc-note">Az évről évre ingadozó időjárásból a hosszú távú változás csak simítva látszik: minden cella a környező napok és évek súlyozott átlaga. A simítás erőssége ábránként állítható: enyhe (kb. ±15 nap és ±4 év, több részlet, több zaj), közepes (±20 nap, ±8 év) vagy erős (±30 nap, ±12 év, csak a hosszú távú irány). Erősebb simításnál egy-egy kiugró év (például egy aszályos nyár) nem látszik külön, és a két szélén, az első és utolsó években kevesebb év jut egy cellára, ott a kép bizonytalanabb. Ugorj az ábrákra: {toc}</p>
+{chr(10).join(figs)}
+    <h2 id="szamokban">Számokban</h2>
+    <p>Évenkénti értékek a 10 állomás átlagaként: az első és az utolsó 30 év átlaga, és a változás üteme 1981 óta (lineáris trend, évtizedenként).</p>
+{eg_table(data)}
+    <p class="doc-note">A hőmérséklet és a belőle következő jellemzők (hőség, trópusi éjszaka, fagy) egyértelműen és gyorsulva változnak. Az éves csapadék alig, viszont kevesebb napon esik, és egy esős napon több: ezért hosszabbak a száraz szakaszok.</p>
+    <h2>Az adatokról</h2>
+    <p>Napi mérések 10 állomásról ({stations}), {y0}-től {y1}-ig, a HungaroMet homogenizált adatsoraiból (a homogenizálás kiszűri az állomásáthelyezések és műszercserék okozta ugrásokat). Az ábrák a 10 állomás átlagát mutatják.</p>
+    <p class="doc-note">Adatbázis: <a href="https://odp.met.hu/" target="_blank" rel="noopener">Meteorológiai Adattár, HungaroMet Nonprofit Zrt.</a>, átlagolva, simítva és grafikusan reprodukálva.</p>"""
+    return [doc_page(ctx, path="/eghajlat/",
+                     title=f"Így változott Magyarország időjárása 1901 óta | {SITE_NAME}",
+                     description="Hőtérképek 125 év napi méréseiből: hosszabb száraz szakaszok, hevesebb esők, melegedés, több hőségnap és trópusi éjszaka, rövidebb fagyos időszak.",
+                     h1="Így változott Magyarország időjárása", body_html=body,
+                     extra_scripts=f'  <script src="{EGHAJLAT_JS}" defer></script>\n')]
+
+
 PAGE_BUILDERS = [build_home, build_town_pages, build_cigand_page, build_about_page, build_water_pages,
-                 build_snow_page, build_widget_page]
+                 build_snow_page, build_widget_page, build_climate_page]
 
 
 # ---------------------------------------------------------------------------
