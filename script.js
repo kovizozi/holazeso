@@ -1948,6 +1948,19 @@ function observeStatsChart(container, draw) {
   }).observe(container);
 }
 
+// Az SVG-diagramok betűmérete (1 egység = 1 képpont): a szélesebb kártyán
+// nagyobb, hogy a tartalom kitöltse a fekvő kártyát.
+let measureCtx = null;
+function measureTextPx(text, fs, el) {
+  measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+  measureCtx.font = `${fs}px ${getComputedStyle(el).fontFamily}`;
+  return measureCtx.measureText(text).width;
+}
+
+function statsSvgFont(W) {
+  return W >= 480 ? 15 : W >= 340 ? 14 : 12;
+}
+
 function renderTempBars(container, rows) {
   observeStatsChart(container, w => drawTempBars(container, rows, w));
   drawTempBars(container, rows, Math.round(container.clientWidth) || 300);
@@ -1963,26 +1976,27 @@ function drawTempBars(container, rows, W) {
   const showZero = lo <= 1 && hi >= -1;
   const scaleLo = (showZero ? Math.min(lo, 0) : lo) - 1;
   const scaleMax = (showZero ? Math.max(hi, 0) : hi) + 1;
-  const trackX0 = 62, trackX1 = Math.max(trackX0 + 60, W - 46), rowH = 34, topPad = 18;
+  const fs = statsSvgFont(W), k = fs / 12;
+  const trackX0 = Math.round(62 * k), trackX1 = Math.max(trackX0 + 60, W - Math.round(46 * k)), rowH = Math.round(34 * k), topPad = Math.round(18 * k);
   const H = topPad + valid.length * rowH + 4;
   const xFor = t => trackX0 + ((t - scaleLo) / (scaleMax - scaleLo)) * (trackX1 - trackX0);
   let body = "";
   valid.forEach((r, i) => {
     const y = topPad + i * rowH + rowH / 2;
     const x0 = xFor(r.min), x1 = Math.max(xFor(r.max), x0 + 2);
-    body += `<text class="stats-svg-text" x="0" y="${(y + 4).toFixed(1)}">${r.label}</text>` +
+    body += `<text class="stats-svg-text" x="0" y="${(y + fs / 3).toFixed(1)}">${r.label}</text>` +
       `<line x1="${trackX0}" y1="${y}" x2="${trackX1}" y2="${y}" stroke="var(--border)" stroke-width="1"></line>` +
-      `<rect x="${x0.toFixed(1)}" y="${y - 4}" width="${(x1 - x0).toFixed(1)}" height="8" fill="var(--accent)"></rect>` +
-      `<text class="stats-svg-text stats-svg-text-strong" x="${(x0 - 5).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${formatC(r.min)}°</text>` +
-      `<text class="stats-svg-text stats-svg-text-strong" x="${(x1 + 5).toFixed(1)}" y="${(y + 4).toFixed(1)}">${formatC(r.max)}°</text>`;
+      `<rect x="${x0.toFixed(1)}" y="${y - 4 * k}" width="${(x1 - x0).toFixed(1)}" height="${8 * k}" fill="var(--accent)"></rect>` +
+      `<text class="stats-svg-text stats-svg-text-strong" x="${(x0 - 5).toFixed(1)}" y="${(y + fs / 3).toFixed(1)}" text-anchor="end">${formatC(r.min)}°</text>` +
+      `<text class="stats-svg-text stats-svg-text-strong" x="${(x1 + 5).toFixed(1)}" y="${(y + fs / 3).toFixed(1)}">${formatC(r.max)}°</text>`;
   });
   let zero = "";
   if (showZero) {
     const zx = xFor(0);
     zero = `<line x1="${zx.toFixed(1)}" y1="${topPad - 4}" x2="${zx.toFixed(1)}" y2="${H - 2}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="2 2"></line>` +
-      `<text class="stats-svg-text" x="${zx.toFixed(1)}" y="9" text-anchor="middle">0° fagypont</text>`;
+      `<text class="stats-svg-text" x="${zx.toFixed(1)}" y="${Math.round(fs * 0.8)}" text-anchor="middle">0° fagypont</text>`;
   }
-  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${valid.map(r => `${r.label}: ${formatC(r.min)} és ${formatC(r.max)} °C között`).join(", ")}">${zero}${body}</svg>`;
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="--svg-fs:${fs}px" role="img" aria-label="${valid.map(r => `${r.label}: ${formatC(r.min)} és ${formatC(r.max)} °C között`).join(", ")}">${zero}${body}</svg>`;
 }
 
 function fillTempStats(stats, todayIdx) {
@@ -2058,19 +2072,29 @@ function renderNext12hChart(container, hours) {
   drawNext12hChart(container, hours, Math.round(container.clientWidth) || 300);
 }
 
-// ~2:1 arányú diagram a kártya szélességében, 12 px-es feliratokkal. Az
+// Fekvő (kb. 3:1) diagram a kártya szélességében, 12-15 px-es feliratokkal. Az
 // egymásba érő mm / esély feliratokból a kisebb érték kimarad (az oszlop és a
 // aria-label továbbra is hordozza).
 function drawNext12hChart(container, hours, W) {
-  const H = Math.max(130, Math.round(W / 2)), baseY = H - 34, plotH = baseY - 22;
+  const fs = statsSvgFont(W), k = fs / 12, cw = fs * 0.55;
+  const H = Math.min(Math.max(130, Math.round(W * 0.36)), 210) + Math.round(8 * k), baseY = H - Math.round(40 * k), plotH = baseY - Math.round(22 * k);
   const pitch = W / hours.length;
   const max = Math.max(...hours.map(h => h.mm), 1);
   let body = `<line x1="0" y1="${baseY + 0.5}" x2="${W}" y2="${baseY + 0.5}" stroke="var(--border)" stroke-width="1"></line>`;
   let lastMmX = -99, lastProbX = -99;
+  // Minden óra kap időfeliratot, ha a sávonkénti hely elég egy "ÓÓ:PP"-hoz
+  // (széles, asztali kártya); különben minden második, végül minden harmadik.
+  // A felirat szélességét a tényleges betűtípussal mérjük (canvas), nem
+  // becsüljük. Ha a teljes méretben nem fér ki minden óra, előbb a
+  // betűméretet csökkentjük (legfeljebb 12 px-ig), csak utána ritkítunk.
+  const fits = size => measureTextPx("00:00", size, container) + 4 <= pitch;
+  const labelFs = [fs, fs - 1, fs - 2, 12].find(size => size >= 12 && fits(size));
+  const labelStep = labelFs ? 1 : 2 * pitch >= measureTextPx("00:00", fs, container) + 4 ? 2 : 3;
+  const labelStyle = labelFs && labelFs !== fs ? ` style="font-size:${labelFs}px"` : "";
   // Szélső feliratok: ha a középre igazított szöveg kilógna a diagramból, a
   // széléhez igazítjuk (start / end), hogy semmilyen kártyaszélességnél se vágódjon le.
   const edge = (cx, len) => {
-    const half = len * 6.6 / 2;
+    const half = len * cw / 2;
     if (cx - half < 0) return { x: 0, anchor: "start" };
     if (cx + half > W) return { x: W, anchor: "end" };
     return { x: cx, anchor: "middle" };
@@ -2086,24 +2110,24 @@ function drawNext12hChart(container, hours, W) {
     }
     if (wet) {
       const mmTxt = formatMm(h.mm);
-      if (cx - lastMmX >= mmTxt.length * 6.6 + 4) {
+      if (cx - lastMmX >= mmTxt.length * cw + 4) {
         const e = edge(cx, mmTxt.length);
         body += `<text class="stats-svg-text stats-svg-text-strong stats-next12-mm" x="${e.x.toFixed(1)}" y="${(baseY - bh - 3).toFixed(1)}" text-anchor="${e.anchor}">${mmTxt}</text>`;
         lastMmX = cx;
       }
-      if (h.prob !== null && cx - lastProbX >= 30) {
+      if (h.prob !== null && cx - lastProbX >= 2.6 * fs) {
         const e = edge(cx, `${h.prob}%`.length);
-        body += `<text class="stats-svg-text stats-next12-prob" x="${e.x.toFixed(1)}" y="${baseY + 30}" text-anchor="${e.anchor}">${h.prob}%</text>`;
+        body += `<text class="stats-svg-text stats-next12-prob" x="${e.x.toFixed(1)}" y="${baseY + Math.round(31 * k)}" text-anchor="${e.anchor}">${h.prob}%</text>`;
         lastProbX = cx;
       }
     }
-    if (i % 3 === 0) {
+    if (i % labelStep === 0) {
       const e = edge(cx, h.label.length);
-      body += `<text class="stats-svg-text" x="${e.x.toFixed(1)}" y="${baseY + 15}" text-anchor="${e.anchor}">${h.label}</text>`;
+      body += `<text class="stats-svg-text"${labelStyle} x="${e.x.toFixed(1)}" y="${baseY + Math.round(15 * k)}" text-anchor="${e.anchor}">${h.label}</text>`;
     }
   });
   const desc = hours.map(h => `${h.label}: ${h.mm >= RAIN_THRESHOLD_MM ? `${formatMm(h.mm)} mm${h.snow ? " hó" : ""}${h.prob !== null ? `, ${h.prob}% esély` : ""}` : "száraz"}`).join("; ");
-  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Csapadék a következő ${NEXT_HOURS} órában. ${desc}">${body}</svg>`;
+  container.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="--svg-fs:${fs}px" role="img" aria-label="Csapadék a következő ${NEXT_HOURS} órában. ${desc}">${body}</svg>`;
 }
 
 // ---- UI-vezérlés ----

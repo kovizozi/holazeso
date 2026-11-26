@@ -889,31 +889,20 @@ noscript .about {
   text-align: left;
 }
 
-/* Négy kártya egy sorban széles képernyőn (>= 1100 px), 2 x 2 tabletten,
-   egy oszlop mobilon. A kártyák címe nem látszik (aria-label viseli), ezért
-   a tartalmuk függőlegesen és vízszintesen is középre zárt, és a kártya
-   szélességéhez arányosan skálázódik (container query egységek). */
+/* Két sor, soronként két fekvő kártya széles képernyőn (>= 900 px), egy oszlop
+   (egymás alatt, szintén fekvő) alatta. A sor két kártyája egyforma magas
+   (grid stretch). A kártyák címe nem látszik (aria-label viseli), ezért a
+   tartalmuk középre zárt, és a kártya szélességéhez arányosan skálázódik
+   (container query egységek, a diagramoknál a script.js statsSvgFont). */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 900px) {
   .stats-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--sp-3);
-  }
-
-  .stats-card {
-    padding: var(--sp-3);
-  }
-}
-
-@media (max-width: 640px) {
-  .stats-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-3);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -923,7 +912,7 @@ noscript .about {
 .stats-card {
   background: var(--surface);
   border-radius: var(--radius-card);
-  padding: 28px;
+  padding: var(--sp-3);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -932,14 +921,14 @@ noscript .about {
   container-type: inline-size;
 }
 
-.stats-card > * {
-  width: 100%;
+@media (min-width: 1100px) {
+  .stats-card {
+    padding: var(--sp-4);
+  }
 }
 
-@media (max-width: 640px) {
-  .stats-card {
-    padding: var(--sp-3);
-  }
+.stats-card > * {
+  width: 100%;
 }
 
 .stats-place {
@@ -950,14 +939,14 @@ noscript .about {
 }
 
 .stats-line {
-  font-size: 14px;
+  font-size: clamp(14px, 3.4cqw, 17px);
   color: var(--fg);
   line-height: 1.6;
   margin: 0.2em 0;
 }
 
 .stats-note {
-  font-size: 12px;
+  font-size: clamp(12px, 2.7cqw, 14px);
   color: var(--muted);
   line-height: 1.5;
   margin: var(--sp-1) 0 0;
@@ -968,7 +957,7 @@ noscript .about {
 }
 
 .stats-big {
-  font-size: calc(32px * 1.35);
+  font-size: clamp(43px, 12cqw, 68px);
   font-weight: 600;
   line-height: 1.15;
   margin: 0 0 var(--sp-2);
@@ -984,7 +973,7 @@ noscript .about {
 
 .stats-figure-value {
   display: block;
-  font-size: calc(26px * 1.35);
+  font-size: clamp(35px, 8.5cqw, 48px);
   font-weight: 600;
   line-height: 1.1;
 }
@@ -993,14 +982,14 @@ noscript .about {
   display: block;
   margin-top: 2px;
   line-height: 1.2;
-  font-size: 12px;
+  font-size: clamp(12px, 2.7cqw, 14px);
   font-weight: 400;
   color: var(--muted);
 }
 
 .stats-figure-label {
   display: block;
-  font-size: 12px;
+  font-size: clamp(12px, 2.7cqw, 14px);
   color: var(--muted);
   margin-top: 2px;
 }
@@ -1031,7 +1020,7 @@ noscript .about {
 
 .stats-usual-text {
   display: block;
-  font-size: 11px;
+  font-size: clamp(11px, 2.4cqw, 13px);
   color: var(--muted);
   margin-top: 4px;
   line-height: 1.3;
@@ -1050,15 +1039,15 @@ noscript .about {
 
 .stats-day-name {
   display: block;
-  font-size: 12px;
+  font-size: clamp(12px, 2.7cqw, 14px);
   color: var(--muted);
 }
 
 .stats-day-bar {
   position: relative;
   display: block;
-  width: 26px;
-  height: 64px;
+  width: clamp(26px, 6cqw, 36px);
+  height: clamp(64px, 12cqw, 78px);
   margin: var(--sp-1) auto;
   border: 1px solid var(--fg);
 }
@@ -1071,7 +1060,7 @@ noscript .about {
   background: var(--accent);
 }
 
-/* Keskeny kártyán (4 oszlopos kiosztás) a négy nap 2 x 2-ben áll, különben a
+/* Keskeny kártyán a négy nap 2 x 2-ben áll, különben a
    "Holnapután" és a "szombat" egymásba érne. */
 @container (max-width: 250px) {
   .stats-days {
@@ -1088,19 +1077,19 @@ noscript .about {
 
 .stats-day-kind {
   display: block;
-  font-size: 11px;
+  font-size: clamp(11px, 2.5cqw, 13px);
   color: var(--fg);
 }
 
 .stats-day-prob {
   display: block;
-  font-size: 18px;
+  font-size: clamp(18px, 4.4cqw, 24px);
   font-weight: 600;
 }
 
 .stats-day-mm {
   display: block;
-  font-size: 12px;
+  font-size: clamp(12px, 2.7cqw, 14px);
   color: var(--muted);
 }
 
@@ -1113,7 +1102,7 @@ noscript .about {
 
 .stats-svg-text {
   font-family: var(--font);
-  font-size: 12px;
+  font-size: var(--svg-fs, 12px);
   fill: var(--muted);
 }
 
@@ -1129,7 +1118,7 @@ noscript .about {
 .stats-bars {
   display: block;
   width: 100%;
-  height: 56px;
+  height: clamp(56px, 10cqw, 72px);
 }
 
 /* A látható oszlop (rect, kézzel építve a script.js renderSparkline-ban)
@@ -1150,7 +1139,7 @@ noscript .about {
 .stats-chart-axis {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: clamp(11px, 2.4cqw, 13px);
   color: var(--muted);
   margin-top: 4px;
 }
