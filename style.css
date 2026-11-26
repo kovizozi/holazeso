@@ -3957,3 +3957,27 @@ body.vz-embed {
 
 .vz-map-work rect { fill: var(--fg); }
 .vz-map-work line { stroke: var(--bg); stroke-width: 1.2; }
+
+/* Radar-idővonal (script.js radarTimeline*): a radar SVG tetején, a nézetbe rajzolva
+   (nem tolja el az elrendezést). Múlt: tömör jelek; most: függőleges vonal után az
+   előrejelzés szaggatott körvonalú jelei; az aktuális képkocka --accent. */
+#radar-timeline[hidden] { display: none; }
+.radar-tl-bg { fill: var(--bg); opacity: 0.88; stroke: var(--border); stroke-width: 0.75; }
+.radar-tl-play { cursor: pointer; }
+.radar-tl-play circle { fill: var(--fg); }
+.radar-tl-play .radar-tl-icon { fill: var(--bg); }
+.radar-tl-play:focus-visible { outline: none; }
+.radar-tl-play:focus-visible circle { stroke: var(--accent); stroke-width: 2; }
+.radar-tl-tick { cursor: pointer; }
+.radar-tl-tick.is-past, .radar-tl-tick.is-now { fill: var(--fg); opacity: 0.35; }
+.radar-tl-tick.is-fc { fill: var(--bg); stroke: var(--accent); stroke-width: 0.9; stroke-dasharray: 1.6 1.1; }
+.radar-tl-tick.is-current { fill: var(--accent); opacity: 1; stroke: none; }
+.radar-tl-now { stroke: var(--fg); stroke-width: 1; }
+.radar-tl-label { font-family: var(--font); font-size: 10px; fill: var(--fg); }
+
+/* Képkocka-módok: múltbeli képnél a mostani pöttyök halványak, előrejelzésnél
+   rejtve, és a radarkép is halvány (az előrejelzés modell, nem radar). */
+#radar-svg[data-tl="past"] #radar-tiers { opacity: 0.15; }
+#radar-svg[data-tl="fc"] #radar-tiers { display: none; }
+#radar-svg[data-tl="fc"] #radar-image { animation: none; opacity: 0.2; }
+.radar-fc-dot { fill: var(--accent); fill-opacity: 0.3; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 2 1.4; }
