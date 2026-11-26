@@ -5,7 +5,7 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 43,
+   "tomorrow_prob": 40,
    "water": {
     "km": 33,
     "level_cm": 48,
@@ -53,8 +53,8 @@
   "balatonboglar": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.4,
-   "tomorrow_prob": 38,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 50,
    "water": {
     "km": 20,
     "level_cm": 48,
@@ -67,8 +67,8 @@
   "balatonfured": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.7,
-   "tomorrow_prob": 45,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 40,
    "water": {
     "km": 5,
     "level_cm": 26,
@@ -88,8 +88,8 @@
   "barcs": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 3.5,
-   "tomorrow_prob": 63,
+   "tomorrow_mm": 8.7,
+   "tomorrow_prob": 83,
    "week_mm": 48.2
   },
   "batonyterenye": {
@@ -201,7 +201,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 18,
+   "tomorrow_prob": 5,
    "water": {
     "km": 38,
     "level_cm": 0,
@@ -229,7 +229,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 15,
+   "tomorrow_prob": 10,
    "week_mm": 11.5
   },
   "csenger": {
@@ -264,7 +264,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 28,
+   "tomorrow_prob": 20,
    "water": {
     "km": 31,
     "level_cm": 171,
@@ -277,8 +277,8 @@
   "csurgo": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 3.1,
-   "tomorrow_prob": 50,
+   "tomorrow_mm": 1.3,
+   "tomorrow_prob": 60,
    "water": {
     "km": 26,
     "level_cm": -108,
@@ -424,8 +424,8 @@
   "fonyod": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.1,
-   "tomorrow_prob": 38,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 50,
    "water": {
     "km": 29,
     "level_cm": 48,
@@ -494,8 +494,8 @@
   "gyor": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.2,
-   "tomorrow_prob": 25,
+   "tomorrow_mm": 0.3,
+   "tomorrow_prob": 38,
    "water": {
     "km": 0,
     "level_cm": 171,
@@ -599,8 +599,8 @@
   "kaposvar": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.3,
-   "tomorrow_prob": 53,
+   "tomorrow_mm": 5.2,
+   "tomorrow_prob": 63,
    "water": {
     "km": 60,
     "level_cm": 48,
@@ -614,7 +614,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 23,
+   "tomorrow_prob": 8,
    "water": {
     "km": 32,
     "level_cm": 0,
@@ -663,7 +663,7 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 38,
+   "tomorrow_prob": 33,
    "water": {
     "km": 49,
     "level_cm": 48,
@@ -754,7 +754,7 @@
    "last": "2026-11-19",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 13,
+   "tomorrow_prob": 8,
    "water": {
     "km": 37,
     "level_cm": 0,
@@ -781,8 +781,8 @@
   "lenti": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0,
-   "tomorrow_prob": 35,
+   "tomorrow_mm": 0.1,
+   "tomorrow_prob": 33,
    "water": {
     "km": 41,
     "level_cm": -108,
@@ -795,8 +795,8 @@
   "letenye": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 43,
+   "tomorrow_mm": 0.8,
+   "tomorrow_prob": 55,
    "water": {
     "km": 16,
     "level_cm": -108,
@@ -823,8 +823,8 @@
   "marcali": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.1,
-   "tomorrow_prob": 50,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 53,
    "water": {
     "km": 49,
     "level_cm": 48,
@@ -950,7 +950,7 @@
    "last": "2026-11-25",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 40,
+   "tomorrow_prob": 48,
    "water": {
     "km": 36,
     "level_cm": 23,
@@ -978,7 +978,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 15,
+   "tomorrow_prob": 13,
    "water": {
     "km": 31,
     "level_cm": 29,
@@ -991,8 +991,8 @@
   "nagyatad": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.8,
-   "tomorrow_prob": 55,
+   "tomorrow_mm": 2.9,
+   "tomorrow_prob": 60,
    "water": {
     "km": 46,
     "level_cm": -108,
@@ -1005,8 +1005,8 @@
   "nagykanizsa": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.7,
-   "tomorrow_prob": 43,
+   "tomorrow_mm": 0.5,
+   "tomorrow_prob": 53,
    "water": {
     "km": 26,
     "level_cm": -108,
@@ -1089,8 +1089,8 @@
   "pannonhalma": {
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 43,
+   "tomorrow_mm": 0.4,
+   "tomorrow_prob": 50,
    "water": {
     "km": 17,
     "level_cm": 171,
@@ -1104,7 +1104,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 25,
+   "tomorrow_prob": 33,
    "water": {
     "km": 42,
     "level_cm": 171,
@@ -1251,7 +1251,7 @@
    "last": "2026-11-21",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 13,
+   "tomorrow_prob": 8,
    "water": {
     "km": 56,
     "level_cm": 0,
@@ -1286,7 +1286,7 @@
    "last": "2026-11-19",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 3,
    "water": {
     "km": 6,
     "level_cm": 0,
@@ -1419,7 +1419,7 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 30,
+   "tomorrow_prob": 35,
    "week_mm": 17.6
   },
   "szigetszentmiklos": {
@@ -1439,8 +1439,8 @@
   "szigetvar": {
    "last": "2026-11-23",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 2.8,
-   "tomorrow_prob": 70,
+   "tomorrow_mm": 1.9,
+   "tomorrow_prob": 78,
    "water": {
     "km": 54,
     "level_cm": -26,
@@ -1495,8 +1495,8 @@
   "tab": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 53,
+   "tomorrow_mm": 1.4,
+   "tomorrow_prob": 60,
    "water": {
     "km": 20,
     "level_cm": 22,
@@ -1524,7 +1524,7 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 38,
+   "tomorrow_prob": 35,
    "water": {
     "km": 32,
     "level_cm": 48,
@@ -1685,7 +1685,7 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 43,
+   "tomorrow_prob": 38,
    "water": {
     "km": 20,
     "level_cm": 26,
@@ -1706,14 +1706,14 @@
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 18,
+   "tomorrow_prob": 28,
    "week_mm": 25.7
   },
   "zalaszentgrot": {
    "last": "2026-11-22",
    "tomorrow": "2026-11-27",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 20,
+   "tomorrow_prob": 28,
    "water": {
     "km": 60,
     "level_cm": 48,
@@ -1726,8 +1726,8 @@
   "zirc": {
    "last": "2026-11-25",
    "tomorrow": "2026-11-27",
-   "tomorrow_mm": 0,
-   "tomorrow_prob": 58,
+   "tomorrow_mm": 0.1,
+   "tomorrow_prob": 68,
    "water": {
     "km": 39,
     "level_cm": 26,
