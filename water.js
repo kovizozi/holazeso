@@ -317,6 +317,23 @@ function waterRiverMarker(x, y) {
   return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle>`;
 }
 
+// Fő vízügyi műtárgyak (duzzasztók, vízlépcsők, zsilipek), a helyük az OpenStreetMapből
+// (2026-11-26, waterway=dam/lock_gate objektumok). Statikus: nem változnak, élő adat nincs róluk.
+const WATER_WORKS = [
+  { name: "Tiszalöki vízlépcső", what: "duzzasztó és vízerőmű a Tiszán", lat: 48.0258, lon: 21.3087 },
+  { name: "Kiskörei vízlépcső", what: "duzzasztó és vízerőmű a Tiszán, ez tartja a Tisza-tavat", lat: 47.4935, lon: 20.5154 },
+  { name: "Békésszentandrási duzzasztó", what: "a Hármas-Körös duzzasztója", lat: 46.8909, lon: 20.4995 },
+  { name: "Kvassay-zsilip", what: "hajózsilip és vízkormányzó zsilip a Ráckevei-Duna-ág torkolatánál", lat: 47.4612, lon: 19.0693 },
+  { name: "Sió-zsilip", what: "Siófoknál, ezzel szabályozzák a Balaton vízszintjét", lat: 46.9083, lon: 18.0462 },
+  { name: "Cigándi tározó beeresztő műtárgya", what: "a Tisza árvízcsúcsát vezeti a tározóba", lat: 48.2711, lon: 21.9546 },
+];
+
+function waterWorkMarker(x, y) {
+  const r = 3.4;
+  return `<rect x="${(x - r).toFixed(1)}" y="${(y - r).toFixed(1)}" width="${(2 * r).toFixed(1)}" height="${(2 * r).toFixed(1)}" fill="var(--fg)"></rect>` +
+    `<line x1="${(x - r).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + r).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--bg)" stroke-width="1.2"></line>`;
+}
+
 function waterLakeMarker(x, y) {
   const r = 3.2;
   return `<path d="M${x.toFixed(1)} ${(y - r).toFixed(1)} L${(x + r).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + r).toFixed(1)} L${(x - r).toFixed(1)} ${y.toFixed(1)} Z" fill="var(--accent)"></path>`;
@@ -612,14 +629,25 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   let markersMarkup = "";
   const addMarker = (station, kind) => {
     const { x, y } = projectLatLon(station.lat, station.lon);
+    const trend = kind === "river" ? riverTrend(station) : null;
+    const trendText = riverTrendText(trend);
     const label = kind === "river"
-      ? `${station.river}, ${station.name}: ${waterNum(station.level_cm, 0)} cm`
+      ? `${station.river}, ${station.name}: ${waterNum(station.level_cm, 0)} cm${trendText ? `, ${trendText}` : ""}`
       : `${station.lake}, ${station.station}: ${waterNum(station.level_cm, 0)} cm`;
-    markerIcons.push({ title: kind === "river" ? `${station.river} · ${station.name}` : `${station.lake} · ${station.station}`, level: station.level_cm });
+    markerIcons.push({ title: kind === "river" ? `${station.river} · ${station.name}` : `${station.lake} · ${station.station}`,
+      level: station.level_cm, sub: trendText });
+    const glyph = trend && TREND_GLYPH[trend.kind]
+      ? `<text class="water-map-trend" x="${(x + 5).toFixed(1)}" y="${(y - 4).toFixed(1)}" aria-hidden="true">${TREND_GLYPH[trend.kind]}</text>` : "";
     markersMarkup += `<g class="water-marker" tabindex="0" role="img" data-marker="${markerIcons.length - 1}" aria-label="${label}">` +
       `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"></circle>` +
-      (kind === "river" ? waterRiverMarker(x, y) : waterLakeMarker(x, y)) + `</g>`;
+      (kind === "river" ? waterRiverMarker(x, y) : waterLakeMarker(x, y)) + glyph + `</g>`;
   };
+  for (const w of WATER_WORKS) {
+    const { x, y } = projectLatLon(w.lat, w.lon);
+    markerIcons.push({ title: w.name, level: null, sub: w.what });
+    markersMarkup += `<g class="water-marker" tabindex="0" role="img" data-marker="${markerIcons.length - 1}" aria-label="${w.name}: ${w.what}">` +
+      `<circle class="water-marker-touch" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"></circle>${waterWorkMarker(x, y)}</g>`;
+  }
   for (const station of riverStations) addMarker(station, "river");
   for (const station of lakeStations) {
     if (station.station === "Balaton average") continue; // a 3 mérce elég, az átlag külön szekcióban van
@@ -739,7 +767,8 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
   // nincs története, a folyóké a folyó-térképen (és a listában) látszik.
   const markerHtml = el => {
     const m = markerIcons[Number(el.dataset.marker)];
-    return `<strong>${m.title}</strong><span>${waterNum(m.level, 0)} cm</span>`;
+    return `<strong>${m.title}</strong>` + (m.level === null ? "" : `<span>${waterNum(m.level, 0)} cm</span>`) +
+      (m.sub ? `<span>${m.sub}</span>` : "");
   };
   const showMarker = (el, clientX, clientY) => {
     boxEl.innerHTML = "";
@@ -771,6 +800,7 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     .join("");
   const ringIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="3.5" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.3"></circle></svg>`;
   const diamondIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 3 L11 7 L7 11 L3 7 Z" fill="var(--accent)"></path></svg>`;
+  const workIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">${waterWorkMarker(7, 7)}</svg>`;
   const hereIcon = `<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="2" fill="var(--fg)"></circle><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--fg)" stroke-width="1.3"></circle></svg>`;
 
   legendEl.innerHTML = `
@@ -785,13 +815,15 @@ function buildReliefMap(svgEl, legendEl, soilSnapshot, riverStations, lakeStatio
     <div class="water-legend-markers">
       <span>${ringIcon}folyó-mérce</span>
       <span>${diamondIcon}tó-mérce</span>
+      <span>${workIcon}duzzasztó, zsilip</span>
+      <span><span class="water-legend-trend" aria-hidden="true">&#9650; &#9670; &#9660;</span>árad, tetőzik, apad</span>
       <span>${hereIcon}a keresett hely</span>
     </div>
     <p class="water-legend-note">Egy négyzet kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es mintaterület.</p>`;
 
   const howtoEl = document.getElementById("water-map-howto");
   if (howtoEl) {
-    howtoEl.innerHTML = `<p class="about">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel, a színe a területen lévő víz mennyisége: minél sötétebb a kék, annál több (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között). A talajnedvesség itt Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet a szín erőssége mutatja. Egérrel rámutatva, érintőképernyőn rákoppintva megjelenik a mintaterület kerete és a leolvasott érték. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-, a teli gyémánt tó-mérőállomás: ezek élő mérce-adatok, a pontos vízállásuk lent, a listákban.</p>`;
+    howtoEl.innerHTML = `<p class="about">Minden mintapont kb. ${Math.round(step * 111)} × ${Math.round(step * 111)} km-es területet képvisel, a színe a területen lévő víz mennyisége: minél sötétebb a kék, annál több (${waterNum(minL / 1e9, 0)}-${waterNum(maxL / 1e9, 0)} milliárd liter a legszárazabb és a legvizesebb pont között). A talajnedvesség itt Open-Meteo modell-becslés, nem mérés, a köztük lévő sima átmenetet a szín erőssége mutatja. Egérrel rámutatva, érintőképernyőn rákoppintva megjelenik a mintaterület kerete és a leolvasott érték. A vonal a legnagyobb folyók, a szaggatott körvonal a Balaton valódi futása. Az üres gyűrű folyó-, a teli gyémánt tó-mérőállomás: ezek élő mérce-adatok, a pontos vízállásuk lent, a listákban. A folyó-mérce melletti jel a vízjárás (az utolsó 24 óra és az előrejelzés alapján): &#9650; árad, &#9670; tetőzik, &#9660; apad. A fekete négyzet a fő duzzasztók, vízlépcsők és zsilipek helye.</p>`;
   }
 }
 

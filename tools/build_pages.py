@@ -917,6 +917,18 @@ def map_xy(lat, lon):
     return MAP_X0 + (lon - MAP_LON0) * MAP_SX, MAP_Y0 + (MAP_LAT0 - lat) * MAP_SY
 
 
+# Fő vízügyi műtárgyak: (név, mi ez, lat, lon); a helyük az OpenStreetMapből (2026-11-26).
+# Ugyanez a lista a water.js WATER_WORKS-jében (a főoldali térképen); együtt módosítandó.
+WATER_WORKS = [
+    ("Tiszalöki vízlépcső", "duzzasztó és vízerőmű a Tiszán", 48.0258, 21.3087),
+    ("Kiskörei vízlépcső", "duzzasztó és vízerőmű a Tiszán, ez tartja a Tisza-tavat", 47.4935, 20.5154),
+    ("Békésszentandrási duzzasztó", "a Hármas-Körös duzzasztója", 46.8909, 20.4995),
+    ("Kvassay-zsilip", "hajózsilip és vízkormányzó zsilip a Ráckevei-Duna-ág torkolatánál", 47.4612, 19.0693),
+    ("Sió-zsilip", "Siófoknál, ezzel szabályozzák a Balaton vízszintjét", 46.9083, 18.0462),
+    ("Cigándi tározó beeresztő műtárgya", "a Tisza árvízcsúcsát vezeti a tározóba", 48.2711, 21.9546),
+]
+
+
 def water_map(active, points, labels=True):
     """Statikus SVG-térkép: minden folyó/tó szürke és kattintható (<a>), az aktuális víz --accent.
     active: a víz slugja (None: mindegyik kiemelve, áttekintő). points: [(név, lat, lon, slug)]."""
@@ -956,9 +968,17 @@ def water_map(active, points, labels=True):
             mark += (f'<text x="{x + (5 if right else -5):.1f}" y="{y + 3:.1f}" '
                      f'text-anchor="{"start" if right else "end"}">{esc(pname)}</text>')
         out.append(mark + "</a>")
+    # fő duzzasztók, zsilipek (ugyanaz a lista, mint a water.js WATER_WORKS-je)
+    for wname, what, lat, lon in WATER_WORKS:
+        x, y = map_xy(lat, lon)
+        out.append(f'<g class="vz-map-work" role="img" aria-label="{esc(wname)}: {esc(what)}">'
+                   f'<title>{esc(wname)}: {esc(what)}</title>'
+                   f'<rect x="{x - 3:.1f}" y="{y - 3:.1f}" width="6" height="6"/>'
+                   f'<line x1="{x - 3:.1f}" y1="{y:.1f}" x2="{x + 3:.1f}" y2="{y:.1f}"/></g>')
     out.append("</svg>")
-    legend = ("teli pont: ezen a vízen lévő mérőállomás, üres pont: más vizek állomásai; kattints egy vízre"
-              if active else "pont: mérőállomás; kattints egy folyóra vagy tóra")
+    legend = ("teli pont: ezen a vízen lévő mérőállomás, üres pont: más vizek állomásai; fekete négyzet: "
+              "duzzasztó, zsilip; kattints egy vízre"
+              if active else "pont: mérőállomás, fekete négyzet: duzzasztó, zsilip; kattints egy folyóra vagy tóra")
     return "".join(out) + f'<figcaption class="vz-maplegend">{legend}</figcaption>'
 
 
@@ -1203,7 +1223,7 @@ CIGAND_FIGURES = """    <div id="cigand-figures">
     </figure>
     <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
     </div>"""
-CIGAND_PAGE_JS = "/cigand-page.js?v=5"
+CIGAND_PAGE_JS = "/cigand-page.js?v=6"
 
 
 def bold_md(text):

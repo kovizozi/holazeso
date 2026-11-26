@@ -3940,3 +3940,20 @@ body.vz-embed {
 #water-river-net .water-trend-glyph {
   fill: var(--accent);
 }
+
+.water-map-trend {
+  fill: var(--accent);
+  font-size: calc(12px / var(--k, 1));
+  font-family: var(--font);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: calc(2.5px / var(--k, 1));
+}
+
+.water-legend-trend {
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+.vz-map-work rect { fill: var(--fg); }
+.vz-map-work line { stroke: var(--bg); stroke-width: 1.2; }
