@@ -374,23 +374,10 @@ async function openMeteo(url) {
 // saját helyére kell, lásd fetchUserForecast. Korábban mind a 120+ rácspontra
 // lekértük a két napnyi órás adatot is, amitől a kérés súlya az Open-Meteo
 // percenkénti limitjét is átlépte (429).
-// A radar-idővonal előrejelző szakaszához ugyanebben a hívásban a következő ~2 óra
-// 15 perces csapadékát is kérjük (minutely_15, 9 szelet). Az Open-Meteo súlyozása
-// pontonként számol, 10 változó és 14 nap alatt a változók száma nem növeli a
-// súlyt (lásd SEARCH_RINGS fenti kommentje), és 9 érték pontonként a válasz
-// méretén is alig látszik. A sorozatot a pontra tesszük (point.minutely).
-const RADAR_FORECAST_SLOTS = 9;
 async function fetchPrecipitation(points) {
   const lats = points.map(p => coord(p.lat)).join(",");
   const lons = points.map(p => coord(p.lon)).join(",");
-  const res = await openMeteo(`${API_BASE}?latitude=${lats}&longitude=${lons}` +
-    `&current=precipitation,snowfall,weather_code&minutely_15=precipitation&forecast_minutely_15=${RADAR_FORECAST_SLOTS}`);
-  const list = Array.isArray(res) ? res : [res];
-  points.forEach((p, i) => {
-    const m = list[i] && list[i].minutely_15;
-    if (m && Array.isArray(m.time) && Array.isArray(m.precipitation)) p.minutely = m;
-  });
-  return res;
+  return openMeteo(`${API_BASE}?latitude=${lats}&longitude=${lons}&current=precipitation,snowfall,weather_code`);
 }
 
 // forecast_days=2, hogy a "hamarosan" (következő 3 óra) ablak éjfél körül is
@@ -909,7 +896,7 @@ function radarProjectionPlan() {
       index[y * RADAR_W + x] = sy * width + sx;
     }
   }
-  radarPlanCache = { key, zoom, tiles, tx0, tx1, ty0, ty1, width, height, index, frames: new Map() };
+  radarPlanCache = { key, zoom, tiles, tx0, tx1, ty0, ty1, width, height, index, frames: new Map(), alphas: new Map(), motion: null };
   return radarPlanCache;
 }
 
@@ -941,11 +928,13 @@ async function renderRadarFrame(plan, path) {
   const target = outCtx.createImageData(RADAR_W, RADAR_H);
   const [fr, fg, fb] = foregroundRgb();
   const idx = plan.index;
+  const alphas = new Uint8Array(idx.length);
   for (let i = 0; i < idx.length; i++) {
     const si = idx[i];
     if (si < 0) continue;
     const alpha = source[si * 4 + 3];
     if (!alpha) continue;
+    alphas[i] = alpha;
     const di = i * 4;
     target.data[di] = fr;
     target.data[di + 1] = fg;
@@ -955,6 +944,7 @@ async function renderRadarFrame(plan, path) {
   outCtx.putImageData(target, 0, 0);
   const url = out.toDataURL();
   plan.frames.set(path, url);
+  plan.alphas.set(path, alphas);
   return url;
 }
 
@@ -975,200 +965,192 @@ async function drawRadarImage() {
 // ---- Radar-idővonal ----
 //
 // A keresés VÉGE után (revealPhase(PHASE_DONE), illetve a csendes frissítés után)
-// a radar tetején egy idővonal játssza le az elmúlt kb. 2 óra RainViewer-képeit
-// (10 percenként), majd a "most"-ot, utána a következő ~2 óra ELŐREJELZÉSÉT, és
-// elölről kezdi. A RainViewer saját előrejelzése (nowcast) 2026 óta üres, ezért az
-// előrejelzés a keresés rácspontjainak Open-Meteo 15 perces modelladata
-// (point.minutely): szaggatott körvonalú pöttyök, szaggatott idővonal-szakasz és
-// "előrejelzés" felirat jelöli, hogy ez már nem mérés. A keresés pásztázó
-// animációjához (szabály: a radar adatvezérelt) nem nyúl: csak a végleges kép után indul.
-const RADAR_TL_STEP_MS = 450;
-const RADAR_TL_HOLD_MS = 1600;
-const RADAR_TL_X0 = 40, RADAR_TL_X1 = 196;
-const radarTl = { frames: [], i: 0, playing: false, timer: null, token: 0, el: null };
+// a radar az elmúlt kb. 2 óra RainViewer-képeit játssza le (10 percenként), megáll a
+// "most"-on, utána kb. 1 óra ELŐREJELZÉS jön, majd elölről. Vezérlő nincs (a
+// felhasználó kérésére), csak egy szolid időfelirat a jobb felső sarokban.
+// - Simaság: lejátszás előtt MINDEN képkocka betöltődik és kirajzolódik (addig a
+//   legfrissebb kép áll), a képek két rétegen áttűnéssel váltanak.
+// - Előrejelzés: a RainViewer saját előrejelzése (nowcast) 2026 óta üres, ezért az
+//   utolsó fél óra képeiből becsüljük a csapadék elmozdulását (a legjobban illeszkedő
+//   eltolás, radarMotion), és a legfrissebb képet ezzel a sebességgel toljuk tovább:
+//   a csapadék a valódi mozgásának irányában "úszik" tovább. Ez a mozgás
+//   meghosszabbítása, nem modell; a felirat "előrejelzés"-ként jelöli.
+// A keresés pásztázó, adatvezérelt animációjához nem nyúl: csak a végleges kép után indul.
+const RADAR_TL_STEP_MS = 600;
+const RADAR_TL_HOLD_MS = 1800;
+const RADAR_TL_FC_STEPS = 6;          // 6 x 10 perc = 1 óra előre
+const RADAR_TL_FADE_MS = 350;         // egyezik a style.css .radar-tl-layer átmenetével
+const radarTl = { frames: [], i: 0, timer: null, token: 0, front: 0, label: null };
 
-function radarTlEl() {
-  if (radarTl.el) return radarTl.el;
+function radarTlLayers() {
   const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.getElementById("radar-svg");
-  const fc = document.createElementNS(svgNS, "g");
-  fc.id = "radar-forecast";
-  svg.insertBefore(fc, document.getElementById("radar-labels"));
-  const g = document.createElementNS(svgNS, "g");
-  g.id = "radar-timeline";
-  g.setAttribute("hidden", "");
-  g.innerHTML =
-    `<rect class="radar-tl-bg" x="6" y="4" width="338" height="24" rx="6"></rect>` +
-    `<g class="radar-tl-play" role="button" tabindex="0" aria-label="lejátszás / megállítás">` +
-    `<circle cx="22" cy="16" r="9"></circle><path class="radar-tl-icon"></path></g>` +
-    `<g class="radar-tl-ticks"></g>` +
-    `<text class="radar-tl-label" x="203" y="20"></text>`;
-  svg.appendChild(g);
-  const play = g.querySelector(".radar-tl-play");
-  const toggle = () => (radarTl.playing ? radarTimelinePause() : radarTimelinePlay());
-  play.addEventListener("click", event => { event.stopPropagation(); toggle(); });
-  play.addEventListener("keydown", event => {
-    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
-  });
-  radarTl.el = g;
-  return g;
-}
-
-function radarTlForecastFrames() {
-  // Az első pont idősorából: az első szelet, amely már a jövőbe esik.
-  let times = null;
-  for (const tier of radarTierGroups) {
-    const p = tier.points.find(pt => pt.minutely);
-    if (p) { times = p.minutely.time; break; }
+  let layers = svg.querySelectorAll(".radar-tl-layer");
+  if (!layers.length) {
+    const base = document.getElementById("radar-image");
+    for (let k = 0; k < 2; k++) {
+      const im = document.createElementNS(svgNS, "image");
+      im.setAttribute("class", "radar-tl-layer");
+      im.setAttribute("x", "0"); im.setAttribute("y", "0");
+      im.setAttribute("width", String(RADAR_W)); im.setAttribute("height", String(RADAR_H));
+      base.after(im);
+    }
+    const t = document.createElementNS(svgNS, "text");
+    t.setAttribute("class", "radar-tl-label");
+    t.setAttribute("x", String(RADAR_W - 8));
+    t.setAttribute("y", "16");
+    t.setAttribute("text-anchor", "end");
+    svg.insertBefore(t, document.getElementById("radar-labels"));
+    radarTl.label = t;
+    layers = svg.querySelectorAll(".radar-tl-layer");
   }
-  if (!times) return [];
-  const now = Date.now();
-  const frames = [];
-  times.forEach((t, k) => {
-    const at = Date.parse(t + "Z");
-    if (at > now && frames.length < 8) frames.push({ kind: "fc", time: at, slot: k });
-  });
-  return frames;
+  return [...layers];
 }
 
-function radarTimelineStart() {
+// A legfrissebb és egy korábbi kép közötti legjobb eltolás, px / 10 perc. Két lépés:
+// felére csökkentett felbontáson durván (+-20 fél-pixel = +-40 px), majd teljes
+// felbontáson +-2 px-en finomítva, végül parabola-illesztéssel tört pixelre. Ha kevés
+// a csapadék, vagy az eltolás alig jobb, mint a helyben maradás, a mozgás 0 (a kép áll).
+function radarShiftCost(A, B, W, H, dx, dy, margin, stride) {
+  let sum = 0, n = 0;
+  for (let y = margin; y < H - margin; y += stride) {
+    const row = y * W, rowA = (y - dy) * W - dx;
+    for (let x = margin; x < W - margin; x += stride) {
+      const va = A[rowA + x], vb = B[row + x];
+      if (!va && !vb) continue;
+      sum += va > vb ? va - vb : vb - va;
+      n++;
+    }
+  }
+  return n ? sum / n : Infinity;
+}
+
+function radarMotion(plan, pathOld, pathNew, minutes) {
+  const a = plan.alphas.get(pathOld), b = plan.alphas.get(pathNew);
+  if (!a || !b || minutes <= 0) return { vx: 0, vy: 0 };
+  let wet = 0;
+  for (let i = 0; i < b.length; i += 4) if (b[i] > 20) wet++;
+  if (wet < 150) return { vx: 0, vy: 0 };
+  const W2 = RADAR_W >> 1, H2 = RADAR_H >> 1;
+  const down = arr => {
+    const o = new Uint8Array(W2 * H2);
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) o[y * W2 + x] = arr[(2 * y) * RADAR_W + 2 * x];
+    return o;
+  };
+  const A2 = down(a), B2 = down(b);
+  const R = 20;
+  let best = Infinity, bx = 0, by = 0;
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+    const c = radarShiftCost(A2, B2, W2, H2, dx, dy, R, 2);
+    if (c < best) { best = c; bx = dx; by = dy; }
+  }
+  // finomítás teljes felbontáson
+  const M = 2 * R + 4;
+  const still = radarShiftCost(a, b, RADAR_W, RADAR_H, 0, 0, M, 2);
+  let fx = 2 * bx, fy = 2 * by, fbest = Infinity;
+  const costAt = new Map();
+  for (let dy = 2 * by - 2; dy <= 2 * by + 2; dy++) for (let dx = 2 * bx - 2; dx <= 2 * bx + 2; dx++) {
+    const c = radarShiftCost(a, b, RADAR_W, RADAR_H, dx, dy, M, 2);
+    costAt.set(`${dx},${dy}`, c);
+    if (c < fbest) { fbest = c; fx = dx; fy = dy; }
+  }
+  if (!(fbest < still * 0.95) || (fx === 0 && fy === 0)) return { vx: 0, vy: 0 };
+  // parabola a minimum körül, tengelyenként (tört pixel)
+  const sub = (cm, c0, cp) => { const d = cm - 2 * c0 + cp; return d > 0 ? Math.max(-0.5, Math.min(0.5, (cm - cp) / (2 * d))) : 0; };
+  const cx0 = costAt.get(`${fx - 1},${fy}`), cx1 = costAt.get(`${fx + 1},${fy}`);
+  const cy0 = costAt.get(`${fx},${fy - 1}`), cy1 = costAt.get(`${fx},${fy + 1}`);
+  const sx = cx0 !== undefined && cx1 !== undefined ? sub(cx0, fbest, cx1) : 0;
+  const sy = cy0 !== undefined && cy1 !== undefined ? sub(cy0, fbest, cy1) : 0;
+  const per10 = 10 / minutes;
+  return { vx: (fx + sx) * per10, vy: (fy + sy) * per10 };
+}
+
+async function radarTimelineStart() {
   radarTimelineStop();
   if (!radarPastFrames.length || !radarOrigin) return;
-  const past = radarPastFrames.map((f, i) => ({ kind: i === radarPastFrames.length - 1 ? "now" : "past", time: f.time, path: f.path }));
-  radarTl.frames = past.concat(radarTlForecastFrames());
-  if (radarTl.frames.length < 2) return;
-  const g = radarTlEl();
-  g.removeAttribute("hidden");
-  const n = radarTl.frames.length;
-  const step = (RADAR_TL_X1 - RADAR_TL_X0) / n;
-  const firstFc = radarTl.frames.findIndex(f => f.kind === "fc");
-  let ticks = "";
-  radarTl.frames.forEach((f, i) => {
-    const x = RADAR_TL_X0 + i * step;
-    ticks += `<rect class="radar-tl-tick is-${f.kind}" data-i="${i}" x="${(x + 0.6).toFixed(1)}" y="12" ` +
-      `width="${Math.max(1.5, step - 1.2).toFixed(1)}" height="8" rx="1"></rect>`;
-  });
-  if (firstFc > 0) {
-    const x = RADAR_TL_X0 + firstFc * step;
-    ticks += `<line class="radar-tl-now" x1="${(x - 0.6).toFixed(1)}" x2="${(x - 0.6).toFixed(1)}" y1="8" y2="24"></line>`;
+  const token = radarTl.token;
+  const plan = radarProjectionPlan();
+  // Előtöltés: minden múltbeli képkocka, a legfrissebbtől visszafelé; addig áll a kép.
+  const past = radarPastFrames.slice();
+  for (let k = past.length - 1; k >= 0; k--) {
+    await renderRadarFrame(plan, past[k].path);
+    if (token !== radarTl.token) return;
   }
-  const tickG = g.querySelector(".radar-tl-ticks");
-  tickG.innerHTML = ticks;
-  tickG.querySelectorAll(".radar-tl-tick").forEach(t => t.addEventListener("click", event => {
-    event.stopPropagation();
-    radarTimelinePause();
-    radarTimelineShow(Number(t.dataset.i));
-  }));
+  const last = past[past.length - 1];
+  const ref = past.length >= 4 ? past[past.length - 4] : past[0];
+  const motion = radarMotion(plan, ref.path, last.path, (last.time - ref.time) / 60000);
+  plan.motion = motion;
+  radarTl.frames = past.map((f, i) => ({ kind: i === past.length - 1 ? "now" : "past", time: f.time, path: f.path }));
+  for (let k = 1; k <= RADAR_TL_FC_STEPS; k++) {
+    radarTl.frames.push({ kind: "fc", time: last.time + k * 600000, path: last.path, step: k });
+  }
+  radarTlLayers();
   const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) {
-    radarTimelineShow(radarTl.frames.findIndex(f => f.kind === "now"));
-    radarTimelinePause();
-  } else {
-    radarTl.i = 0;
-    radarTimelinePlay();
-  }
+  const nowIdx = past.length - 1;
+  if (reduce) { radarTimelineShow(nowIdx); return; }
+  radarTl.i = 0;
+  const tick = () => {
+    if (token !== radarTl.token) return;
+    radarTimelineShow(radarTl.i);
+    const f = radarTl.frames[radarTl.i];
+    const isLast = radarTl.i === radarTl.frames.length - 1;
+    radarTl.i = isLast ? 0 : radarTl.i + 1;
+    radarTl.timer = setTimeout(tick, f.kind === "now" || isLast ? RADAR_TL_HOLD_MS : RADAR_TL_STEP_MS);
+  };
+  tick();
 }
 
 function radarTimelineStop() {
   clearTimeout(radarTl.timer);
   radarTl.timer = null;
-  radarTl.playing = false;
   radarTl.token++;
   radarTl.frames = [];
   const svg = document.getElementById("radar-svg");
   delete svg.dataset.tl;
-  if (radarTl.el) {
-    radarTl.el.setAttribute("hidden", "");
-    document.getElementById("radar-forecast").innerHTML = "";
-  }
-}
-
-function radarTimelinePlay() {
-  radarTl.playing = true;
-  radarTlIcon();
-  const tick = async () => {
-    const token = radarTl.token;
-    await radarTimelineShow(radarTl.i);
-    if (!radarTl.playing || token !== radarTl.token) return;
-    const f = radarTl.frames[radarTl.i];
-    const last = radarTl.i === radarTl.frames.length - 1;
-    const hold = f.kind === "now" || last ? RADAR_TL_HOLD_MS : RADAR_TL_STEP_MS;
-    radarTl.i = last ? 0 : radarTl.i + 1;
-    radarTl.timer = setTimeout(tick, hold);
-  };
-  clearTimeout(radarTl.timer);
-  tick();
-}
-
-function radarTimelinePause() {
-  radarTl.playing = false;
-  clearTimeout(radarTl.timer);
-  radarTl.timer = null;
-  radarTlIcon();
-}
-
-function radarTlIcon() {
-  if (!radarTl.el) return;
-  radarTl.el.querySelector(".radar-tl-icon").setAttribute("d", radarTl.playing
-    ? "M18.5 12 h2.5 v8 h-2.5 Z M23 12 h2.5 v8 h-2.5 Z"   // szünet
-    : "M19 11.5 L27 16 L19 20.5 Z");                     // lejátszás
+  svg.querySelectorAll(".radar-tl-layer").forEach(l => { l.classList.remove("is-on"); l.removeAttribute("href"); });
+  if (radarTl.label) radarTl.label.textContent = "";
 }
 
 function radarTlLabel(f) {
   if (f.kind === "now") return "most";
-  if (f.kind === "fc") {
-    const min = Math.round((f.time - Date.now()) / 60000 / 15) * 15;
-    const h = Math.floor(min / 60), m = min % 60;
-    return `+${h ? `${h} óra${m ? ` ${m} perc` : ""}` : `${m} perc`} · előrejelzés`;
-  }
-  return new Date(f.time).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" });
+  const hhmm = new Date(f.time).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" });
+  return f.kind === "fc" ? `${hhmm} · előrejelzés` : hhmm;
 }
 
-async function radarTimelineShow(i) {
+// Egy képkocka megjelenítése: a kép a HÁTSÓ rétegre kerül, és áttűnik; az előrejelzés
+// ugyanaz a legfrissebb kép, a becsült mozgással eltolva (sima, lineáris csúszással).
+function radarTimelineShow(i) {
   const f = radarTl.frames[i];
-  if (!f || !radarTl.el) return;
-  radarTl.i = i;
+  if (!f) return;
+  const plan = radarProjectionPlan();
+  const url = plan.frames.get(f.path);
+  if (!url) return;
   const svg = document.getElementById("radar-svg");
-  radarTl.el.querySelectorAll(".radar-tl-tick").forEach(t => t.classList.toggle("is-current", Number(t.dataset.i) === i));
-  radarTl.el.querySelector(".radar-tl-label").textContent = radarTlLabel(f);
-  const fcG = document.getElementById("radar-forecast");
-  if (f.kind === "fc") {
-    svg.dataset.tl = "fc";
-    fcG.innerHTML = radarTlForecastDots(f.slot);
-    return;
-  }
-  fcG.innerHTML = "";
   svg.dataset.tl = f.kind;
-  const token = radarTl.token;
-  const url = await renderRadarFrame(radarProjectionPlan(), f.path);
-  if (token !== radarTl.token || radarTl.i !== i) return;
-  document.getElementById("radar-image").setAttribute("href", url);
-}
-
-// Nagyítás után a terv megváltozik: az aktuális képkockát az új vetületben rajzoljuk újra.
-function radarTimelineRefreshFrame() {
-  if (radarTl.frames.length && radarTl.el && !radarTl.el.hasAttribute("hidden")) radarTimelineShow(radarTl.i);
-}
-
-function radarTlForecastDots(slot) {
-  let out = "";
-  for (const tier of radarTierGroups) {
-    tier.points.forEach(point => {
-      const m = point.minutely;
-      if (!m) return;
-      const mm = m.precipitation[slot];
-      if (typeof mm !== "number") return;
-      const rate = mm * 4; // 15 perces összeg -> mm/óra
-      if (rate < RAIN_THRESHOLD_MM) return;
-      const band = intensityBand(rate);
-      const p = radarPolarPoint(point.bearing, point.distance, tier.maxRadiusKm);
-      const x = RADAR_CENTER_X + (p.x - RADAR_CENTER_X) * tier.scale;
-      const y = RADAR_CENTER_Y + (p.y - RADAR_CENTER_Y) * tier.scale;
-      if (x < -5 || y < -5 || x > RADAR_W + 5 || y > RADAR_H + 5) return;
-      out += `<circle class="radar-fc-dot rain-${band.key}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(band.dotRadius + 1).toFixed(1)}"></circle>`;
-    });
+  const layers = radarTlLayers();
+  const m = plan.motion || { vx: 0, vy: 0 };
+  const shift = f.kind === "fc" ? `translate(${(m.vx * f.step).toFixed(1)}px, ${(m.vy * f.step).toFixed(1)}px)` : "translate(0px, 0px)";
+  const front = layers[radarTl.front];
+  if (f.kind === "fc" && front.getAttribute("href") === url) {
+    // az előrejelzés lépései egy rétegen csúsznak tovább, áttűnés nélkül
+    front.style.transform = shift;
+  } else {
+    const back = layers[1 - radarTl.front];
+    back.classList.add("no-move");
+    back.style.transform = shift;
+    back.setAttribute("href", url);
+    void back.getBoundingClientRect();
+    back.classList.remove("no-move");
+    back.classList.add("is-on");
+    front.classList.remove("is-on");
+    radarTl.front = 1 - radarTl.front;
   }
-  return out;
+  if (radarTl.label) radarTl.label.textContent = radarTlLabel(f);
+}
+
+// Nagyítás után a terv megváltozik: a lejátszást az új vetületben kezdjük újra.
+function radarTimelineRefreshFrame() {
+  if (radarTl.frames.length) radarTimelineStart();
 }
 
 // Közös vetítő a határokhoz ÉS a folyókhoz/Balatonhoz: mindkettő ugyanúgy
