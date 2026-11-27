@@ -20,6 +20,35 @@
 const BALATON_LITERS = 1.9e12; // ~1,9 km³, több forrásból is megerősített érték
 const WATER_DEPTH_BANDS = [[0, 1, 0.01], [1, 3, 0.02], [3, 9, 0.06], [9, 27, 0.18], [27, 81, 0.54]];
 
+// "Ideális" talajnedvesség: a szántóföldi vízkapacitás, vagyis amennyi vizet a
+// talaj a gravitáció ellenében még megtart (ennél több elszivárog, ennél
+// kevesebbnél a növény egyre nehezebben jut vízhez). Talajtípusonként eltér,
+// a modell (Open-Meteo, ICON) pontonkénti talajtípusát nem kapjuk meg, ezért
+// egyetlen, a hazai uralkodó vályog- és csernozjomtalajokra jellemző értékkel
+// számolunk (az ICON TERRA talajmodell vályog-paramétere 0,34 m³/m³).
+// Becslés, a szöveg ezt ki is mondja.
+const SOIL_IDEAL_MOISTURE = 0.34;
+
+// Liter/m² egy rétegben: nedvesség (m³/m³) × vastagság (cm) × 10.
+function soilLitersPerM2(moisture, lo, hi) {
+  return moisture * (hi - lo) * 10;
+}
+
+// A tavak vízfelülete (km²) és térfogata az ideális sáv alján (m³), a hiányzó
+// vízmennyiség becsléséhez: hiány (cm) × felület. A partvonal a szint
+// változásával alig mozdul, ezért a "kb." elég pontos. A térfogat azért kell,
+// hogy a hiányzó mennyiség mellett látsszon, mennyi a normális és mennyi van
+// most (a puszta "millió m³" magában ijesztő, viszonyítás nélkül semmit sem
+// mond). Fertő: nincs sáv, nincs hiány-számítás.
+const WATER_LAKE_VOLUME = {
+  "Balaton": { areaKm2: 594, idealM3: 1.9e9, unit: "km3" },
+  "Velencei-tó": { areaKm2: 26, idealM3: 40e6, unit: "mm3" },
+};
+
+// Az országos talaj-táblázatban csak a szemmel is látható eltérést írjuk ki
+// (egy Balaton-ikon negyede); a kisebb hiány vagy többlet csak zaj.
+const SOIL_MIN_VISIBLE_BALATON = 0.25;
+
 // Az EGYETLEN Balaton-ikon path (a design-canvasból), amit minden
 // Balaton-ábra használ: a waterBalatonTilesSvg (vízmérleg "hány Balaton"),
 // a renderBalatonStack (talajvíz-rétegek) apró csempeként, és a
@@ -133,9 +162,21 @@ function waterHatchDefs() {
 // liter-mennyiséggel - ugyanaz a minta-csempe trükk, mint a vízmérleg
 // "hány Balaton" ábráján (ld. waterBalatonTilesSvg).
 function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureByDepth) {
+  // A sáv teli Balaton-ikonjai a most bent lévő vizet, az ÜRES (csak
+  // körvonalas) ikonok az ideális nedvességig (SOIL_IDEAL_MOISTURE) hiányzó
+  // vizet mutatják. Ahol több víz van az ideálisnál, a sáv teli, és egy
+  // szaggatott függőleges vonal jelzi, meddig érne az ideális mennyiség.
+  // Az ideális mennyiség a réteg teljes térfogatából: ugyanazzal a
+  // területtel, amiből az országos átlag-nedvesség is számol.
   const counts = litersByDepth.map(l => l / BALATON_LITERS);
-  const maxCount = Math.max(...counts, 0.01);
-  const BAR_UNITS_PER_BALATON = 46; // ~ a design mintájából (327.5 egység / 7.1 Balaton)
+  const idealCounts = moistureByDepth.map((m, i) => m > 0 ? counts[i] * SOIL_IDEAL_MOISTURE / m : 0);
+  const maxCount = Math.max(...counts, ...idealCounts, 0.01);
+  // Egy Balaton-csempe 46 egység (a design mintájából), de ha a leghosszabb sáv
+  // nem férne ki a 400 egységes viewBoxba, a csempék arányosan kisebbek.
+  const per = Math.min(46, 396 / maxCount);
+  const iconScale = 0.6 * per / 46;
+  const pad = 1.5 * per / 46;
+  const padY = (26 - 38.3 * iconScale) / 2; // az ikon 38,3 egység magas: függőlegesen középre
 
   // Kétoszlopos, kék keretes táblázat: az 1. oszlopban a mélység és a
   // Balaton-csempés sáv, a 2.-ban a "0,11 Balaton · 22% víz".
@@ -143,27 +184,65 @@ function renderBalatonStack(containerEl, depthBandsCm, litersByDepth, moistureBy
   const table = document.createElement("table");
   table.className = "water-balaton-table";
   const body = document.createElement("tbody");
+  let anyEmpty = false, anyDashed = false;
 
   for (let i = 0; i < depthBandsCm.length; i++) {
     const [lo, hi] = depthBandsCm[i];
     const pct = Math.round(moistureByDepth[i] * 100);
-    const widthUnits = Math.max(2, counts[i] * BAR_UNITS_PER_BALATON);
+    const nowUnits = Math.max(2, counts[i] * per);
+    const idealUnits = idealCounts[i] * per;
+    const missing = idealCounts[i] - counts[i];
+    let gap = "";
+    const visible = Math.abs(idealCounts[i] - counts[i]) >= SOIL_MIN_VISIBLE_BALATON;
+    if (visible && idealUnits > nowUnits) {
+      anyEmpty = true;
+      gap = `<rect x="${nowUnits.toFixed(1)}" y="0" width="${(idealUnits - nowUnits).toFixed(1)}" height="26" fill="url(#mbal-e-${i})"></rect>`;
+    } else if (visible && idealUnits > 0) {
+      anyDashed = true;
+      gap = `<line x1="${idealUnits.toFixed(1)}" y1="1" x2="${idealUnits.toFixed(1)}" y2="25" stroke="var(--fg)" stroke-width="1.2" stroke-dasharray="3 2"></line>`;
+    }
+    const missingText = !visible
+      ? ""
+      : missing > 0
+        ? `hiány: ${waterNum(missing, 1)} Balaton`
+        : `többlet: ${waterNum(-missing, 1)} Balaton`;
     const row = document.createElement("tr");
     row.innerHTML = `
       <th scope="row" class="water-balaton-table-depth">
         <span class="water-balaton-table-label">${lo}–${hi} cm</span>
         <svg viewBox="0 0 400 26" class="water-balaton-stack-bar" aria-hidden="true">
-          <defs><pattern id="mbal-${i}" width="46" height="26" patternUnits="userSpaceOnUse">
-            <path transform="translate(1.5,1.5) scale(0.6)" fill="var(--accent)" d="${BALATON_TILE_ICON_PATH}"></path>
+          <defs><pattern id="mbal-${i}" width="${per.toFixed(2)}" height="26" patternUnits="userSpaceOnUse">
+            <path transform="translate(${pad.toFixed(2)},${padY.toFixed(2)}) scale(${iconScale.toFixed(3)})" fill="var(--accent)" d="${BALATON_TILE_ICON_PATH}"></path>
+          </pattern>
+          <pattern id="mbal-e-${i}" width="${per.toFixed(2)}" height="26" patternUnits="userSpaceOnUse">
+            <path transform="translate(${pad.toFixed(2)},${padY.toFixed(2)}) scale(${iconScale.toFixed(3)})" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" d="${BALATON_TILE_ICON_PATH}"></path>
           </pattern></defs>
-          <rect x="0" y="0" width="${widthUnits.toFixed(1)}" height="26" fill="url(#mbal-${i})"></rect>
+          <rect x="0" y="0" width="${nowUnits.toFixed(1)}" height="26" fill="url(#mbal-${i})"></rect>${gap}
         </svg>
       </th>
-      <td class="water-balaton-table-count"><span>${waterBalatonCount(litersByDepth[i], 2)} Balaton</span> · <span>${pct}% víz</span></td>`;
+      <td class="water-balaton-table-count"><span>${waterBalatonCount(litersByDepth[i], 2)} Balaton</span> · <span>${pct}% víz</span>${missingText ? `<br><span class="water-balaton-table-missing">${missingText}</span>` : ""}</td>`;
     body.appendChild(row);
   }
   table.appendChild(body);
+  // Jelmagyarázat csak arról, ami tényleg látszik a sávokon.
+  if (anyEmpty || anyDashed) {
+    const keys = ["teli Balaton: ennyi víz van most a rétegben"];
+    if (anyEmpty) keys.push("üres Balaton: ennyi hiányzik az ideálishoz");
+    if (anyDashed) keys.push("szaggatott vonal: idáig érne az ideális mennyiség");
+    const foot = document.createElement("tfoot");
+    foot.innerHTML = `<tr><td colspan="2" class="water-balaton-table-key">${keys.join(" · ")}</td></tr>`;
+    table.appendChild(foot);
+  }
   containerEl.appendChild(table);
+}
+
+// Országos hiány az ideálishoz képest, Balatonban (pozitív = hiány). Nettó
+// érték: a felső rétegek többlete is beszámít, mert az lefelé szivárog.
+function soilCountryMissingBalatons(litersByDepth, moistureByDepth) {
+  return litersByDepth.reduce((sum, l, i) => {
+    const m = moistureByDepth[i];
+    return m > 0 ? sum + (l * SOIL_IDEAL_MOISTURE / m - l) / BALATON_LITERS : sum;
+  }, 0);
 }
 
 // ---- 2. Országtérkép: talajnedvesség-dombormű + folyók + tavak ----
@@ -2350,7 +2429,7 @@ function soilSceneSvg(point, GY, elevationM, narrow = false, sc = 1) {
     scene = `<g transform="translate(${cx} 0) scale(${SOIL_GENERIC_CHURCH.scale})"><path d="${SOIL_GENERIC_CHURCH.body}" fill="var(--bg)"></path><path d="${SOIL_GENERIC_CHURCH.detail}" fill="none"></path></g>` +
       soilHouse(cx - 78, 1, 1) + soilHouse(cx + 70, 1, 0);
   }
-  const trees = soilTree(372, 1.05) + soilTree(442, 0.85);
+  const trees = soilTree(352, 1.05) + soilTree(412, 0.85);
   const houses = soilHouse(540, 1, 0) + soilHouse(606, 0.85, 1) + soilHouse(670, 1, 1);
   const art = `<g class="scl-art" transform="translate(0 ${GY}) scale(${sc})" stroke="var(--fg)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">${scene}${trees}${houses}</g>`;
   const hasElev = typeof elevationM === "number" && isFinite(elevationM);
@@ -2410,9 +2489,13 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
   const narrow = measured > 0 && measured < SOIL_NARROW_PX;
   const VW = narrow ? Math.max(SOIL_NARROW_MIN_PX, Math.round(measured)) : 720;
   const GY = narrow ? 150 : 214;
-  const X0 = narrow ? 46 : 80, X1 = narrow ? VW - 8 : 480, LX = 500;
+  // Jobbra a rétegek mellett egy keskeny "ideális" oszlop: ugyanazok a
+  // rétegek, az ideális nedvesség (SOIL_IDEAL_MOISTURE) vonalkázásával.
+  const IW = narrow ? 30 : 46, IGAP = narrow ? 6 : 14;
+  const IX1 = narrow ? VW - 8 : 510, IX0 = IX1 - IW;
+  const X0 = narrow ? 46 : 80, X1 = IX0 - IGAP, LX = 526;
   const totalDepth = 81, perCm = narrow ? 3.4 : 4;
-  const heights = WATER_DEPTH_BANDS.map(([lo, hi], i) => (narrow && i < 3) ? [6, 10, 22][i] : (hi - lo) * perCm);
+  const heights = WATER_DEPTH_BANDS.map(([lo, hi], i) => (narrow && i < 3) ? [9, 13, 29][i] : (hi - lo) * perCm);
   let y = GY;
   const boxes = WATER_DEPTH_BANDS.map(([lo, hi], i) => {
     const box = { lo, hi, y, h: heights[i] };
@@ -2426,17 +2509,26 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
   while (cursor < boxes.length) {
     let end = cursor;
     while (end + 1 < boxes.length && boxes[end + 1].h < 30 && boxes[cursor].h < 30) end += 1;
-    let wsum = 0, msum = 0, liters = 0;
+    let wsum = 0, msum = 0, liters = 0, missing = 0;
     for (let k = cursor; k <= end; k++) {
       const th = WATER_DEPTH_BANDS[k][2];
       wsum += th; msum += moistureByDepth[k] * th;
-      liters += moistureByDepth[k] * (boxes[k].hi - boxes[k].lo) * 10;
+      liters += soilLitersPerM2(moistureByDepth[k], boxes[k].lo, boxes[k].hi);
+      missing += soilLitersPerM2(SOIL_IDEAL_MOISTURE - moistureByDepth[k], boxes[k].lo, boxes[k].hi);
     }
     const y0 = boxes[cursor].y, y1 = boxes[end].y + boxes[end].h;
-    groups.push({ lo: boxes[cursor].lo, hi: boxes[end].hi, y0, y1, mid: (y0 + y1) / 2, pct: Math.round(msum / wsum * 100), liters: Math.round(liters) });
+    groups.push({ lo: boxes[cursor].lo, hi: boxes[end].hi, y0, y1, mid: (y0 + y1) / 2, pct: Math.round(msum / wsum * 100), liters: Math.round(liters), missing: Math.round(missing) });
     cursor = end + 1;
   }
-  const totalLiters = Math.round(moistureByDepth.reduce((s, m, i) => s + m * (boxes[i].hi - boxes[i].lo) * 10, 0));
+  // Hiány/többlet szövege egy rétegcsoportra (liter/m², nettó).
+  const gapText = (g, short) => g.missing >= 1
+    ? `hiány: ${waterNum(g.missing, 0)} liter${short ? "" : " / m²"}`
+    : g.missing <= -1
+      ? `többlet: ${waterNum(-g.missing, 0)} liter${short ? "" : " / m²"}`
+      : "épp ideális";
+  const totalLiters = Math.round(moistureByDepth.reduce((s, m, i) => s + soilLitersPerM2(m, boxes[i].lo, boxes[i].hi), 0));
+  const idealLiters = Math.round(SOIL_IDEAL_MOISTURE * totalDepth * 10);
+  const totalMissing = idealLiters - totalLiters;
   const MIN_LABEL_GAP = 74;
   let prevLabelY = GY + 34 - MIN_LABEL_GAP; // az első felirat a házak alá kerül
   groups.forEach(g => {
@@ -2446,6 +2538,12 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
 
   const rects = boxes.map((box, i) =>
     `<rect x="${X0}" y="${box.y.toFixed(1)}" width="${X1 - X0}" height="${box.h.toFixed(1)}" fill="url(#wh${waterHatchIndex(moistureByDepth[i])})" stroke="var(--fg)" stroke-width="1" vector-effect="non-scaling-stroke"></rect>`).join("");
+  const idealHatch = waterHatchIndex(SOIL_IDEAL_MOISTURE);
+  const deepBox = boxes[boxes.length - 1];
+  const idealCx = (IX0 + IX1) / 2, idealCy = deepBox.y + deepBox.h / 2;
+  const idealCol = boxes.map(box =>
+    `<rect x="${IX0}" y="${box.y.toFixed(1)}" width="${IW}" height="${box.h.toFixed(1)}" fill="url(#wh${idealHatch})" stroke="var(--fg)" stroke-width="1" vector-effect="non-scaling-stroke"></rect>`).join("") +
+    `<text class="water-map-label scl-ideal-label" x="${idealCx}" y="${idealCy.toFixed(1)}" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 ${idealCx} ${idealCy.toFixed(1)})">ideális: ${Math.round(SOIL_IDEAL_MOISTURE * 100)}% víz</text>`;
 
   const tickYs = { 0: GY, 9: boxes[3].y, 27: boxes[4].y, 81: bottomY };
   const ticks = [0, 9, 27, 81].map(cm => {
@@ -2456,25 +2554,26 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
 
   let leaders = "", labels = "";
   if (narrow) {
+    const boxW = Math.min(150, X1 - X0 - 12);
     labels = groups.map(g =>
-      `<rect x="${X0 + 6}" y="${(g.mid - 17).toFixed(1)}" width="124" height="34" fill="var(--bg)" stroke="var(--fg)" stroke-width="0.75" vector-effect="non-scaling-stroke"></rect>` +
-      `<text class="water-map-label" x="${X0 + 12}" y="${(g.mid - 3).toFixed(1)}"><tspan style="font-weight:600">${g.lo}–${g.hi} cm, ${g.pct}% víz</tspan><tspan x="${X0 + 12}" dy="1.3em" style="fill:var(--muted)">kb. ${waterNum(g.liters, 0)} liter / m²</tspan></text>`).join("");
+      `<rect x="${X0 + 6}" y="${(g.mid - 24).toFixed(1)}" width="${boxW}" height="48" fill="var(--bg)" stroke="var(--fg)" stroke-width="0.75" vector-effect="non-scaling-stroke"></rect>` +
+      `<text class="water-map-label" x="${X0 + 12}" y="${(g.mid - 10).toFixed(1)}"><tspan style="font-weight:600">${g.lo}–${g.hi} cm, ${g.pct}% víz</tspan><tspan x="${X0 + 12}" dy="1.3em" style="fill:var(--muted)">kb. ${waterNum(g.liters, 0)} liter / m²</tspan><tspan x="${X0 + 12}" dy="1.3em">${gapText(g, true)}</tspan></text>`).join("");
   } else {
     leaders = groups.map(g =>
-      `<polyline points="${X1},${g.mid.toFixed(1)} ${X1 + 8},${g.mid.toFixed(1)} ${LX - 4},${g.labelY.toFixed(1)}" vector-effect="non-scaling-stroke"></polyline>`).join("");
+      `<polyline points="${IX1},${g.mid.toFixed(1)} ${IX1 + 6},${g.mid.toFixed(1)} ${LX - 4},${g.labelY.toFixed(1)}" vector-effect="non-scaling-stroke"></polyline>`).join("");
     labels = groups.map(g =>
-      `<text class="water-map-label" x="${LX}" y="${g.labelY.toFixed(1)}"><tspan dy="-0.2em" style="font-weight:600">${g.lo}–${g.hi} cm, ${g.pct}% víz</tspan><tspan x="${LX}" dy="1.35em" style="fill:var(--muted)">kb. ${waterNum(g.liters, 0)} liter / m²</tspan></text>`).join("");
+      `<text class="water-map-label" x="${LX}" y="${g.labelY.toFixed(1)}"><tspan dy="-0.7em" style="font-weight:600">${g.lo}–${g.hi} cm, ${g.pct}% víz</tspan><tspan x="${LX}" dy="1.35em" style="fill:var(--muted)">kb. ${waterNum(g.liters, 0)} liter / m²</tspan><tspan x="${LX}" dy="1.35em">${gapText(g, false)}</tspan></text>`).join("");
   }
 
   const hits = groups.map((g, i) =>
-    `<rect class="scl-hit" data-group="${i}" x="${X0}" y="${g.y0.toFixed(1)}" width="${X1 - X0}" height="${(g.y1 - g.y0).toFixed(1)}" tabindex="0" role="button" aria-label="${g.lo}–${g.hi} cm, ${g.pct}% víz, kb. ${g.liters} liter négyzetméterenként"></rect>`).join("");
+    `<rect class="scl-hit" data-group="${i}" x="${X0}" y="${g.y0.toFixed(1)}" width="${X1 - X0}" height="${(g.y1 - g.y0).toFixed(1)}" tabindex="0" role="button" aria-label="${g.lo}–${g.hi} cm, ${g.pct}% víz, kb. ${g.liters} liter négyzetméterenként, ${gapText(g, false)}"></rect>`).join("");
 
   // A 81 cm alatt: halvány sáv törésjellel, adat nélkül. A törésjel háttér-
   // színű "glóriával" is kap, hogy a vonalkázás fölött is látsszon.
   const zig = [];
-  for (let x = X0, up = false; x <= X1 + 0.1; x += 12, up = !up) zig.push(`${x},${bottomY + (up ? -5 : 5)}`);
+  for (let x = X0, up = false; x <= IX1 + 0.1; x += 12, up = !up) zig.push(`${x},${bottomY + (up ? -5 : 5)}`);
   const bandH = narrow ? 60 : 74;
-  const cx = (X0 + VW) / 2;
+  const cx = (X0 + IX1) / 2;
   const below = `<rect x="${X0}" y="${bottomY}" width="${VW - X0}" height="${bandH}" fill="url(#scl-fade)"></rect>` +
     `<polyline points="${zig.join(" ")}" fill="none" stroke="var(--bg)" stroke-width="4" vector-effect="non-scaling-stroke"></polyline>` +
     `<polyline points="${zig.join(" ")}" fill="none" stroke="var(--fg)" stroke-width="1.6" vector-effect="non-scaling-stroke"></polyline>` +
@@ -2482,7 +2581,8 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
 
   // Jelmagyarázat: száraz -> vizes, a vonalkázás öt foka.
   const legY = bottomY + bandH + 20;
-  const lx = narrow ? X0 + 8 : X0 + 64;
+  // Keskenyen középre, hogy a "vizes" felirat ne lógjon ki a jobb szélen.
+  const lx = narrow ? Math.max(4, (VW - 236) / 2) : X0 + 64;
   const legend = WATER_HATCH_TILE_PX.map((_, i) =>
     `<rect x="${lx + 52 + i * 28}" y="${legY}" width="28" height="16" fill="url(#wh${i})" stroke="var(--fg)" stroke-width="1" vector-effect="non-scaling-stroke"></rect>`).join("") +
     `<text class="water-map-label" x="${lx + 44}" y="${legY + 12}" text-anchor="end">száraz</text>` +
@@ -2499,18 +2599,27 @@ function renderSoilCoreProfile(svgEl, moistureByDepth, point, elevationM) {
     `<pattern id="scl-fade" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.8" fill="var(--muted)"></circle></pattern></defs>` +
     soilSceneSvg(point, GY, elevationM, narrow, sc) +
     `<line x1="0" y1="${GY}" x2="${VW}" y2="${GY}" stroke="var(--fg)" stroke-width="2" vector-effect="non-scaling-stroke"></line>` +
-    rects +
-    `<g transform="translate(0 ${GY}) scale(${sc})" class="scl-art">${soilRoots(372)}${soilRoots(442)}</g>` +
+    rects + idealCol +
+    `<g transform="translate(0 ${GY}) scale(${sc})" class="scl-art">${soilRoots(352)}${soilRoots(412)}</g>` +
     ticks + below + legend +
     `<g stroke="var(--fg)" stroke-width="0.75" fill="none">${leaders}</g>${labels}${hits}`;
 
   const noteEl = document.getElementById("water-soil-note");
-  if (noteEl) noteEl.innerHTML = `<strong>a felső 81 cm-ben összesen kb. ${waterNum(totalLiters, 0)} liter víz van négyzetméterenként</strong><br>az épület nem méretarányos a talajrétegekhez` +
+  const worst = groups.reduce((a, b) => (b.missing > a.missing ? b : a), groups[0]);
+  const gapSentence = totalMissing >= 1
+    ? `az ideálishoz képest kb. ${waterNum(totalMissing, 0)} liter hiányzik négyzetméterenként` +
+      (worst.missing >= 1 ? `, a legtöbb a ${worst.lo}–${worst.hi} cm-es rétegből` : "")
+    : totalMissing <= -1
+      ? `ez kb. ${waterNum(-totalMissing, 0)} literrel több az ideálisnál négyzetméterenként`
+      : "ez épp az ideális mennyiség";
+  if (noteEl) noteEl.innerHTML = `<strong>a felső 81 cm-ben összesen kb. ${waterNum(totalLiters, 0)} liter víz van négyzetméterenként, ${gapSentence}</strong>` +
+    `<br>ideális (jobb oldali oszlop): a szántóföldi vízkapacitás, amennyi vizet a talaj még megtart; a hazai vályogtalajokra jellemző ${Math.round(SOIL_IDEAL_MOISTURE * 100)}%-kal számolva (${waterNum(idealLiters, 0)} liter / m²), becslés` +
+    `<br>az épület nem méretarányos a talajrétegekhez` +
     (narrow ? `<br>a legfelső, 0–9 cm-es réteg a felirat miatt vastagabbra van rajzolva a valódinál` : "");
 
   const tooltipEl = document.getElementById("water-soil-tooltip");
   const show = (g, x, y) => mapPopupShow(tooltipEl, x, y,
-    `<strong>${g.lo}–${g.hi} cm</strong><span>${g.pct}% víz, kb. ${waterNum(g.liters, 0)} liter négyzetméterenként (nedvesség × vastagság)</span>`);
+    `<strong>${g.lo}–${g.hi} cm</strong><span>${g.pct}% víz, kb. ${waterNum(g.liters, 0)} liter négyzetméterenként (nedvesség × vastagság); ${gapText(g, false)}</span>`);
   svgEl.querySelectorAll(".scl-hit").forEach(el => {
     const g = groups[Number(el.dataset.group)];
     el.addEventListener("pointermove", e => { if (e.pointerType === "mouse") show(g, e.clientX, e.clientY); });
@@ -2735,6 +2844,18 @@ function lakeGaugeSvg(lakeKey, band, levelCm, ariaLabel) {
 // nélkül, egy halvány megjegyzéssel jelenik meg. A 7 napos trend-vonal
 // (station.history: számok vagy {level_cm} elemek) a tó-pillanatképben még
 // nincs - amint a gyűjtő történetet ad, itt automatikusan megjelenik.
+// Hiányzó víz egy tóból: hiány (cm) × vízfelület (km²), m³-ben kiírva, és ha
+// legalább egy század Balaton, Balatonban is.
+function lakeMissingText(lakeName, deficitCm) {
+  const v = WATER_LAKE_VOLUME[lakeName];
+  if (!v || deficitCm <= 0) return "";
+  const missing = deficitCm / 100 * v.areaKm2 * 1e6;
+  const now = Math.max(0, v.idealM3 - missing);
+  // Egy tavon belül mindig ugyanaz a mértékegység, hogy a három szám összevethető legyen.
+  const fmt = m3 => v.unit === "km3" ? `${waterNum(m3 / 1e9, 1)} km³` : `${waterNum(m3 / 1e6, 0)} millió m³`;
+  return `kb. ${fmt(missing)} víz hiányzik: most ${fmt(now)} van benne, ideális szinten ${fmt(v.idealM3)}`;
+}
+
 function renderLakeCards(container, cards) {
   container.innerHTML = "";
   for (const card of cards) {
@@ -2751,7 +2872,11 @@ function renderLakeCards(container, cards) {
     let status = "";
     if (level === null) status = "jelenleg nem elérhető";
     else if (!hasBand) status = "";
-    else if (level < band.lowCm) status = `${waterNum(band.lowCm - level, 0)} cm-rel az ideális sáv alatt`;
+    else if (level < band.lowCm) {
+      status = `${waterNum(band.lowCm - level, 0)} cm-rel az ideális sáv alatt`;
+      const missing = lakeMissingText(card.name, band.lowCm - level);
+      if (missing) status += `<br>${missing}`;
+    }
     else if (level > band.highCm) status = `${waterNum(level - band.highCm, 0)} cm-rel az ideális sáv felett`;
     else status = "az ideális sávban";
 
@@ -2764,6 +2889,7 @@ function renderLakeCards(container, cards) {
       lakeShapeSvg(card.shapeKey, fraction, `${card.name} körvonala, kitöltve az aktuális szint arányában`) +
       `<p class="water-lake-card-value${level === null ? " water-lake-gauge-value-missing" : ""}">${valueText}</p>` +
       (hasBand && level !== null ? lakeGaugeSvg(card.shapeKey, band, level, `${card.name}: ${valueText}, ideális sáv ${band.lowCm} és ${band.highCm} cm között`) : "") +
+      // status: csak saját szövegek és számok, ezért innerHTML-ként biztonságos (a <br> miatt).
       (status ? `<p class="water-lake-card-status">${status}</p>` : "") +
       (history.length > 1 ? `<div class="water-lake-card-trend">${popupSparklineSvg(history)}</div>` : "") +
       (!hasBand ? `<p class="water-lake-card-note">ehhez a tóhoz nincs megadva ideális sáv</p>` : "") +
@@ -3572,8 +3698,14 @@ async function buildWaterPanel(point) {
     const totalCount = waterBalatonCount(soil.country_total_liters, 1);
     document.getElementById("water-soil-balaton-count").textContent = totalCount;
     document.getElementById("water-soil-balaton-label").textContent = "Balatonnyi, 81 cm mélységig";
+    const countryMissing = soilCountryMissingBalatons(soil.country_total_by_depth, avgMoisture);
     document.getElementById("water-soil-exact").textContent =
-      `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter (becslés, Open-Meteo talajmodell)`;
+      `kb. ${waterNum(soil.country_total_liters / 1e9, 0)} milliárd liter (becslés, Open-Meteo talajmodell); ` +
+      (countryMissing >= SOIL_MIN_VISIBLE_BALATON
+        ? `az ideális nedvességhez képest kb. ${waterNum(countryMissing, 1)} Balatonnyi víz hiányzik`
+        : countryMissing <= -SOIL_MIN_VISIBLE_BALATON
+          ? `ez kb. ${waterNum(-countryMissing, 1)} Balatonnyival több az ideálisnál`
+          : "ez nagyjából az ideális mennyiség");
     renderBalatonStack(
       document.getElementById("water-balaton-stack"),
       soil.depth_bands_cm,
@@ -3709,7 +3841,8 @@ async function buildWaterPanel(point) {
         (balatonAvg.stale
           ? "átlagos vízállás (tegnapi adat), "
           : "átlagos vízállás, ")
-        + "a mérce saját 0 pontjához képest, nem tengerszinthez";
+        + "a mérce saját 0 pontjához képest, nem tengerszinthez"
+;
     } else {
       document.getElementById("water-balaton-level").textContent = "jelenleg nem elérhető";
       document.getElementById("water-balaton-detail").textContent = "a Balaton vízállása most nem tölthető be";

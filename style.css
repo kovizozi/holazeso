@@ -1547,6 +1547,30 @@ noscript .about {
   white-space: nowrap;
 }
 
+/* A rétegből az ideálishoz hiányzó (vagy azon felüli) víz: fekete, hogy a
+   halvány mennyiség-sor alatt kiemelkedjen. */
+.water-balaton-table-count .water-balaton-table-missing {
+  color: var(--fg);
+}
+
+.water-balaton-table tfoot td {
+  border-top: 1px solid var(--border);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* A talajmetszet "ideális" oszlopának függőleges felirata háttér-glóriával,
+   hogy a vonalkázás fölött is olvasható legyen. */
+.scl-ideal-label {
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: calc(4px / var(--k, 1));
+  stroke-linejoin: round;
+  font-weight: 600;
+}
+
 @media (max-width: 480px) {
   .water-balaton-table th,
   .water-balaton-table td {

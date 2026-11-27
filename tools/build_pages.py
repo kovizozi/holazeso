@@ -1233,7 +1233,7 @@ CIGAND_FIGURES = """    <div id="cigand-figures">
     </figure>
     <dl class="cigand-xs-list" id="cigand-xs-list" hidden></dl>
     </div>"""
-CIGAND_PAGE_JS = "/cigand-page.js?v=7"
+CIGAND_PAGE_JS = "/cigand-page.js?v=8"
 
 
 def bold_md(text):

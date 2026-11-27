@@ -271,6 +271,28 @@ napi mezői ehhez bővültek (`rain_sum`, `weather_code`), új kérés nincs.
 
 ### Vízadat-panel (`#water-panel`, `buildWaterPanel`)
 
+**Hiányzó víz az ideálishoz képest (2026-11-27).** Talaj: az "ideális" a
+szántóföldi vízkapacitás, egyetlen konstanssal (`SOIL_IDEAL_MOISTURE` = 0,34
+m³/m³, az ICON TERRA vályog-paramétere; a modell pontonkénti talajtípusát nem
+kapjuk meg, ezért becslés, a szöveg ki is mondja). A helyi metszet
+(`renderSoilCoreProfile`) jobb oldalán egy keskeny "ideális" oszlop áll
+ugyanazokkal a rétegekkel, a feliratokban rétegenként "hiány" vagy "többlet"
+liter/m²-ben, a képaláírásban a nettó összeg és a leginkább hiányos réteg. Az
+országos Balaton-táblázatban (`renderBalatonStack`) a teli ikonok a mostani
+vizet, az üres (körvonalas) ikonok az ideálisig hiányzót mutatják; többletnél
+szaggatott vonal jelzi az ideális mennyiséget. Ha a leghosszabb sáv nem férne
+ki, a csempék arányosan kisebbek. Az országos összeg nettó
+(`soilCountryMissingBalatons`): a felső rétegek többlete is beszámít, mert az
+lefelé szivárog. A táblázatban és a fejsorban csak a szemmel látható
+eltérés áll (`SOIL_MIN_VISIBLE_BALATON`, negyed Balaton), a kisebb
+"0,02 Balatonnyi" hiány csak zaj (felhasználói kérés). Tavak: csak a
+tó-kártyán (nem a fejsorban és nem a "legrosszabbul álló tó" sorában, hogy ne
+ismétlődjön), hiány (cm, a sáv aljához) × vízfelület, MELLETTE a mostani és
+az ideális szintű térfogat ugyanabban a mértékegységben (`WATER_LAKE_VOLUME`:
+Balaton 594 km², 1,9 km³; Velencei-tó 26 km², 40 millió m³; `lakeMissingText`),
+mert a puszta "millió m³" viszonyítás nélkül ijesztő. A Fertőnek nincs sávja,
+ezért ott nincs hiány-számítás.
+
 **A kód külön fájlban van, lustán töltődik** (SEO-PLAN 4. fázis). A panel
 teljes logikája (folyók, tavak, talaj, csatornák, Cigánd, a térképek, kb. 219
 kB) a `/water.js`-ben van, a `script.js` (kb. 117 kB) csak a vékony lusta
