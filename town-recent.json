@@ -4,11 +4,11 @@
   "ajka": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 18,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 15,
    "water": {
     "km": 33,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -18,7 +18,7 @@
   "bacsalmas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.3,
    "tomorrow_prob": 16,
    "water": {
     "km": 52,
@@ -54,10 +54,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 5,
    "water": {
     "km": 20,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -68,10 +68,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 5,
+   "tomorrow_prob": 8,
    "water": {
     "km": 5,
-    "level_cm": 26,
+    "level_cm": 41,
     "slug": "balaton",
     "station": "Tihany rév",
     "water": "Balaton"
@@ -81,15 +81,15 @@
   "balmazujvaros": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 24,
    "week_mm": 25.2
   },
   "barcs": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
-   "tomorrow_prob": 38,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 45,
    "week_mm": 38.0
   },
   "batonyterenye": {
@@ -99,7 +99,7 @@
    "tomorrow_prob": 10,
    "water": {
     "km": 58,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -109,11 +109,11 @@
   "battonya": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 5,
    "water": {
     "km": 42,
-    "level_cm": 36,
+    "level_cm": 13,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -123,11 +123,11 @@
   "bekes": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 11,
    "water": {
     "km": 45,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -137,11 +137,11 @@
   "bekescsaba": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 11,
    "water": {
     "km": 46,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -151,18 +151,18 @@
   "berettyoujfalu": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.7,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 17,
    "week_mm": 32.8
   },
   "bicske": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 12,
    "water": {
     "km": 30,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -172,7 +172,7 @@
   "bonyhad": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
+   "tomorrow_mm": 1.3,
    "tomorrow_prob": 15,
    "water": {
     "km": 35,
@@ -186,11 +186,11 @@
   "budapest": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.7,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 15,
    "water": {
     "km": 0,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -214,11 +214,11 @@
   "cegled": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.9,
    "tomorrow_prob": 21,
    "water": {
     "km": 29,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -228,18 +228,18 @@
   "celldomolk": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 5,
    "week_mm": 13.7
   },
   "csenger": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.9,
    "tomorrow_prob": 12,
    "water": {
     "km": 38,
-    "level_cm": -129,
+    "level_cm": -141,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -249,11 +249,11 @@
   "csongrad": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.3,
    "tomorrow_prob": 17,
    "water": {
     "km": 35,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -278,10 +278,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 10,
+   "tomorrow_prob": 13,
    "water": {
     "km": 26,
-    "level_cm": -108,
+    "level_cm": -109,
     "slug": "drava",
     "station": "Őrtilos",
     "water": "Dráva"
@@ -291,11 +291,11 @@
   "dabas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 18,
    "water": {
     "km": 40,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -305,18 +305,18 @@
   "debrecen": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.7,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 23,
    "week_mm": 30.3
   },
   "dombovar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 10,
    "water": {
     "km": 59,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -326,11 +326,11 @@
   "dunakeszi": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 12,
    "water": {
     "km": 17,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -340,11 +340,11 @@
   "dunaujvaros": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 16,
    "water": {
     "km": 36,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -354,11 +354,11 @@
   "eger": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 5,
    "water": {
     "km": 49,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -368,11 +368,11 @@
   "enying": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 10,
    "water": {
     "km": 15,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -382,11 +382,11 @@
   "erd": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 15,
    "water": {
     "km": 15,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -396,11 +396,11 @@
   "esztergom": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 16,
    "water": {
     "km": 40,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -414,7 +414,7 @@
    "tomorrow_prob": 9,
    "water": {
     "km": 36,
-    "level_cm": -129,
+    "level_cm": -141,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -425,10 +425,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 5,
    "water": {
     "km": 29,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -438,11 +438,11 @@
   "godollo": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.1,
+   "tomorrow_mm": 0.7,
    "tomorrow_prob": 22,
    "water": {
     "km": 26,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -452,11 +452,11 @@
   "gyal": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.0,
+   "tomorrow_mm": 0.9,
    "tomorrow_prob": 22,
    "water": {
     "km": 19,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -466,11 +466,11 @@
   "gyomaendrod": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 16,
    "water": {
     "km": 23,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -480,11 +480,11 @@
   "gyongyos": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.9,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 8,
    "water": {
     "km": 35,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -495,7 +495,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 13,
    "water": {
     "km": 0,
     "level_cm": 171,
@@ -508,39 +508,39 @@
   "gyula": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 9,
    "week_mm": 36.3
   },
   "hajduboszormeny": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.7,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 20,
    "week_mm": 25.5
   },
   "hajdunanas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 20,
    "week_mm": 26.1
   },
   "hajduszoboszlo": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 23,
    "week_mm": 30.0
   },
   "hatvan": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.9,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 10,
    "water": {
     "km": 38,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -550,11 +550,11 @@
   "hodmezovasarhely": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 14,
    "water": {
     "km": 23,
-    "level_cm": 282,
+    "level_cm": 271,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -564,7 +564,7 @@
   "janoshalma": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 16,
    "water": {
     "km": 60,
@@ -578,11 +578,11 @@
   "jaszbereny": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 16,
    "water": {
     "km": 15,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -592,18 +592,18 @@
   "kalocsa": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0.8,
    "tomorrow_prob": 12,
    "week_mm": 32.9
   },
   "kaposvar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 15,
    "water": {
     "km": 60,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -614,7 +614,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 5,
+   "tomorrow_prob": 3,
    "water": {
     "km": 32,
     "level_cm": 0,
@@ -627,11 +627,11 @@
   "karcag": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 21,
    "water": {
     "km": 57,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -648,11 +648,11 @@
   "kecskemet": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 22,
    "water": {
     "km": 47,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -663,10 +663,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 10,
+   "tomorrow_prob": 8,
    "water": {
     "km": 49,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -676,18 +676,18 @@
   "kiskoros": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 16,
    "week_mm": 31.3
   },
   "kiskunfelegyhaza": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 14,
    "water": {
     "km": 56,
-    "level_cm": 282,
+    "level_cm": 271,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -697,11 +697,11 @@
   "kiskunhalas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 14,
    "water": {
     "km": 54,
-    "level_cm": 282,
+    "level_cm": 271,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -711,11 +711,11 @@
   "kisujszallas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 22,
    "water": {
     "km": 42,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -732,7 +732,7 @@
   "komlo": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.8,
+   "tomorrow_mm": 2.1,
    "tomorrow_prob": 10,
    "water": {
     "km": 39,
@@ -747,7 +747,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 3,
+   "tomorrow_prob": 0,
    "week_mm": 20.3
   },
   "koszeg": {
@@ -767,11 +767,11 @@
   "lajosmizse": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0.7,
    "tomorrow_prob": 21,
    "water": {
     "km": 50,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -782,10 +782,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 3,
    "water": {
     "km": 41,
-    "level_cm": -108,
+    "level_cm": -109,
     "slug": "drava",
     "station": "Őrtilos",
     "water": "Dráva"
@@ -796,10 +796,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 5,
+   "tomorrow_prob": 3,
    "water": {
     "km": 16,
-    "level_cm": -108,
+    "level_cm": -109,
     "slug": "drava",
     "station": "Őrtilos",
     "water": "Dráva"
@@ -809,11 +809,11 @@
   "mako": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 10,
    "water": {
     "km": 0,
-    "level_cm": 36,
+    "level_cm": 13,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -827,7 +827,7 @@
    "tomorrow_prob": 10,
    "water": {
     "km": 49,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -841,7 +841,7 @@
    "tomorrow_prob": 16,
    "water": {
     "km": 52,
-    "level_cm": -129,
+    "level_cm": -141,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -851,11 +851,11 @@
   "mezobereny": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 11,
    "water": {
     "km": 37,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -865,18 +865,18 @@
   "mezocsat": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 13,
    "week_mm": 22.9
   },
   "mezokovacshaza": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 20,
    "water": {
     "km": 39,
-    "level_cm": 36,
+    "level_cm": 13,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -886,11 +886,11 @@
   "mezokovesd": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 12,
    "water": {
     "km": 49,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -900,11 +900,11 @@
   "mezotur": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 22,
    "water": {
     "km": 16,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -914,14 +914,14 @@
   "miskolc": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 6,
    "week_mm": 15.8
   },
   "mohacs": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 16,
    "water": {
     "km": 1,
@@ -935,11 +935,11 @@
   "monor": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 21,
    "water": {
     "km": 35,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -950,10 +950,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 15,
+   "tomorrow_prob": 18,
    "water": {
     "km": 36,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -963,11 +963,11 @@
   "morahalom": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 1.1,
    "tomorrow_prob": 18,
    "water": {
     "km": 20,
-    "level_cm": 282,
+    "level_cm": 271,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -981,7 +981,7 @@
    "tomorrow_prob": 3,
    "water": {
     "km": 31,
-    "level_cm": 29,
+    "level_cm": 17,
     "slug": "duna",
     "station": "Nagybajcs",
     "water": "Duna"
@@ -991,11 +991,11 @@
   "nagyatad": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
-   "tomorrow_prob": 10,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 13,
    "water": {
     "km": 46,
-    "level_cm": -108,
+    "level_cm": -109,
     "slug": "drava",
     "station": "Őrtilos",
     "water": "Dráva"
@@ -1006,10 +1006,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 5,
+   "tomorrow_prob": 8,
    "water": {
     "km": 26,
-    "level_cm": -108,
+    "level_cm": -109,
     "slug": "drava",
     "station": "Őrtilos",
     "water": "Dráva"
@@ -1019,11 +1019,11 @@
   "nagykoros": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0.8,
    "tomorrow_prob": 22,
    "water": {
     "km": 34,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1033,7 +1033,7 @@
   "nyirbator": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.2,
    "tomorrow_prob": 17,
    "week_mm": 25.4
   },
@@ -1047,11 +1047,11 @@
   "oroshaza": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 13,
    "water": {
     "km": 35,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1061,11 +1061,11 @@
   "oroszlany": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.3,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 12,
    "water": {
     "km": 39,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -1082,15 +1082,15 @@
   "paks": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 12,
    "week_mm": 32.8
   },
   "pannonhalma": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 13,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 23,
    "water": {
     "km": 17,
     "level_cm": 171,
@@ -1103,8 +1103,8 @@
   "papa": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.4,
-   "tomorrow_prob": 20,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 18,
    "water": {
     "km": 42,
     "level_cm": 171,
@@ -1117,11 +1117,11 @@
   "paszto": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 10,
    "water": {
     "km": 57,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1131,11 +1131,11 @@
   "pecs": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 12,
    "water": {
     "km": 32,
-    "level_cm": -26,
+    "level_cm": -14,
     "slug": "drava",
     "station": "Drávaszabolcs",
     "water": "Dráva"
@@ -1145,7 +1145,7 @@
   "pecsvarad": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 15,
    "water": {
     "km": 27,
@@ -1163,7 +1163,7 @@
    "tomorrow_prob": 5,
    "water": {
     "km": 55,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1173,25 +1173,25 @@
   "polgar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.8,
+   "tomorrow_mm": 0.3,
    "tomorrow_prob": 13,
    "week_mm": 23.9
   },
   "puspokladany": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 21,
    "week_mm": 29.2
   },
   "rackeve": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 16,
    "water": {
     "km": 27,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -1205,7 +1205,7 @@
    "tomorrow_prob": 4,
    "water": {
     "km": 49,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1222,11 +1222,11 @@
   "sarbogard": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 12,
    "water": {
     "km": 34,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -1236,21 +1236,21 @@
   "sarkad": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0,
+   "tomorrow_mm": 0.3,
    "tomorrow_prob": 12,
    "week_mm": 34.2
   },
   "sarospatak": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 6,
    "week_mm": 15.8
   },
   "sarvar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 0,
    "water": {
     "km": 56,
@@ -1264,7 +1264,7 @@
   "satoraljaujhely": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 11,
    "week_mm": 16.9
   },
@@ -1272,10 +1272,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 5,
+   "tomorrow_prob": 8,
    "water": {
     "km": 1,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -1286,7 +1286,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 3,
+   "tomorrow_prob": 0,
    "water": {
     "km": 6,
     "level_cm": 0,
@@ -1299,11 +1299,11 @@
   "szarvas": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 12,
    "water": {
     "km": 0,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1317,7 +1317,7 @@
    "tomorrow_prob": 16,
    "water": {
     "km": 22,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1334,11 +1334,11 @@
   "szeged": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.5,
    "tomorrow_prob": 12,
    "water": {
     "km": 1,
-    "level_cm": 282,
+    "level_cm": 271,
     "slug": "tisza",
     "station": "Szeged",
     "water": "Tisza"
@@ -1348,11 +1348,11 @@
   "szeghalom": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 12,
    "water": {
     "km": 50,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1362,11 +1362,11 @@
   "szekesfehervar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 14,
    "water": {
     "km": 14,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -1376,7 +1376,7 @@
   "szekszard": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 1.0,
    "tomorrow_prob": 14,
    "water": {
     "km": 39,
@@ -1394,7 +1394,7 @@
    "tomorrow_prob": 10,
    "water": {
     "km": 19,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1408,7 +1408,7 @@
    "tomorrow_prob": 17,
    "water": {
     "km": 32,
-    "level_cm": 497,
+    "level_cm": 488,
     "slug": "harmas-koros",
     "station": "Szarvas",
     "water": "Hármas-Körös"
@@ -1419,7 +1419,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 3,
+   "tomorrow_prob": 0,
    "week_mm": 22.4
   },
   "szigetszentmiklos": {
@@ -1429,7 +1429,7 @@
    "tomorrow_prob": 16,
    "water": {
     "km": 17,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1439,11 +1439,11 @@
   "szigetvar": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
-   "tomorrow_prob": 15,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 18,
    "water": {
     "km": 54,
-    "level_cm": -26,
+    "level_cm": -14,
     "slug": "drava",
     "station": "Drávaszabolcs",
     "water": "Dráva"
@@ -1453,11 +1453,11 @@
   "szob": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 16,
    "water": {
     "km": 38,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1467,11 +1467,11 @@
   "szolnok": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 22,
    "water": {
     "km": 1,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1496,10 +1496,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 10,
    "water": {
     "km": 20,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -1509,11 +1509,11 @@
   "tamasi": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.2,
+   "tomorrow_mm": 0.6,
    "tomorrow_prob": 8,
    "water": {
     "km": 35,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -1524,10 +1524,10 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 8,
+   "tomorrow_prob": 10,
    "water": {
     "km": 32,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -1537,7 +1537,7 @@
   "tata": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.9,
+   "tomorrow_mm": 0.7,
    "tomorrow_prob": 11,
    "water": {
     "km": 50,
@@ -1551,11 +1551,11 @@
   "tatabanya": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 1.0,
+   "tomorrow_mm": 0.7,
    "tomorrow_prob": 16,
    "water": {
     "km": 47,
-    "level_cm": 23,
+    "level_cm": 19,
     "slug": "velencei-to",
     "station": "Agárd",
     "water": "Velencei-tó"
@@ -1565,11 +1565,11 @@
   "tiszafured": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.7,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 22,
    "water": {
     "km": 50,
-    "level_cm": 224,
+    "level_cm": 175,
     "slug": "tisza",
     "station": "Kisköre (alsó)",
     "water": "Tisza"
@@ -1579,11 +1579,11 @@
   "tiszakecske": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.5,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 21,
    "water": {
     "km": 27,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1593,14 +1593,14 @@
   "tiszaujvaros": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.6,
+   "tomorrow_mm": 0.1,
    "tomorrow_prob": 9,
    "week_mm": 22.8
   },
   "tiszavasvari": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.3,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 9,
    "week_mm": 25.0
   },
@@ -1614,11 +1614,11 @@
   "torokszentmiklos": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
+   "tomorrow_mm": 0,
    "tomorrow_prob": 18,
    "water": {
     "km": 18,
-    "level_cm": 268,
+    "level_cm": 229,
     "slug": "tisza",
     "station": "Szolnok",
     "water": "Tisza"
@@ -1628,11 +1628,11 @@
   "totkomlos": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.7,
+   "tomorrow_mm": 0.4,
    "tomorrow_prob": 13,
    "water": {
     "km": 29,
-    "level_cm": 36,
+    "level_cm": 13,
     "slug": "maros",
     "station": "Makó",
     "water": "Maros"
@@ -1646,7 +1646,7 @@
    "tomorrow_prob": 12,
    "water": {
     "km": 32,
-    "level_cm": 88,
+    "level_cm": 90,
     "slug": "duna",
     "station": "Budapest",
     "water": "Duna"
@@ -1660,7 +1660,7 @@
    "tomorrow_prob": 10,
    "water": {
     "km": 33,
-    "level_cm": 22,
+    "level_cm": 44,
     "slug": "balaton",
     "station": "Siófok",
     "water": "Balaton"
@@ -1674,7 +1674,7 @@
    "tomorrow_prob": 5,
    "water": {
     "km": 48,
-    "level_cm": -129,
+    "level_cm": -141,
     "slug": "tisza",
     "station": "Tiszabecs",
     "water": "Tisza"
@@ -1688,7 +1688,7 @@
    "tomorrow_prob": 8,
    "water": {
     "km": 20,
-    "level_cm": 26,
+    "level_cm": 41,
     "slug": "balaton",
     "station": "Tihany rév",
     "water": "Balaton"
@@ -1706,7 +1706,7 @@
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
    "tomorrow_mm": 0,
-   "tomorrow_prob": 0,
+   "tomorrow_prob": 3,
    "week_mm": 19.9
   },
   "zalaszentgrot": {
@@ -1716,7 +1716,7 @@
    "tomorrow_prob": 8,
    "water": {
     "km": 60,
-    "level_cm": 48,
+    "level_cm": 39,
     "slug": "balaton",
     "station": "Balatonakali",
     "water": "Balaton"
@@ -1726,11 +1726,11 @@
   "zirc": {
    "last": "2026-11-26",
    "tomorrow": "2026-11-28",
-   "tomorrow_mm": 0.1,
-   "tomorrow_prob": 43,
+   "tomorrow_mm": 0,
+   "tomorrow_prob": 53,
    "water": {
     "km": 39,
-    "level_cm": 26,
+    "level_cm": 41,
     "slug": "balaton",
     "station": "Tihany rév",
     "water": "Balaton"
